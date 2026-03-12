@@ -74,17 +74,25 @@ export function ExceptionCard({
           </Badge>
         </div>
 
+        {/* Days count - prominent */}
+        {exception.daysSinceLabel != null && (
+          <p className="text-sm font-semibold text-red-600">
+            {exception.daysSinceLabel} days
+          </p>
+        )}
+        {exception.transitDays != null && (
+          <p className="text-sm font-semibold text-amber-600">
+            {exception.transitDays} business days in transit
+          </p>
+        )}
+        {exception.hoursSincePaid != null && (
+          <p className="text-sm font-semibold text-purple-600">
+            {Math.floor(exception.hoursSincePaid / 24)}d {exception.hoursSincePaid % 24}h since paid
+          </p>
+        )}
+
         {/* Context info */}
         <div className="text-xs text-muted-foreground space-y-0.5">
-          {exception.daysSinceLabel != null && (
-            <p>{exception.daysSinceLabel} days since label created</p>
-          )}
-          {exception.transitDays != null && (
-            <p>{exception.transitDays} business days in transit</p>
-          )}
-          {exception.hoursSincePaid != null && (
-            <p>{exception.hoursSincePaid}h since paid</p>
-          )}
           {exception.shipment && (
             <p>
               {exception.shipment.carrier && `${exception.shipment.carrier} - `}

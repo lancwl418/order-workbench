@@ -46,19 +46,23 @@ export async function scanAllExceptions(): Promise<ScanResult> {
 }
 
 /**
- * A. Tracking created but no movement after 2 calendar days.
+ * A. Shipment not delivered within 2 calendar days.
+ * Uses shippedAt (Shopify fulfillment date) as the reference date.
+ * Flags any non-delivered shipment that's >= 2 days old.
+ * daysSinceLabel is always recalculated against today.
  */
 async function detectNoMovementAfterLabel(): Promise<number> {
   const threshold = subDays(new Date(), EXCEPTION_THRESHOLDS.NO_MOVEMENT_DAYS);
   const now = new Date();
 
+  // Find shipments with tracking, shipped >= 2 days ago, not yet delivered
   const shipments = await prisma.shipment.findMany({
     where: {
       trackingNumber: { not: null },
-      createdAt: { lt: threshold },
-      status: { notIn: ["delivered", "in_transit", "out_for_delivery"] },
+      shippedAt: { lte: threshold },
+      status: { not: "delivered" },
       order: {
-        internalStatus: { notIn: ["SHIPPED", "CANCELLED"] },
+        internalStatus: { notIn: ["CANCELLED"] },
       },
     },
     include: {
@@ -74,9 +78,21 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 
   let detected = 0;
   for (const shipment of shipments) {
-    if (shipment.exceptions.length > 0) continue;
+    const referenceDate = shipment.shippedAt || shipment.createdAt;
+    const daysSinceLabel = differenceInCalendarDays(now, referenceDate);
 
-    const daysSinceLabel = differenceInCalendarDays(now, shipment.createdAt);
+    // If exception already exists, update the days count
+    if (shipment.exceptions.length > 0) {
+      for (const ex of shipment.exceptions) {
+        if (ex.daysSinceLabel !== daysSinceLabel) {
+          await prisma.orderException.update({
+            where: { id: ex.id },
+            data: { daysSinceLabel },
+          });
+        }
+      }
+      continue;
+    }
 
     await prisma.$transaction([
       prisma.orderException.create({
@@ -93,8 +109,8 @@ async function detectNoMovementAfterLabel(): Promise<number> {
           orderId: shipment.order.id,
           action: "exception_detected",
           toValue: "NO_MOVEMENT_AFTER_LABEL",
-          message: `No tracking movement ${daysSinceLabel} days after label created (tracking: ${shipment.trackingNumber})`,
-          metadata: { type: "NO_MOVEMENT_AFTER_LABEL", shipmentId: shipment.id, daysSinceLabel },
+          message: `Shipping issue: ${daysSinceLabel} days since shipped, status: ${shipment.status} (tracking: ${shipment.trackingNumber})`,
+          metadata: { type: "NO_MOVEMENT_AFTER_LABEL", shipmentId: shipment.id, daysSinceLabel, currentStatus: shipment.status },
         },
       }),
     ]);
@@ -106,6 +122,7 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 
 /**
  * B. Tracking stuck in transit > 8 business days.
+ * Also updates transitDays on each rescan.
  */
 async function detectLongTransit(): Promise<number> {
   const now = new Date();
@@ -131,10 +148,23 @@ async function detectLongTransit(): Promise<number> {
 
   let detected = 0;
   for (const shipment of shipments) {
-    if (shipment.exceptions.length > 0) continue;
     if (!shipment.shippedAt) continue;
 
     const transitDays = differenceInBusinessDays(now, shipment.shippedAt);
+
+    // Update existing exception's transitDays
+    if (shipment.exceptions.length > 0) {
+      for (const ex of shipment.exceptions) {
+        if (ex.transitDays !== transitDays) {
+          await prisma.orderException.update({
+            where: { id: ex.id },
+            data: { transitDays },
+          });
+        }
+      }
+      continue;
+    }
+
     if (transitDays <= EXCEPTION_THRESHOLDS.LONG_TRANSIT_BUSINESS_DAYS) continue;
 
     await prisma.$transaction([
@@ -239,11 +269,22 @@ async function detectProductionDelay(): Promise<number> {
 
   let detected = 0;
   for (const order of orders) {
-    if (order.exceptions.length > 0) continue;
-
     const hoursSincePaid = order.shopifyCreatedAt
       ? differenceInHours(now, order.shopifyCreatedAt)
       : 0;
+
+    // Update existing exception's hoursSincePaid
+    if (order.exceptions.length > 0) {
+      for (const ex of order.exceptions) {
+        if (ex.hoursSincePaid !== hoursSincePaid) {
+          await prisma.orderException.update({
+            where: { id: ex.id },
+            data: { hoursSincePaid },
+          });
+        }
+      }
+      continue;
+    }
 
     await prisma.$transaction([
       prisma.orderException.create({
