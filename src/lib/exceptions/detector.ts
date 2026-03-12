@@ -66,7 +66,13 @@ async function detectNoMovementAfterLabel(): Promise<number> {
       },
     },
     include: {
-      order: { select: { id: true, shopifyOrderNumber: true } },
+      order: {
+        select: {
+          id: true,
+          shopifyOrderNumber: true,
+          shipments: { select: { id: true, status: true } },
+        },
+      },
       exceptions: {
         where: {
           type: "NO_MOVEMENT_AFTER_LABEL",
@@ -78,6 +84,12 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 
   let detected = 0;
   for (const shipment of shipments) {
+    // Skip if another shipment on this order is already delivered
+    const hasDelivered = shipment.order.shipments.some(
+      (s) => s.id !== shipment.id && s.status === "delivered"
+    );
+    if (hasDelivered) continue;
+
     const referenceDate = shipment.shippedAt || shipment.createdAt;
     const daysSinceLabel = differenceInCalendarDays(now, referenceDate);
 
@@ -136,7 +148,13 @@ async function detectLongTransit(): Promise<number> {
       },
     },
     include: {
-      order: { select: { id: true, shopifyOrderNumber: true } },
+      order: {
+        select: {
+          id: true,
+          shopifyOrderNumber: true,
+          shipments: { select: { id: true, status: true } },
+        },
+      },
       exceptions: {
         where: {
           type: "LONG_TRANSIT",
@@ -149,6 +167,12 @@ async function detectLongTransit(): Promise<number> {
   let detected = 0;
   for (const shipment of shipments) {
     if (!shipment.shippedAt) continue;
+
+    // Skip if another shipment on this order is already delivered
+    const hasDelivered = shipment.order.shipments.some(
+      (s) => s.id !== shipment.id && s.status === "delivered"
+    );
+    if (hasDelivered) continue;
 
     const transitDays = differenceInBusinessDays(now, shipment.shippedAt);
 
@@ -205,7 +229,13 @@ async function detectDeliveryFailure(): Promise<number> {
       },
     },
     include: {
-      order: { select: { id: true, shopifyOrderNumber: true } },
+      order: {
+        select: {
+          id: true,
+          shopifyOrderNumber: true,
+          shipments: { select: { id: true, status: true } },
+        },
+      },
       exceptions: {
         where: {
           type: "DELIVERY_FAILURE",
@@ -218,6 +248,12 @@ async function detectDeliveryFailure(): Promise<number> {
   let detected = 0;
   for (const shipment of shipments) {
     if (shipment.exceptions.length > 0) continue;
+
+    // Skip if another shipment on this order is already delivered
+    const hasDelivered = shipment.order.shipments.some(
+      (s) => s.id !== shipment.id && s.status === "delivered"
+    );
+    if (hasDelivered) continue;
 
     await prisma.$transaction([
       prisma.orderException.create({

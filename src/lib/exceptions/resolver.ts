@@ -7,6 +7,7 @@ import { PRODUCTION_COMPLETE_STATUSES } from "@/lib/constants";
  */
 export async function autoResolveExceptions(): Promise<number> {
   let resolved = 0;
+  resolved += await resolveShippingExceptionsWithDeliveredSibling();
   resolved += await resolveNoMovementExceptions();
   resolved += await resolveLongTransitExceptions();
   resolved += await resolveDeliveryFailureExceptions();
@@ -95,6 +96,45 @@ export async function resolveExceptionsByType(
 }
 
 // ─── Internal auto-resolution scanners ────────────────────────
+
+/**
+ * Resolve shipping exceptions where another shipment on the same order
+ * has already been delivered (the failed/stuck shipment is irrelevant).
+ */
+async function resolveShippingExceptionsWithDeliveredSibling(): Promise<number> {
+  const shippingTypes = [
+    "NO_MOVEMENT_AFTER_LABEL",
+    "LONG_TRANSIT",
+    "DELIVERY_FAILURE",
+  ] as const;
+
+  const exceptions = await prisma.orderException.findMany({
+    where: {
+      type: { in: [...shippingTypes] },
+      status: { in: ["OPEN", "INVESTIGATING"] },
+      shipmentId: { not: null },
+    },
+    include: {
+      order: {
+        select: {
+          shipments: { select: { id: true, status: true } },
+        },
+      },
+    },
+  });
+
+  let resolved = 0;
+  for (const ex of exceptions) {
+    const hasDeliveredSibling = ex.order.shipments.some(
+      (s) => s.id !== ex.shipmentId && s.status === "delivered"
+    );
+    if (hasDeliveredSibling) {
+      await resolveExceptionById(ex.id, "SYSTEM");
+      resolved++;
+    }
+  }
+  return resolved;
+}
 
 /**
  * NO_MOVEMENT: resolve if shipment now shows movement.
