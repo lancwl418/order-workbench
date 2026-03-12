@@ -1,13 +1,331 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────
+
+enum InternalStatus {
+  NEW
+  REVIEW
+  READY_TO_PRINT
+  PRINTING
+  PRINTED
+  READY_TO_SHIP
+  LABEL_CREATED
+  SHIPPED
+  ON_HOLD
+  DELAYED
+  CANCELLED
+}
+
+enum ShippingRoute {
+  NOT_ASSIGNED
+  THIRD_PARTY
+  SHOPIFY
+}
+
+enum LabelStatus {
+  NOT_CREATED
+  PENDING
+  CREATED
+  SYNCED_TO_SHOPIFY
+  SYNC_FAILED
+}
+
+enum ExceptionType {
+  NO_MOVEMENT_AFTER_LABEL
+  LONG_TRANSIT
+  DELIVERY_FAILURE
+  PRODUCTION_DELAY
+}
+
+enum ExceptionSeverity {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ExceptionStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  AUTO_RESOLVED
+}
+
+// ─── MODELS ──────────────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(cuid())
+  username       String   @unique
+  hashedPassword String   @map("hashed_password")
+  displayName    String?  @map("display_name")
+  role           String   @default("operator") // "admin" | "operator" | "cs"
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  orderLogs OrderLog[]
+  printLogs PrintLog[]
+
+  @@map("users")
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  // Shopify fields (synced)
+  shopifyOrderId       String?  @unique @map("shopify_order_id")
+  shopifyOrderNumber   String?  @map("shopify_order_number")
+  shopifyStatus        String?  @map("shopify_status")
+  shopifyFulfillStatus String?  @map("shopify_fulfill_status")
+  shopifyCreatedAt     DateTime? @map("shopify_created_at")
+  shopifyUpdatedAt     DateTime? @map("shopify_updated_at")
+  shopifyRawJson       Json?    @map("shopify_raw_json")
+
+  // Customer info (denormalized)
+  customerName    String?  @map("customer_name")
+  customerEmail   String?  @map("customer_email")
+  customerPhone   String?  @map("customer_phone")
+  shippingAddress Json?    @map("shipping_address")
+
+  // Financial (denormalized)
+  totalPrice Decimal? @map("total_price") @db.Decimal(10, 2)
+  currency   String?  @default("USD")
+
+  // Shipping method from Shopify
+  shippingMethod String? @map("shipping_method")
+
+  // Internal workflow fields
+  internalStatus InternalStatus @default(NEW) @map("internal_status")
+  shippingRoute  ShippingRoute  @default(NOT_ASSIGNED) @map("shipping_route")
+  labelStatus    LabelStatus    @default(NOT_CREATED) @map("label_status")
+
+  // Routing metadata
+  routingTimestamp DateTime? @map("routing_timestamp")
+  routingOperator  String?   @map("routing_operator")
+
+  // Tracking & fulfillment (denormalized from primary shipment)
+  trackingNumber      String?   @map("tracking_number")
+  carrier             String?
+  labelUrl            String?   @map("label_url")
+  fulfillmentPushedAt DateTime? @map("fulfillment_pushed_at")
+
+  // Priority & assignment
+  priority         Int     @default(0)
+  assignedOperator String? @map("assigned_operator")
+
+  // SLA & delay tracking
+  slaDeadline DateTime? @map("sla_deadline")
+  isOverdue   Boolean   @default(false) @map("is_overdue")
+  delayFlag   Boolean   @default(false) @map("delay_flag")
+  holdReason  String?   @map("hold_reason")
+  holdAt      DateTime? @map("hold_at")
+
+  // CS fields
+  csNote     String?  @map("cs_note") @db.Text
+  csFlag     Boolean  @default(false) @map("cs_flag")
+  csPriority Int      @default(0) @map("cs_priority")
+  csIssueType String? @map("cs_issue_type")
+  csRequiredAction String? @map("cs_required_action")
+  csLastContactTime DateTime? @map("cs_last_contact_time")
+
+  // Metadata
+  tags      String[] @default([])
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  orderItems OrderItem[]
+  shipments  Shipment[]
+  orderLogs  OrderLog[]
+  printLogs  PrintLog[]
+  exceptions OrderException[]
+
+  @@index([internalStatus])
+  @@index([shippingRoute])
+  @@index([labelStatus])
+  @@index([isOverdue])
+  @@index([delayFlag])
+  @@index([csFlag])
+  @@index([slaDeadline])
+  @@index([shopifyCreatedAt])
+  @@index([createdAt])
+  @@index([priority])
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String @map("order_id")
+
+  // Shopify fields
+  shopifyLineItemId String? @unique @map("shopify_line_item_id")
+  title             String
+  variantTitle      String? @map("variant_title")
+  sku               String?
+  quantity          Int
+  price             Decimal @db.Decimal(10, 2)
+
+  // DTF-specific fields
+  designFileUrl String?  @map("design_file_url")
+  artworkRef    String?  @map("artwork_ref")
+  printSize     String?  @map("print_size")
+  printNotes    String?  @map("print_notes") @db.Text
+  isPrinted     Boolean  @default(false) @map("is_printed")
+  printedAt     DateTime? @map("printed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([sku])
+
+  @@map("order_items")
+}
+
+model Shipment {
+  id      String @id @default(cuid())
+  orderId String @map("order_id")
+
+  // Source & routing
+  sourceType    String @default("MANUAL") @map("source_type") // "SHOPIFY" | "THIRD_PARTY" | "MANUAL"
+  packageNumber Int    @default(1) @map("package_number")
+
+  // Tracking
+  trackingNumber String? @map("tracking_number")
+  trackingUrl    String? @map("tracking_url")
+  carrier        String?
+  service        String?
+
+  // Label
+  labelStatus LabelStatus @default(NOT_CREATED) @map("label_status")
+  labelUrl    String?     @map("label_url")
+  labelData   Json?       @map("label_data")
+
+  // Cost
+  shippingCost Decimal? @map("shipping_cost") @db.Decimal(10, 2)
+
+  // Status
+  status            String    @default("pending") // "pending","label_created","shipped","delivered","exception"
+  shippedAt         DateTime? @map("shipped_at")
+  deliveredAt       DateTime? @map("delivered_at")
+  estimatedDelivery DateTime? @map("estimated_delivery")
+
+  // External provider reference
+  externalShipmentId String? @map("external_shipment_id")
+  providerName       String? @map("provider_name")
+  providerRawJson    Json?   @map("provider_raw_json")
+
+  // Shopify fulfillment sync
+  shopifyFulfillmentId String?  @unique @map("shopify_fulfillment_id")
+  syncStatus           String   @default("NOT_SYNCED") @map("sync_status") // "NOT_SYNCED","SYNCED","FAILED"
+  syncError            String?  @map("sync_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order      Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  exceptions OrderException[]
+
+  @@index([orderId])
+  @@index([labelStatus])
+  @@index([status])
+  @@index([syncStatus])
+
+  @@map("shipments")
+}
+
+model OrderLog {
+  id      String  @id @default(cuid())
+  orderId String  @map("order_id")
+  userId  String? @map("user_id")
+
+  action    String  // "status_change","route_change","note_added","synced","printed","label_created","fulfillment_pushed"
+  fromValue String? @map("from_value")
+  toValue   String? @map("to_value")
+  message   String? @db.Text
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+
+  @@map("order_logs")
+}
+
+model PrintLog {
+  id      String  @id @default(cuid())
+  orderId String  @map("order_id")
+  userId  String? @map("user_id")
+
+  action      String   // "print_started","print_completed","print_failed","reprint"
+  itemIds     String[] @map("item_ids")
+  printerName String?  @map("printer_name")
+  printConfig Json?    @map("print_config")
+  printResult String?  @map("print_result")
+  reprintFlag Boolean  @default(false) @map("reprint_flag")
+  notes       String?  @db.Text
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([startedAt])
+
+  @@map("print_logs")
+}
+
+model OrderException {
+  id         String            @id @default(cuid())
+  orderId    String            @map("order_id")
+  shipmentId String?           @map("shipment_id")
+
+  type       ExceptionType     @map("exception_type")
+  severity   ExceptionSeverity @default(HIGH)
+  status     ExceptionStatus   @default(OPEN) @map("exception_status")
+
+  detectedAt  DateTime  @default(now()) @map("detected_at")
+  resolvedAt  DateTime? @map("resolved_at")
+
+  // Context snapshot at detection time
+  transitDays    Int?   @map("transit_days")
+  daysSinceLabel Int?   @map("days_since_label")
+  hoursSincePaid Int?   @map("hours_since_paid")
+
+  // Management
+  owner      String?  @map("exception_owner")
+  note       String?  @map("exception_note") @db.Text
+  resolvedBy String?  @map("resolved_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, type, status])
+  @@index([status])
+  @@index([type])
+  @@index([detectedAt])
+
+  @@map("order_exceptions")
 }
