@@ -76,7 +76,7 @@ function buildWhereClause(
   // View presets
   switch (params.view) {
     case "print-queue":
-      where.internalStatus = { in: ["READY_TO_PRINT", "PRINTING"] };
+      where.internalStatus = "READY_TO_PRINT";
       break;
     case "cs-queue":
       where.csFlag = true;

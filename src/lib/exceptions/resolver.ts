@@ -215,7 +215,7 @@ async function resolveDeliveryFailureExceptions(): Promise<number> {
 }
 
 /**
- * PRODUCTION_DELAY: resolve if order has progressed past production.
+ * PRODUCTION_DELAY: resolve if order now has a tracking number.
  */
 async function resolveProductionDelayExceptions(): Promise<number> {
   const exceptions = await prisma.orderException.findMany({
@@ -224,17 +224,20 @@ async function resolveProductionDelayExceptions(): Promise<number> {
       status: { in: ["OPEN", "INVESTIGATING"] },
     },
     include: {
-      order: { select: { id: true, internalStatus: true } },
+      order: {
+        select: {
+          id: true,
+          internalStatus: true,
+          shipments: { select: { trackingNumber: true }, take: 1 },
+        },
+      },
     },
   });
 
   let resolved = 0;
   for (const ex of exceptions) {
-    if (
-      PRODUCTION_COMPLETE_STATUSES.includes(
-        ex.order.internalStatus as (typeof PRODUCTION_COMPLETE_STATUSES)[number]
-      )
-    ) {
+    const hasTracking = ex.order.shipments.some((s) => s.trackingNumber);
+    if (hasTracking || ex.order.internalStatus === "CANCELLED") {
       await resolveExceptionById(ex.id, "SYSTEM");
       resolved++;
     }

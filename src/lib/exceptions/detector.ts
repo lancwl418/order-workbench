@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { differenceInCalendarDays, differenceInHours, subDays, subHours } from "date-fns";
+import { differenceInCalendarDays, differenceInHours, subDays } from "date-fns";
 import { differenceInBusinessDays } from "./business-days";
 import { autoResolveExceptions } from "./resolver";
 import {
   EXCEPTION_THRESHOLDS,
   DELIVERY_FAILURE_STATUSES,
-  PRODUCTION_COMPLETE_STATUSES,
 } from "@/lib/constants";
 
 export interface ScanResult {
@@ -46,21 +45,18 @@ export async function scanAllExceptions(): Promise<ScanResult> {
 }
 
 /**
- * A. Shipment not delivered within 2 calendar days.
- * Uses shippedAt (Shopify fulfillment date) as the reference date.
- * Flags any non-delivered shipment that's >= 2 days old.
- * daysSinceLabel is always recalculated against today.
+ * A. No Movement — shipment has tracking but still stuck in "confirmed" status
+ * for >= 2 calendar days. No in_transit, no delivered, no failure — nothing moved.
  */
 async function detectNoMovementAfterLabel(): Promise<number> {
   const threshold = subDays(new Date(), EXCEPTION_THRESHOLDS.NO_MOVEMENT_DAYS);
   const now = new Date();
 
-  // Find shipments with tracking, shipped >= 2 days ago, not yet delivered
   const shipments = await prisma.shipment.findMany({
     where: {
       trackingNumber: { not: null },
+      status: "confirmed",
       shippedAt: { lte: threshold },
-      status: { not: "delivered" },
       order: {
         internalStatus: { notIn: ["CANCELLED"] },
       },
@@ -84,7 +80,6 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 
   let detected = 0;
   for (const shipment of shipments) {
-    // Skip if another shipment on this order is already delivered
     const hasDelivered = shipment.order.shipments.some(
       (s) => s.id !== shipment.id && s.status === "delivered"
     );
@@ -93,7 +88,6 @@ async function detectNoMovementAfterLabel(): Promise<number> {
     const referenceDate = shipment.shippedAt || shipment.createdAt;
     const daysSinceLabel = differenceInCalendarDays(now, referenceDate);
 
-    // If exception already exists, update the days count
     if (shipment.exceptions.length > 0) {
       for (const ex of shipment.exceptions) {
         if (ex.daysSinceLabel !== daysSinceLabel) {
@@ -121,8 +115,8 @@ async function detectNoMovementAfterLabel(): Promise<number> {
           orderId: shipment.order.id,
           action: "exception_detected",
           toValue: "NO_MOVEMENT_AFTER_LABEL",
-          message: `Shipping issue: ${daysSinceLabel} days since shipped, status: ${shipment.status} (tracking: ${shipment.trackingNumber})`,
-          metadata: { type: "NO_MOVEMENT_AFTER_LABEL", shipmentId: shipment.id, daysSinceLabel, currentStatus: shipment.status },
+          message: `No movement: ${daysSinceLabel} days stuck in confirmed (tracking: ${shipment.trackingNumber})`,
+          metadata: { type: "NO_MOVEMENT_AFTER_LABEL", shipmentId: shipment.id, daysSinceLabel },
         },
       }),
     ]);
@@ -133,16 +127,15 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 }
 
 /**
- * B. Tracking stuck in transit > 8 business days.
- * Also updates transitDays on each rescan.
+ * B. Long Transit — shipped > 7 business days ago, not yet delivered or failed.
  */
 async function detectLongTransit(): Promise<number> {
   const now = new Date();
 
   const shipments = await prisma.shipment.findMany({
     where: {
-      status: { in: ["in_transit", "confirmed"] },
       shippedAt: { not: null },
+      status: { notIn: ["delivered", ...DELIVERY_FAILURE_STATUSES] },
       order: {
         internalStatus: { notIn: ["CANCELLED"] },
       },
@@ -168,7 +161,6 @@ async function detectLongTransit(): Promise<number> {
   for (const shipment of shipments) {
     if (!shipment.shippedAt) continue;
 
-    // Skip if another shipment on this order is already delivered
     const hasDelivered = shipment.order.shipments.some(
       (s) => s.id !== shipment.id && s.status === "delivered"
     );
@@ -176,7 +168,6 @@ async function detectLongTransit(): Promise<number> {
 
     const transitDays = differenceInBusinessDays(now, shipment.shippedAt);
 
-    // Update existing exception's transitDays
     if (shipment.exceptions.length > 0) {
       for (const ex of shipment.exceptions) {
         if (ex.transitDays !== transitDays) {
@@ -206,7 +197,7 @@ async function detectLongTransit(): Promise<number> {
           orderId: shipment.order.id,
           action: "exception_detected",
           toValue: "LONG_TRANSIT",
-          message: `Shipment in transit for ${transitDays} business days (tracking: ${shipment.trackingNumber})`,
+          message: `Long transit: ${transitDays} business days since shipped (tracking: ${shipment.trackingNumber})`,
           metadata: { type: "LONG_TRANSIT", shipmentId: shipment.id, transitDays },
         },
       }),
@@ -281,17 +272,23 @@ async function detectDeliveryFailure(): Promise<number> {
 }
 
 /**
- * D. Order paid > 48 hours ago but not yet printed/shipped.
+ * D. Production Delay — order paid > 2 days ago but still has no tracking number.
  */
 async function detectProductionDelay(): Promise<number> {
-  const threshold = subHours(new Date(), EXCEPTION_THRESHOLDS.PRODUCTION_DELAY_HOURS);
+  const threshold = subDays(new Date(), EXCEPTION_THRESHOLDS.PRODUCTION_DELAY_DAYS);
   const now = new Date();
 
   const orders = await prisma.order.findMany({
     where: {
       shopifyStatus: "paid",
       shopifyCreatedAt: { lt: threshold },
-      internalStatus: { notIn: [...PRODUCTION_COMPLETE_STATUSES] },
+      internalStatus: { notIn: ["CANCELLED"] },
+      // No shipments with a tracking number
+      shipments: {
+        none: {
+          trackingNumber: { not: null },
+        },
+      },
     },
     include: {
       exceptions: {
@@ -309,7 +306,6 @@ async function detectProductionDelay(): Promise<number> {
       ? differenceInHours(now, order.shopifyCreatedAt)
       : 0;
 
-    // Update existing exception's hoursSincePaid
     if (order.exceptions.length > 0) {
       for (const ex of order.exceptions) {
         if (ex.hoursSincePaid !== hoursSincePaid) {
@@ -336,7 +332,7 @@ async function detectProductionDelay(): Promise<number> {
           orderId: order.id,
           action: "exception_detected",
           toValue: "PRODUCTION_DELAY",
-          message: `Production delay: order paid ${hoursSincePaid}h ago, still in ${order.internalStatus} status`,
+          message: `Production delay: paid ${Math.floor(hoursSincePaid / 24)} days ago, no tracking number yet`,
           metadata: { type: "PRODUCTION_DELAY", hoursSincePaid, currentStatus: order.internalStatus },
         },
       }),

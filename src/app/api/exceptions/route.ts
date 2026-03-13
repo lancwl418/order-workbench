@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
             trackingNumber: true,
             carrier: true,
             status: true,
+            shippedAt: true,
             createdAt: true,
           },
         },

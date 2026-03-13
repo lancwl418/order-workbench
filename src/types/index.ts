@@ -6,6 +6,8 @@ import type {
   PrintLog,
   User,
   OrderException,
+  PrintGroup,
+  PrintGroupItem,
 } from "@prisma/client";
 
 export type OrderWithRelations = Order & {
@@ -64,6 +66,7 @@ export type ExceptionWithRelations = OrderException & {
     trackingNumber: string | null;
     carrier: string | null;
     status: string;
+    shippedAt: Date | null;
     createdAt: Date;
   } | null;
 };
@@ -74,4 +77,15 @@ export type ExceptionCounts = {
   totalOpen: number;
 };
 
-export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException };
+export type PrintGroupWithItems = PrintGroup & {
+  items: (PrintGroupItem & {
+    order: {
+      id: string;
+      shopifyOrderNumber: string | null;
+      customerName: string | null;
+      internalStatus?: string;
+    };
+  })[];
+};
+
+export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException, PrintGroup, PrintGroupItem };

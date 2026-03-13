@@ -99,6 +99,11 @@ export function ExceptionCard({
               {exception.shipment.trackingNumber || "No tracking"}
             </p>
           )}
+          {exception.shipment?.shippedAt && (
+            <p>
+              Fulfilled {new Date(exception.shipment.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
           <p className="text-muted-foreground/70">
             Detected {timeAgo(exception.detectedAt)}
           </p>

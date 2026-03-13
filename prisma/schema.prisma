@@ -57,6 +57,12 @@ enum ExceptionStatus {
   AUTO_RESOLVED
 }
 
+enum PrintGroupStatus {
+  BUILDING
+  READY
+  PRINTED
+}
+
 // ─── MODELS ──────────────────────────────────────────────────────
 
 model User {
@@ -141,11 +147,12 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  orderItems OrderItem[]
-  shipments  Shipment[]
-  orderLogs  OrderLog[]
-  printLogs  PrintLog[]
-  exceptions OrderException[]
+  orderItems      OrderItem[]
+  shipments       Shipment[]
+  orderLogs       OrderLog[]
+  printLogs       PrintLog[]
+  exceptions      OrderException[]
+  printGroupItems PrintGroupItem[]
 
   @@index([internalStatus])
   @@index([shippingRoute])
@@ -328,4 +335,39 @@ model OrderException {
   @@index([detectedAt])
 
   @@map("order_exceptions")
+}
+
+model PrintGroup {
+  id          String           @id @default(cuid())
+  name        String
+  status      PrintGroupStatus @default(BUILDING)
+  totalHeight Float            @default(0) @map("total_height")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  items PrintGroupItem[]
+
+  @@index([status])
+  @@map("print_groups")
+}
+
+model PrintGroupItem {
+  id           String @id @default(cuid())
+  printGroupId String @map("print_group_id")
+  orderId      String @map("order_id")
+  position     Int
+  fileUrl      String @map("file_url")
+  filename     String
+  widthPx      Int    @map("width_px")
+  heightPx     Int    @map("height_px")
+  dpi          Int    @default(300)
+  heightInches Float  @map("height_inches")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  printGroup PrintGroup @relation(fields: [printGroupId], references: [id], onDelete: Cascade)
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([printGroupId])
+  @@index([orderId])
+  @@map("print_group_items")
 }

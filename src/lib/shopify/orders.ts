@@ -124,15 +124,41 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     internalStatus,
   };
 
+  // Product IDs for print-ready URL extraction (compared as strings for safety)
+  const TRANSFER_BY_SIZE_PRODUCT_ID = "9000096399595";
+  const BUILD_A_GANGSHEET_PRODUCT_ID = "8999852835051";
+
+  // For Transfer by Size: only grab one _Print Ready URL per order
+  let transferBySizePrintUrl: string | null = null;
+
   const items: MappedOrderItem[] = shopifyOrder.line_items.map(
-    (lineItem: ShopifyLineItem) => ({
-      shopifyLineItemId: String(lineItem.id),
-      title: lineItem.title,
-      variantTitle: lineItem.variant_title || null,
-      sku: lineItem.sku || null,
-      quantity: lineItem.quantity,
-      price: lineItem.price,
-    })
+    (lineItem: ShopifyLineItem) => {
+      let designFileUrl: string | null = null;
+      const productId = String(lineItem.product_id || "");
+
+      if (productId === TRANSFER_BY_SIZE_PRODUCT_ID) {
+        // Transfer by Size: one shared print-ready URL per order
+        if (!transferBySizePrintUrl) {
+          transferBySizePrintUrl = lineItem.properties
+            ?.find((p) => p.name === "_Print Ready")?.value || null;
+        }
+        designFileUrl = transferBySizePrintUrl;
+      } else if (productId === BUILD_A_GANGSHEET_PRODUCT_ID) {
+        // Build a Gangsheet: each line item has its own URL
+        designFileUrl = lineItem.properties
+          ?.find((p) => p.name === "_Print Ready File")?.value || null;
+      }
+
+      return {
+        shopifyLineItemId: String(lineItem.id),
+        title: lineItem.title,
+        variantTitle: lineItem.variant_title || null,
+        sku: lineItem.sku || null,
+        quantity: lineItem.quantity,
+        price: lineItem.price,
+        designFileUrl,
+      };
+    }
   );
 
   // Extract fulfillment/tracking data

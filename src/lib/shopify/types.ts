@@ -135,4 +135,5 @@ export interface MappedOrderItem {
   sku: string | null;
   quantity: number;
   price: string; // Decimal as string for Prisma
+  designFileUrl: string | null;
 }

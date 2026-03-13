@@ -17,9 +17,10 @@ import {
 import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, STATUS_LABELS } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/utils";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException } from "@/types";
+import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import {
   EXCEPTION_TYPE_LABELS,
   EXCEPTION_TYPE_COLORS,
@@ -307,6 +308,16 @@ export default function OrderDetailPage() {
                         SKU: {item.sku}
                       </p>
                     )}
+                    {item.designFileUrl && (
+                      <a
+                        href={item.designFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                      >
+                        Print Ready File
+                      </a>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm">Qty: {item.quantity}</p>
@@ -327,6 +338,9 @@ export default function OrderDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Print Files */}
+        <PrintFilesSection orderId={order.id} />
 
         {/* Shipments */}
         {shipments && shipments.length > 0 && (
@@ -400,5 +414,87 @@ export default function OrderDetailPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function PrintFilesSection({ orderId }: { orderId: string }) {
+  const [files, setFiles] = useState<ResolvedPrintFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  async function loadPrintFiles() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/print-files`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setFiles(data.files || []);
+      setLoaded(true);
+    } catch {
+      toast.error("Failed to load print files");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-4 w-4" />
+            Print Files
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadPrintFiles}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Image className="h-3 w-3" />
+            )}
+            {loading ? "Loading..." : loaded ? "Refresh" : "Load Print Files"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!loaded && !loading && (
+          <p className="text-sm text-muted-foreground">
+            Click &quot;Load Print Files&quot; to resolve and display downloadable gang sheet images.
+          </p>
+        )}
+        {loaded && files.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No print files found for this order.
+          </p>
+        )}
+        {files.length > 0 && (
+          <div className="space-y-2">
+            {files.map((file, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-3 rounded-md border"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{file.filename}</p>
+                </div>
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-blue-600 hover:underline shrink-0 ml-3"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Open
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

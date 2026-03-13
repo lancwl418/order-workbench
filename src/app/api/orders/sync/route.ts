@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
               sku: item.sku,
               quantity: item.quantity,
               price: item.price,
+              designFileUrl: item.designFileUrl,
             },
           });
         }
