@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
-import type { OrderListItem, PrintGroupWithItems } from "@/types";
+import type { OrderListItem, PrintGroupWithItems, PrintGroupOrderItem } from "@/types";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
 import {
   Plus,
   Layers,
@@ -24,6 +25,9 @@ import {
   Ruler,
   Download,
   ExternalLink,
+  Pencil,
+  Check,
+  Undo2,
 } from "lucide-react";
 
 const MAX_HEIGHT = 360;
@@ -45,13 +49,34 @@ export default function PrintQueuePage() {
   const readyGroups = groups.filter((g) => g.status === "READY");
   const printedGroups = groups.filter((g) => g.status === "PRINTED");
 
-  // API already filters to READY_TO_PRINT only
-  const readyToPrintOrders = orders;
+  // API already filters to IN_QUEUE only
+  const queueOrders = orders;
 
   const refreshAll = useCallback(() => {
     refreshOrders();
     refreshGroups();
   }, [refreshOrders, refreshGroups]);
+
+  const handleDismiss = useCallback(
+    async (orderId: string) => {
+      setActionLoading(`dismiss-${orderId}`);
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ printStatus: "READY" }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        toast.success("Order removed from queue");
+        refreshAll();
+      } catch {
+        toast.error("Failed to dismiss order");
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [refreshAll]
+  );
 
   const handleAddToGroup = useCallback(
     async (orderId: string) => {
@@ -109,6 +134,53 @@ export default function PrintQueuePage() {
         refreshAll();
       } catch {
         toast.error("Failed to remove order");
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [refreshAll]
+  );
+
+  const handleReleaseGroup = useCallback(
+    async (groupId: string) => {
+      setActionLoading(`release-${groupId}`);
+      try {
+        const res = await fetch(`/api/print-groups/${groupId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed");
+        }
+        toast.success("Group released - orders back in queue");
+        refreshAll();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to release group");
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [refreshAll]
+  );
+
+  const handleRemoveFromGroup = useCallback(
+    async (groupId: string, orderId: string) => {
+      setActionLoading(`remove-${orderId}`);
+      try {
+        const res = await fetch(
+          `/api/print-groups/${groupId}/orders/${orderId}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed");
+        }
+        toast.success("Order removed from group");
+        refreshAll();
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Failed to remove order"
+        );
       } finally {
         setActionLoading(null);
       }
@@ -214,27 +286,43 @@ export default function PrintQueuePage() {
         header: "",
         cell: ({ row }) => {
           const id = row.original.id;
-          const loading = actionLoading === id;
+          const addLoading = actionLoading === id;
+          const dismissLoading = actionLoading === `dismiss-${id}`;
 
           return (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={loading}
-              onClick={() => handleAddToGroup(id)}
-            >
-              {loading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Plus className="h-3 w-3" />
-              )}
-              Add to Group
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={addLoading}
+                onClick={() => handleAddToGroup(id)}
+              >
+                {addLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Plus className="h-3 w-3" />
+                )}
+                Add to Group
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={dismissLoading}
+                onClick={() => handleDismiss(id)}
+                title="Remove from queue"
+              >
+                {dismissLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <X className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
           );
         },
       },
     ],
-    [actionLoading, handleAddToGroup]
+    [actionLoading, handleAddToGroup, handleDismiss]
   );
 
   return (
@@ -252,16 +340,17 @@ export default function PrintQueuePage() {
           group={buildingGroup}
           onCombine={handleCombine}
           onRemoveOrder={handleRemoveOrder}
+          onFileReplaced={refreshAll}
           actionLoading={actionLoading}
         />
       )}
 
       {/* Section B: Ready to Print orders */}
       <div>
-        <h2 className="text-lg font-medium mb-3">Ready to Print</h2>
+        <h2 className="text-lg font-medium mb-3">In Queue</h2>
         <DataTable
           columns={columns}
-          data={readyToPrintOrders}
+          data={queueOrders}
           pagination={pagination}
           onPageChange={setPage}
           isLoading={isLoading}
@@ -278,6 +367,8 @@ export default function PrintQueuePage() {
                 key={group.id}
                 group={group}
                 onMarkPrinted={handleMarkPrinted}
+                onReleaseGroup={handleReleaseGroup}
+                onRemoveOrder={handleRemoveFromGroup}
                 actionLoading={actionLoading}
               />
             ))}
@@ -286,6 +377,8 @@ export default function PrintQueuePage() {
                 key={group.id}
                 group={group}
                 onMarkPrinted={handleMarkPrinted}
+                onReleaseGroup={handleReleaseGroup}
+                onRemoveOrder={handleRemoveFromGroup}
                 actionLoading={actionLoading}
               />
             ))}
@@ -302,11 +395,13 @@ function GroupBuilderCard({
   group,
   onCombine,
   onRemoveOrder,
+  onFileReplaced,
   actionLoading,
 }: {
   group: PrintGroupWithItems;
   onCombine: (groupId: string) => void;
   onRemoveOrder: (groupId: string, orderId: string) => void;
+  onFileReplaced: () => void;
   actionLoading: string | null;
 }) {
   const pct = Math.min((group.totalHeight / MAX_HEIGHT) * 100, 100);
@@ -315,7 +410,12 @@ function GroupBuilderCard({
   // Group items by order
   const orderMap = new Map<
     string,
-    { orderNumber: string | null; customerName: string | null; files: typeof group.items }
+    {
+      orderNumber: string | null;
+      customerName: string | null;
+      files: typeof group.items;
+      orderItems: PrintGroupOrderItem[];
+    }
   >();
   for (const item of group.items) {
     const existing = orderMap.get(item.orderId);
@@ -326,6 +426,7 @@ function GroupBuilderCard({
         orderNumber: item.order.shopifyOrderNumber,
         customerName: item.order.customerName,
         files: [item],
+        orderItems: item.order.orderItems || [],
       });
     }
   }
@@ -386,49 +487,195 @@ function GroupBuilderCard({
           </p>
         )}
         <div className="space-y-2">
-          {[...orderMap.entries()].map(([orderId, data]) => {
-            const orderHeight = data.files.reduce(
-              (sum, f) => sum + f.heightInches,
-              0
-            );
-            return (
-              <div
-                key={orderId}
-                className="flex items-center justify-between p-3 rounded-md border bg-background"
-              >
-                <div className="flex items-center gap-3">
-                  <Link
-                    href={`/orders/${orderId}`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    #{data.orderNumber || orderId.slice(0, 8)}
-                  </Link>
-                  <span className="text-sm text-muted-foreground">
-                    {data.customerName || "-"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {data.files.length} file{data.files.length > 1 ? "s" : ""} &middot;{" "}
-                    {orderHeight.toFixed(1)}&quot;
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => onRemoveOrder(group.id, orderId)}
-                  disabled={actionLoading === `remove-${orderId}`}
-                >
-                  {actionLoading === `remove-${orderId}` ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <X className="h-3 w-3" />
-                  )}
-                </Button>
-              </div>
-            );
-          })}
+          {[...orderMap.entries()].map(([orderId, data]) => (
+            <GroupBuilderOrderEntry
+              key={orderId}
+              orderId={orderId}
+              data={data}
+              groupId={group.id}
+              onRemoveOrder={onRemoveOrder}
+              onFileReplaced={onFileReplaced}
+              actionLoading={actionLoading}
+            />
+          ))}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function GroupBuilderOrderEntry({
+  orderId,
+  data,
+  groupId,
+  onRemoveOrder,
+  onFileReplaced,
+  actionLoading,
+}: {
+  orderId: string;
+  data: {
+    orderNumber: string | null;
+    customerName: string | null;
+    files: PrintGroupWithItems["items"];
+    orderItems: PrintGroupOrderItem[];
+  };
+  groupId: string;
+  onRemoveOrder: (groupId: string, orderId: string) => void;
+  onFileReplaced: () => void;
+  actionLoading: string | null;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [replacing, setReplacing] = useState(false);
+
+  const printItems = data.orderItems.filter((oi) => oi.designFileUrl);
+  const orderHeight = data.files.reduce((sum, f) => sum + f.heightInches, 0);
+
+  function startEditing() {
+    const initial: Record<string, string> = {};
+    for (const oi of printItems) {
+      initial[oi.id] = oi.designFileUrl || "";
+    }
+    setUrls(initial);
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    // Find changed items
+    const changed = printItems.filter(
+      (oi) => urls[oi.id] && urls[oi.id] !== oi.designFileUrl
+    );
+    if (changed.length === 0) {
+      setEditing(false);
+      return;
+    }
+
+    setReplacing(true);
+    try {
+      for (const oi of changed) {
+        const res = await fetch(`/api/order-items/${oi.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ designFileUrl: urls[oi.id] }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed");
+        }
+      }
+      toast.success("Print files replaced");
+      setEditing(false);
+      onFileReplaced();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to replace files");
+    } finally {
+      setReplacing(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border bg-background">
+      <div className="flex items-center justify-between p-3">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/orders/${orderId}`}
+            className="font-medium text-primary hover:underline"
+          >
+            #{data.orderNumber || orderId.slice(0, 8)}
+          </Link>
+          <span className="text-sm text-muted-foreground">
+            {data.customerName || "-"}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {data.files.length} file{data.files.length > 1 ? "s" : ""} &middot;{" "}
+            {orderHeight.toFixed(1)}&quot;
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {printItems.length > 0 && !editing && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={startEditing}
+              title="Replace print files"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onRemoveOrder(groupId, orderId)}
+            disabled={actionLoading === `remove-${orderId}`}
+          >
+            {actionLoading === `remove-${orderId}` ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+      </div>
+      {editing && (
+        <div className="px-3 pb-3 space-y-2 border-t pt-2">
+          {printItems.map((oi) => (
+            <div key={oi.id} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {oi.title}
+                  {oi.variantTitle ? ` - ${oi.variantTitle}` : ""}
+                </p>
+                {oi.originalDesignFileUrl && oi.originalDesignFileUrl !== urls[oi.id] && (
+                  <button
+                    onClick={() =>
+                      setUrls((prev) => ({
+                        ...prev,
+                        [oi.id]: oi.originalDesignFileUrl!,
+                      }))
+                    }
+                    className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5"
+                    title="Revert to original"
+                  >
+                    <Undo2 className="h-2.5 w-2.5" />
+                    Original
+                  </button>
+                )}
+              </div>
+              <Input
+                value={urls[oi.id] || ""}
+                onChange={(e) =>
+                  setUrls((prev) => ({ ...prev, [oi.id]: e.target.value }))
+                }
+                placeholder="Paste new file URL..."
+                className="text-xs h-7"
+              />
+            </div>
+          ))}
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              size="xs"
+              onClick={handleSave}
+              disabled={replacing}
+            >
+              {replacing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              Save
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setEditing(false)}
+              disabled={replacing}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -437,13 +684,17 @@ function GroupBuilderCard({
 function PrintGroupCard({
   group,
   onMarkPrinted,
+  onReleaseGroup,
+  onRemoveOrder,
   actionLoading,
 }: {
   group: PrintGroupWithItems;
   onMarkPrinted: (groupId: string) => void;
+  onReleaseGroup: (groupId: string) => void;
+  onRemoveOrder: (groupId: string, orderId: string) => void;
   actionLoading: string | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   // Group items by order for summary
   const orderMap = new Map<
@@ -524,6 +775,20 @@ function PrintGroupCard({
               <>
                 <Button
                   size="sm"
+                  variant="ghost"
+                  onClick={() => onReleaseGroup(group.id)}
+                  disabled={actionLoading === `release-${group.id}`}
+                  title="Release all orders back to queue"
+                >
+                  {actionLoading === `release-${group.id}` ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Undo2 className="h-3 w-3" />
+                  )}
+                  Release
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={handleDownloadAll}
                   disabled={downloading}
@@ -574,6 +839,21 @@ function PrintGroupCard({
                     <span className="text-xs text-muted-foreground">
                       {orderHeight.toFixed(1)}&quot;
                     </span>
+                    {isReady && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => onRemoveOrder(group.id, orderId)}
+                        disabled={actionLoading === `remove-${orderId}`}
+                        title="Remove from group"
+                      >
+                        {actionLoading === `remove-${orderId}` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                   {/* Individual files */}
                   <div className="pl-4 space-y-0.5">

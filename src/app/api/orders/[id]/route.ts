@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { orderUpdateSchema } from "@/lib/validators";
 import { onOrderStatusChanged } from "@/lib/exceptions/realtime";
+import { INTERNAL_STATUSES } from "@/lib/constants";
 
 export async function GET(
   _req: NextRequest,
@@ -76,23 +77,35 @@ export async function PATCH(
 
   const updateData = parsed.data;
 
-  // Handle ON_HOLD status transitions
-  if (updateData.internalStatus === "ON_HOLD" && !updateData.holdReason) {
-    // Allow but don't overwrite existing holdReason
+  // Auto-set REVIEW when CS-flagged, revert to previous status when unflagged
+  if (updateData.csFlag !== undefined && updateData.csFlag !== existing.csFlag && !updateData.internalStatus) {
+    if (updateData.csFlag) {
+      updateData.internalStatus = "REVIEW";
+    } else {
+      // Look up the status before CS was flagged
+      const flagLog = await prisma.orderLog.findFirst({
+        where: { orderId: id, action: "cs_flagged" },
+        orderBy: { createdAt: "desc" },
+      });
+      const previousStatus = flagLog?.fromValue;
+      const validStatuses: readonly string[] = INTERNAL_STATUSES;
+      if (previousStatus && validStatuses.includes(previousStatus) && previousStatus !== existing.internalStatus) {
+        (updateData as Record<string, unknown>).internalStatus = previousStatus;
+      } else if (existing.internalStatus === "REVIEW") {
+        updateData.internalStatus = "OPEN";
+      }
+    }
   }
-  if (
-    updateData.internalStatus === "ON_HOLD" &&
-    existing.internalStatus !== "ON_HOLD"
-  ) {
-    (updateData as Record<string, unknown>).holdAt = new Date();
-  }
-  if (
-    updateData.internalStatus &&
-    updateData.internalStatus !== "ON_HOLD" &&
-    existing.internalStatus === "ON_HOLD"
-  ) {
-    (updateData as Record<string, unknown>).holdAt = null;
-    (updateData as Record<string, unknown>).holdReason = null;
+
+  // Auto-sync printStatus based on order status changes
+  if (updateData.internalStatus && !updateData.printStatus) {
+    const DONE_TRIGGER = ["SHIPPED", "DELAYED", "DISMISSED", "CANCELLED"];
+    const READY_TRIGGER = ["OPEN", "REVIEW", "LABEL_CREATED"];
+    if (DONE_TRIGGER.includes(updateData.internalStatus) && existing.printStatus !== "DONE") {
+      (updateData as Record<string, unknown>).printStatus = "DONE";
+    } else if (READY_TRIGGER.includes(updateData.internalStatus) && existing.printStatus === "DONE") {
+      (updateData as Record<string, unknown>).printStatus = "READY";
+    }
   }
 
   const order = await prisma.order.update({
@@ -120,6 +133,19 @@ export async function PATCH(
     });
   }
   if (
+    updateData.printStatus &&
+    updateData.printStatus !== existing.printStatus
+  ) {
+    logEntries.push({
+      orderId: id,
+      userId: session.user?.id,
+      action: "print_status_change",
+      fromValue: existing.printStatus,
+      toValue: updateData.printStatus,
+      message: `Print status changed from ${existing.printStatus} to ${updateData.printStatus}`,
+    });
+  }
+  if (
     updateData.shippingRoute &&
     updateData.shippingRoute !== existing.shippingRoute
   ) {
@@ -137,8 +163,8 @@ export async function PATCH(
       orderId: id,
       userId: session.user?.id,
       action: updateData.csFlag ? "cs_flagged" : "cs_unflagged",
-      fromValue: String(existing.csFlag),
-      toValue: String(updateData.csFlag),
+      fromValue: existing.internalStatus,
+      toValue: updateData.csFlag ? "REVIEW" : (updateData.internalStatus || existing.internalStatus),
     });
   }
   if (updateData.notes !== undefined && updateData.notes !== existing.notes) {

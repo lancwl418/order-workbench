@@ -13,16 +13,26 @@ import { StatusBadge } from "./status-badge";
 import { formatDate } from "@/lib/utils";
 import {
   INTERNAL_STATUSES,
-  getNextStatus,
-  getPrevStatus,
+  PRINT_STATUSES,
+  PRINT_STATUS_LABELS,
+  PRINT_STATUS_COLORS,
   STATUS_LABELS,
 } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
 import Link from "next/link";
-import { ChevronRight, Undo2, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ChevronRight, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset } from "lucide-react";
 
 export function createColumns(opts: {
   onStatusChange: (orderId: string, newStatus: string) => Promise<void>;
+  onPrintStatusChange?: (orderId: string, newPrintStatus: string) => Promise<void>;
+  onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   loadingId: string | null;
 }): ColumnDef<OrderListItem>[] {
   return [
@@ -47,14 +57,62 @@ export function createColumns(opts: {
     {
       accessorKey: "shopifyOrderNumber",
       header: "Order #",
-      cell: ({ row }) => (
-        <Link
-          href={`/orders/${row.original.id}`}
-          className="font-medium text-primary hover:underline"
-        >
-          #{row.getValue("shopifyOrderNumber") || row.original.id.slice(0, 8)}
-        </Link>
-      ),
+      cell: ({ row }) => {
+        const csFlag = row.original.csFlag;
+        const note = row.original.notes;
+        const id = row.original.id;
+        const canToggle = true;
+
+        return (
+          <div className="flex items-center gap-1.5">
+            <Link
+              href={`/orders/${row.original.id}`}
+              className="font-medium text-primary hover:underline"
+            >
+              #{row.getValue("shopifyOrderNumber") || row.original.id.slice(0, 8)}
+            </Link>
+            <TooltipProvider delay={200}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canToggle) opts.onCsToggle?.(id, !csFlag);
+                      }}
+                      className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium transition-colors ${
+                        csFlag
+                          ? canToggle
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                            : "bg-amber-100 text-amber-700 cursor-default"
+                          : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Headset className="h-2.5 w-2.5" />
+                      CS
+                    </button>
+                  }
+                />
+                <TooltipContent>
+                  {csFlag ? "Remove CS flag" : "Flag as CS order"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {note && (
+              <TooltipProvider delay={200}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<MessageSquareText className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />}
+                  />
+                  <TooltipContent side="right" className="max-w-[300px]">
+                    <p className="text-xs whitespace-pre-wrap">{note}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "customerName",
@@ -76,7 +134,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "internalStatus",
-      header: "Status",
+      header: "Order Status",
       cell: ({ row }) => {
         const status = row.original.internalStatus;
         const id = row.original.id;
@@ -107,6 +165,107 @@ export function createColumns(opts: {
               ))}
             </SelectContent>
           </Select>
+        );
+      },
+    },
+    {
+      accessorKey: "printStatus",
+      header: "Print Status",
+      cell: ({ row }) => {
+        const printStatus = row.original.printStatus;
+        const id = row.original.id;
+        const loading = opts.loadingId === id;
+        const hasPrintFiles = row.original.orderItems.some(
+          (item) => item.designFileUrl
+        );
+        const canQueue = hasPrintFiles && (printStatus === "NONE" || printStatus === "READY");
+
+        const renderBadge = (s: string) => {
+          if (s === "NONE") return <span className="text-muted-foreground text-sm">-</span>;
+          const colors = PRINT_STATUS_COLORS[s] || { bg: "bg-gray-100", text: "text-gray-500" };
+          return (
+            <Badge variant="outline" className={`${colors.bg} ${colors.text} border-0 text-xs`}>
+              {PRINT_STATUS_LABELS[s] || s}
+            </Badge>
+          );
+        };
+
+        const statusSelect = opts.onPrintStatusChange ? (
+          <Select
+            value={printStatus}
+            onValueChange={(v) => {
+              if (v && v !== printStatus) {
+                opts.onPrintStatusChange!(id, v);
+              }
+            }}
+            disabled={loading}
+          >
+            <SelectTrigger className="h-7 w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 [&>svg]:hidden">
+              {loading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                renderBadge(printStatus)
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {PRINT_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {renderBadge(s)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          renderBadge(printStatus)
+        );
+
+        return (
+          <div className="flex items-center gap-1">
+            {statusSelect}
+            {!hasPrintFiles && (
+              <Badge
+                variant="outline"
+                className="text-xs text-muted-foreground border-dashed gap-1"
+              >
+                <PrinterCheck className="h-3 w-3" />
+                No Print
+              </Badge>
+            )}
+            {canQueue && opts.onPrintStatusChange && (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={loading}
+                onClick={() => opts.onPrintStatusChange!(id, "IN_QUEUE")}
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    Add to Queue
+                    <ChevronRight className="h-3 w-3" />
+                  </>
+                )}
+              </Button>
+            )}
+            {printStatus === "DONE" && opts.onPrintStatusChange && (
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={loading}
+                onClick={() => opts.onPrintStatusChange!(id, "IN_QUEUE")}
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    Reprint / Add to Queue
+                    <Undo2 className="h-3 w-3" />
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         );
       },
     },
@@ -182,54 +341,6 @@ export function createColumns(opts: {
           {row.original.orderItems.length}
         </span>
       ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const status = row.original.internalStatus;
-        const id = row.original.id;
-        const loading = opts.loadingId === id;
-        const next = getNextStatus(status);
-        const prev = getPrevStatus(status);
-
-        return (
-          <div className="flex items-center gap-1">
-            {prev && (
-              <Button
-                size="xs"
-                variant="ghost"
-                disabled={loading}
-                onClick={() => opts.onStatusChange(id, prev)}
-                title={`Revert to ${STATUS_LABELS[prev]}`}
-              >
-                {loading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Undo2 className="h-3 w-3" />
-                )}
-              </Button>
-            )}
-            {next && (
-              <Button
-                size="xs"
-                variant="outline"
-                disabled={loading}
-                onClick={() => opts.onStatusChange(id, next)}
-              >
-                {loading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <>
-                    {STATUS_LABELS[next]}
-                    <ChevronRight className="h-3 w-3" />
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        );
-      },
     },
   ];
 }

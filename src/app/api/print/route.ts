@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Determine new status
-  let newStatus = order.internalStatus;
+  // Determine new print status
+  let newPrintStatus = order.printStatus;
   if (action === "print_started") {
-    newStatus = "PRINTING";
+    newPrintStatus = "IN_QUEUE";
   } else if (action === "print_completed") {
-    newStatus = "PRINTED";
+    newPrintStatus = "DONE";
   }
 
   // Create print log
@@ -55,20 +55,20 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Update order status
-  if (newStatus !== order.internalStatus) {
+  // Update print status
+  if (newPrintStatus !== order.printStatus) {
     await prisma.order.update({
       where: { id: orderId },
-      data: { internalStatus: newStatus },
+      data: { printStatus: newPrintStatus },
     });
 
     await prisma.orderLog.create({
       data: {
         orderId,
         userId: session.user?.id,
-        action: "status_change",
-        fromValue: order.internalStatus,
-        toValue: newStatus,
+        action: "print_status_change",
+        fromValue: order.printStatus,
+        toValue: newPrintStatus,
         message: `Print action: ${action}`,
       },
     });

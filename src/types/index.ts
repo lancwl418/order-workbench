@@ -8,6 +8,7 @@ import type {
   OrderException,
   PrintGroup,
   PrintGroupItem,
+  CsComment,
 } from "@prisma/client";
 
 export type OrderWithRelations = Order & {
@@ -77,6 +78,15 @@ export type ExceptionCounts = {
   totalOpen: number;
 };
 
+export type PrintGroupOrderItem = {
+  id: string;
+  title: string;
+  variantTitle: string | null;
+  designFileUrl: string | null;
+  originalDesignFileUrl: string | null;
+  isPrinted: boolean;
+};
+
 export type PrintGroupWithItems = PrintGroup & {
   items: (PrintGroupItem & {
     order: {
@@ -84,8 +94,13 @@ export type PrintGroupWithItems = PrintGroup & {
       shopifyOrderNumber: string | null;
       customerName: string | null;
       internalStatus?: string;
+      orderItems?: PrintGroupOrderItem[];
     };
   })[];
 };
 
-export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException, PrintGroup, PrintGroupItem };
+export type CsCommentWithUser = CsComment & {
+  user?: { displayName: string | null; username: string } | null;
+};
+
+export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException, PrintGroup, PrintGroupItem, CsComment };

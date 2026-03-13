@@ -100,6 +100,11 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     shopifyOrder.cancelled_at
   );
 
+  // Parse Shopify tags (comma-separated string) into array
+  const tags = shopifyOrder.tags
+    ? shopifyOrder.tags.split(",").map((t) => t.trim()).filter(Boolean)
+    : [];
+
   const order: MappedOrder = {
     shopifyOrderId: String(shopifyOrder.id),
     shopifyOrderNumber: shopifyOrder.name,
@@ -122,6 +127,8 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     currency: shopifyOrder.currency,
     shippingMethod,
     internalStatus,
+    tags,
+    notes: shopifyOrder.note || null,
   };
 
   // Product IDs for print-ready URL extraction (compared as strings for safety)
@@ -184,9 +191,8 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
  * - cancelled → CANCELLED
  * - refunded/voided → CANCELLED
  * - fulfilled → SHIPPED
- * - partial → READY_TO_SHIP
- * - unfulfilled + paid → READY_TO_PRINT
- * - unfulfilled + pending → NEW
+ * - partial → PRINTED
+ * - unfulfilled → OPEN
  */
 function mapShopifyToInternalStatus(
   fulfillmentStatus: string | null,
@@ -208,19 +214,10 @@ function mapShopifyToInternalStatus(
     return "SHIPPED";
   }
 
-  // Partially fulfilled
+  // Partially fulfilled — keep as OPEN (print status is separate)
   if (fulfillmentStatus === "partial") {
-    return "READY_TO_SHIP";
+    return "OPEN";
   }
 
-  // Unfulfilled - check payment status
-  if (!fulfillmentStatus || fulfillmentStatus === "unfulfilled") {
-    if (financialStatus === "paid" || financialStatus === "partially_paid") {
-      return "READY_TO_PRINT";
-    }
-    // pending, authorized, partially_refunded
-    return "NEW";
-  }
-
-  return "NEW";
+  return "OPEN";
 }

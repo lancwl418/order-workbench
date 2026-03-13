@@ -35,7 +35,7 @@ function useShippingOrders(page: number) {
     page: String(page),
     limit: "25",
     shippingRoute: "NOT_ASSIGNED",
-    status: "PRINTED",
+    printStatus: "DONE",
     sort: "createdAt",
     dir: "desc",
     view: "all",
@@ -73,11 +73,8 @@ export default function ShippingPage() {
         toast.error("Order is already routed");
         return;
       }
-      if (
-        order.internalStatus === "ON_HOLD" ||
-        order.internalStatus === "DELAYED"
-      ) {
-        toast.error("Cannot route an order that is on hold or delayed");
+      if (order.internalStatus === "DELAYED") {
+        toast.error("Cannot route a delayed order");
         return;
       }
       setConfirmDialog({ open: true, order, route });
@@ -98,7 +95,6 @@ export default function ShippingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shippingRoute: route,
-          internalStatus: "READY_TO_SHIP",
         }),
       });
 

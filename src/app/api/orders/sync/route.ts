@@ -61,11 +61,27 @@ export async function POST(req: NextRequest) {
             }
           : {};
 
+        // Auto-flag CS orders based on tags
+        const isCsOrder = orderData.tags.some(
+          (t) => t.toLowerCase() === "customerservice"
+        );
+        const csFields = isCsOrder
+          ? { csFlag: true, internalStatus: "REVIEW" as const }
+          : {};
+
+        // Auto-detect print files to set printStatus
+        const hasDesignFiles = items.some((item) => item.designFileUrl);
+        const printFields = isNew && hasDesignFiles
+          ? { printStatus: "READY" as const }
+          : {};
+
         const upsertedOrder = await prisma.order.upsert({
           where: { shopifyOrderId: orderData.shopifyOrderId },
           create: {
             ...orderData,
             ...trackingFields,
+            ...csFields,
+            ...printFields,
           },
           update: {
             shopifyStatus: orderData.shopifyStatus,
@@ -79,7 +95,10 @@ export async function POST(req: NextRequest) {
             totalPrice: orderData.totalPrice,
             currency: orderData.currency,
             shippingMethod: orderData.shippingMethod,
+            tags: orderData.tags,
+            notes: orderData.notes,
             ...trackingFields,
+            ...csFields,
           },
         });
 

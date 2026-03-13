@@ -41,6 +41,15 @@ export async function POST(
     data: { status: "READY" },
   });
 
+  // Update all orders in the group to GROUPED print status
+  const orderIds = [...new Set(group.items.map((item) => item.orderId))];
+  if (orderIds.length > 0) {
+    await prisma.order.updateMany({
+      where: { id: { in: orderIds } },
+      data: { printStatus: "GROUPED" },
+    });
+  }
+
   const updatedGroup = await prisma.printGroup.findUnique({
     where: { id },
     include: {

@@ -21,9 +21,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
   }
 
-  if (group.status !== "BUILDING") {
+  if (group.status === "PRINTED") {
     return NextResponse.json(
-      { error: "Can only remove orders from BUILDING groups" },
+      { error: "Cannot remove orders from PRINTED groups" },
       { status: 400 }
     );
   }
@@ -51,19 +51,19 @@ export async function DELETE(
     data: { totalHeight: remaining._sum.heightInches || 0 },
   });
 
-  // Set order status back to READY_TO_PRINT
+  // Set print status back to IN_QUEUE so it stays in the print queue
   await prisma.order.update({
     where: { id: orderId },
-    data: { internalStatus: "READY_TO_PRINT" },
+    data: { printStatus: "IN_QUEUE" },
   });
 
   await prisma.orderLog.create({
     data: {
       orderId,
       userId: session.user?.id,
-      action: "status_change",
-      fromValue: "PRINTING",
-      toValue: "READY_TO_PRINT",
+      action: "print_status_change",
+      fromValue: group.status === "READY" ? "GROUPED" : "IN_QUEUE",
+      toValue: "IN_QUEUE",
       message: `Removed from print group: ${group.name}`,
     },
   });

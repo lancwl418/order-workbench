@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/orders/status-badge";
-import { INTERNAL_STATUSES, STATUS_LABELS } from "@/lib/constants";
+import { INTERNAL_STATUSES, STATUS_LABELS, PRINT_STATUS_LABELS, PRINT_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/utils";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
-import type { OrderWithRelations, OrderException } from "@/types";
+import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import {
   EXCEPTION_TYPE_LABELS,
@@ -119,6 +120,14 @@ export default function OrderDetailPage() {
           Order #{order.shopifyOrderNumber || order.id.slice(0, 8)}
         </h1>
         <StatusBadge status={order.internalStatus} />
+        {order.printStatus && order.printStatus !== "NONE" && (
+          <Badge
+            variant="outline"
+            className={`${PRINT_STATUS_COLORS[order.printStatus]?.bg || "bg-gray-100"} ${PRINT_STATUS_COLORS[order.printStatus]?.text || "text-gray-500"} border-0 text-xs`}
+          >
+            {PRINT_STATUS_LABELS[order.printStatus] || order.printStatus}
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -237,6 +246,9 @@ export default function OrderDetailPage() {
                 {saving ? "Saving..." : "Save Notes"}
               </Button>
             </div>
+
+            {/* CS Comments */}
+            <CsCommentsSection orderId={order.id} />
           </CardContent>
         </Card>
 
@@ -283,64 +295,15 @@ export default function OrderDetailPage() {
         )}
 
         {/* Line Items */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>
-              Line Items ({order.orderItems.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {order.orderItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-md border"
-                >
-                  <div>
-                    <p className="font-medium">{item.title}</p>
-                    {item.variantTitle && (
-                      <p className="text-sm text-muted-foreground">
-                        {item.variantTitle}
-                      </p>
-                    )}
-                    {item.sku && (
-                      <p className="text-xs text-muted-foreground font-mono">
-                        SKU: {item.sku}
-                      </p>
-                    )}
-                    {item.designFileUrl && (
-                      <a
-                        href={item.designFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
-                      >
-                        Print Ready File
-                      </a>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm">Qty: {item.quantity}</p>
-                    <p className="text-sm font-medium">
-                      ${parseFloat(String(item.price)).toFixed(2)}
-                    </p>
-                    {item.isPrinted && (
-                      <Badge
-                        variant="outline"
-                        className="text-xs bg-green-100 text-green-700 border-0"
-                      >
-                        Printed
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <LineItemsSection order={order} />
 
         {/* Print Files */}
-        <PrintFilesSection orderId={order.id} />
+        <PrintFilesSection
+          orderId={order.id}
+          orderItems={order.orderItems}
+          canReplace={["OPEN", "REVIEW"].includes(order.internalStatus) || ["NONE", "READY", "IN_QUEUE"].includes(order.printStatus)}
+          onUpdated={mutate}
+        />
 
         {/* Shipments */}
         {shipments && shipments.length > 0 && (
@@ -417,10 +380,132 @@ export default function OrderDetailPage() {
   );
 }
 
-function PrintFilesSection({ orderId }: { orderId: string }) {
-  const [files, setFiles] = useState<ResolvedPrintFile[]>([]);
+function LineItemsSection({ order }: { order: OrderWithRelations }) {
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <CardTitle>Line Items ({order.orderItems.length})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {order.orderItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between p-3 rounded-md border"
+            >
+              <div>
+                <p className="font-medium">{item.title}</p>
+                {item.variantTitle && (
+                  <p className="text-sm text-muted-foreground">
+                    {item.variantTitle}
+                  </p>
+                )}
+                {item.sku && (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    SKU: {item.sku}
+                  </p>
+                )}
+                {item.designFileUrl && (
+                  <a
+                    href={item.designFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                  >
+                    Print Ready File
+                  </a>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-sm">Qty: {item.quantity}</p>
+                <p className="text-sm font-medium">
+                  ${parseFloat(String(item.price)).toFixed(2)}
+                </p>
+                {item.isPrinted && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-green-100 text-green-700 border-0"
+                  >
+                    Printed
+                  </Badge>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type PrintFileWithSource = ResolvedPrintFile & {
+  sourceUrl: string;
+  orderItemIds: string[];
+  hasOriginal: boolean;
+  originalSourceUrl: string | null;
+  version: "current" | "original";
+};
+
+function PrintFilesSection({
+  orderId,
+  orderItems,
+  canReplace,
+  onUpdated,
+}: {
+  orderId: string;
+  orderItems: { id: string; designFileUrl: string | null }[];
+  canReplace: boolean;
+  onUpdated: () => void;
+}) {
+  const [files, setFiles] = useState<PrintFileWithSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editUrl, setEditUrl] = useState("");
+  const [replacing, setReplacing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadingNew, setUploadingNew] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const newFileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleUploadNew(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Find first order item (prefer one without a designFileUrl)
+    const targetItem = orderItems.find((i) => !i.designFileUrl) || orderItems[0];
+    if (!targetItem) {
+      toast.error("No order item to attach file to");
+      return;
+    }
+    setUploadingNew(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json();
+        throw new Error(data.error || "Upload failed");
+      }
+      const { url } = await uploadRes.json();
+      const patchRes = await fetch(`/api/order-items/${targetItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designFileUrl: url }),
+      });
+      if (!patchRes.ok) {
+        const data = await patchRes.json();
+        throw new Error(data.error || "Failed to set print file");
+      }
+      toast.success("Print file uploaded");
+      onUpdated();
+      loadPrintFiles();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingNew(false);
+      if (newFileInputRef.current) newFileInputRef.current.value = "";
+    }
+  }
 
   async function loadPrintFiles() {
     setLoading(true);
@@ -435,6 +520,53 @@ function PrintFilesSection({ orderId }: { orderId: string }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function doReplace(file: PrintFileWithSource, newUrl: string) {
+    setReplacing(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/replace-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: file.sourceUrl, newUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed");
+      }
+      toast.success("Print file replaced");
+      setEditingIdx(null);
+      setEditUrl("");
+      loadPrintFiles();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to replace file");
+    } finally {
+      setReplacing(false);
+    }
+  }
+
+  async function handleUpload(file: PrintFileWithSource, uploadedFile: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", uploadedFile);
+      form.append("originalFilename", file.filename);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json();
+        throw new Error(data.error || "Upload failed");
+      }
+      const { url } = await uploadRes.json();
+      await doReplace(file, url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+      setUploading(false);
+    }
+  }
+
+  async function handleRevert(file: PrintFileWithSource) {
+    if (!file.originalSourceUrl) return;
+    await doReplace(file, file.originalSourceUrl);
   }
 
   return (
@@ -467,34 +599,348 @@ function PrintFilesSection({ orderId }: { orderId: string }) {
           </p>
         )}
         {loaded && files.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            No print files found for this order.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              No print files found for this order.
+            </p>
+            {orderItems.length > 0 && (
+              <div>
+                <input
+                  ref={newFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleUploadNew}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => newFileInputRef.current?.click()}
+                  disabled={uploadingNew}
+                >
+                  {uploadingNew ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="h-3 w-3" />
+                  )}
+                  {uploadingNew ? "Uploading..." : "Upload Print File"}
+                </Button>
+              </div>
+            )}
+          </div>
         )}
         {files.length > 0 && (
           <div className="space-y-2">
             {files.map((file, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between p-3 rounded-md border"
+                className={`p-3 rounded-md border space-y-2 ${file.version === "original" ? "bg-muted/30 border-dashed" : ""}`}
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{file.filename}</p>
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <p className="text-sm font-medium truncate">
+                      {file.filename}
+                    </p>
+                    {file.version === "original" && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                        Original
+                      </span>
+                    )}
+                    {file.version === "current" && file.hasOriginal && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">
+                        Replaced
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    {canReplace && file.version === "current" && editingIdx !== i && (
+                      <button
+                        onClick={() => {
+                          setEditingIdx(i);
+                          setEditUrl("");
+                        }}
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Replace file"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {canReplace && file.version === "current" && file.hasOriginal && (
+                      <button
+                        onClick={() => handleRevert(file)}
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Revert to original"
+                        disabled={replacing}
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open
+                    </a>
+                  </div>
                 </div>
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-blue-600 hover:underline shrink-0 ml-3"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Open
-                </a>
+                {editingIdx === i && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editUrl}
+                        onChange={(e) => setEditUrl(e.target.value)}
+                        placeholder="Paste new file URL..."
+                        className="text-xs h-8"
+                        autoFocus
+                      />
+                      <Button
+                        size="xs"
+                        onClick={() => doReplace(file, editUrl.trim())}
+                        disabled={replacing || uploading || !editUrl.trim()}
+                      >
+                        {replacing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3" />
+                        )}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setEditingIdx(null)}
+                        disabled={replacing || uploading}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleUpload(file, f);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={replacing || uploading}
+                      >
+                        {uploading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Upload className="h-3 w-3" />
+                        )}
+                        {uploading ? "Uploading..." : "Upload File"}
+                      </Button>
+                      <span className="text-[10px] text-muted-foreground">
+                        or paste URL above
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/* ─── CS Comments Section ───────────────────────────────────────── */
+
+function CsCommentsSection({ orderId }: { orderId: string }) {
+  const { data: comments, mutate } = useSWR<CsCommentWithUser[]>(
+    `/api/orders/${orderId}/cs-comments`,
+    fetcher
+  );
+
+  const [content, setContent] = useState("");
+  const [attachments, setAttachments] = useState<{ url: string; filename: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload/cs", { method: "POST", body: formData });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Upload failed");
+        }
+        const data = await res.json();
+        setAttachments((prev) => [...prev, { url: data.url, filename: data.filename }]);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload file");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleSubmit() {
+    if (!content.trim() && attachments.length === 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/cs-comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content.trim(),
+          attachments: attachments.map((a) => a.url),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setContent("");
+      setAttachments([]);
+      mutate();
+      toast.success("Comment added");
+    } catch {
+      toast.error("Failed to add comment");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="border-t pt-4">
+      <label className="text-sm text-muted-foreground mb-2 flex items-center gap-1.5">
+        <MessageSquare className="h-3.5 w-3.5" />
+        CS Comments
+      </label>
+
+      {/* New comment form */}
+      <div className="space-y-2 mb-3">
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder="Add a comment..."
+          rows={2}
+          className="text-sm"
+        />
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {attachments.map((att, i) => (
+              <div key={i} className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
+                {/\.(png|jpe?g|webp)$/i.test(att.filename) ? (
+                  <ImageIcon className="h-3 w-3 shrink-0" />
+                ) : (
+                  <FileText className="h-3 w-3 shrink-0" />
+                )}
+                <span className="max-w-[100px] truncate">{att.filename}</span>
+                <button
+                  onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/png,image/jpeg,image/webp,application/pdf"
+            multiple
+            onChange={handleFileUpload}
+          />
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+            {uploading ? "Uploading..." : "Attach"}
+          </Button>
+          <Button
+            size="xs"
+            onClick={handleSubmit}
+            disabled={submitting || (!content.trim() && attachments.length === 0)}
+          >
+            {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+            Send
+          </Button>
+        </div>
+      </div>
+
+      {/* Comments list */}
+      <div className="space-y-2">
+        {!comments ? (
+          <div className="flex justify-center py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : comments.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-2">No comments yet</p>
+        ) : (
+          comments.map((comment) => {
+            const userName = comment.user?.displayName || comment.user?.username || "System";
+            return (
+              <div key={comment.id} className="rounded-md border p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">{userName}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDateTime(comment.createdAt)}
+                  </span>
+                </div>
+                {comment.content && (
+                  <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                )}
+                {comment.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {comment.attachments.map((url, i) => {
+                      const filename = url.split("/").pop() || "file";
+                      return (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs text-blue-600 hover:underline"
+                        >
+                          {/\.(png|jpe?g|webp)$/i.test(filename) ? (
+                            <ImageIcon className="h-3 w-3 shrink-0" />
+                          ) : (
+                            <FileText className="h-3 w-3 shrink-0" />
+                          )}
+                          <span className="max-w-[120px] truncate">
+                            {filename.replace(/^\d{10,}-/, "")}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }

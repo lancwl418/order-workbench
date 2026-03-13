@@ -45,10 +45,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Don't add if already in a group
-  if (order.printGroupItems.length > 0) {
+  // Don't add if already in an active (BUILDING) group
+  const activeGroupItem = await prisma.printGroupItem.findFirst({
+    where: {
+      orderId,
+      printGroup: { status: "BUILDING" },
+    },
+  });
+  if (activeGroupItem) {
     return NextResponse.json(
-      { error: "Order is already in a print group" },
+      { error: "Order is already in an active print group" },
       { status: 400 }
     );
   }
@@ -174,20 +180,20 @@ export async function POST(req: NextRequest) {
     data: { totalHeight: group.totalHeight + orderHeight },
   });
 
-  // Update order status to PRINTING
-  if (order.internalStatus !== "PRINTING") {
+  // Update print status to IN_QUEUE
+  if (order.printStatus !== "IN_QUEUE") {
     await prisma.order.update({
       where: { id: orderId },
-      data: { internalStatus: "PRINTING" },
+      data: { printStatus: "IN_QUEUE" },
     });
 
     await prisma.orderLog.create({
       data: {
         orderId,
         userId: session.user?.id,
-        action: "status_change",
-        fromValue: order.internalStatus,
-        toValue: "PRINTING",
+        action: "print_status_change",
+        fromValue: order.printStatus,
+        toValue: "IN_QUEUE",
         message: `Added to print group: ${group.name}`,
       },
     });

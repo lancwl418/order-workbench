@@ -9,7 +9,7 @@ import { OrderFilterBar } from "@/components/orders/order-filters";
 import { BulkActions } from "@/components/orders/bulk-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { STATUS_LABELS } from "@/lib/constants";
+import { STATUS_LABELS, PRINT_STATUS_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import type { OrderListItem } from "@/types";
 import {
@@ -38,27 +38,37 @@ function useStatusCounts() {
   return { counts: data || {}, refreshCounts: mutate };
 }
 
-const summaryCards = [
+const summaryCards: {
+  key: string;
+  label: string;
+  icon: typeof Package;
+  color: string;
+  bg: string;
+  href?: string;
+  status?: string;
+}[] = [
   {
-    key: "READY_TO_PRINT",
-    label: "Ready to Print",
-    icon: Printer,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
+    key: "OPEN",
+    label: "Open",
+    icon: Package,
+    color: "text-slate-600",
+    bg: "bg-slate-50",
+    status: "OPEN",
   },
   {
-    key: "PRINTING",
-    label: "Printing",
-    icon: Loader2,
+    key: "_printInQueue",
+    label: "In Print Queue",
+    icon: Printer,
     color: "text-purple-600",
     bg: "bg-purple-50",
+    href: "/print-queue",
   },
   {
-    key: "READY_TO_SHIP",
-    label: "Ready to Ship",
-    icon: Truck,
-    color: "text-teal-600",
-    bg: "bg-teal-50",
+    key: "_printDone",
+    label: "Print Done",
+    icon: CheckCircle2,
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
   },
   {
     key: "SHIPPED",
@@ -66,6 +76,7 @@ const summaryCards = [
     icon: CheckCircle2,
     color: "text-green-600",
     bg: "bg-green-50",
+    status: "SHIPPED",
   },
   {
     key: "_shipmentIssues",
@@ -132,13 +143,54 @@ export default function OrdersPage() {
     [refresh, refreshCounts]
   );
 
+  const handlePrintStatusChange = useCallback(
+    async (orderId: string, newPrintStatus: string) => {
+      setStatusLoading(orderId);
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ printStatus: newPrintStatus }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        toast.success(`Print status → ${PRINT_STATUS_LABELS[newPrintStatus]}`);
+        await Promise.all([refresh(), refreshCounts()]);
+      } catch {
+        toast.error("Failed to update print status");
+      } finally {
+        setStatusLoading(null);
+      }
+    },
+    [refresh, refreshCounts]
+  );
+
+  const handleCsToggle = useCallback(
+    async (orderId: string, csFlag: boolean) => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csFlag }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        toast.success(csFlag ? "Flagged as CS order" : "CS flag removed");
+        refresh();
+      } catch {
+        toast.error("Failed to update CS flag");
+      }
+    },
+    [refresh]
+  );
+
   const columns = useMemo(
     () =>
       createColumns({
         onStatusChange: handleStatusChange,
+        onPrintStatusChange: handlePrintStatusChange,
+        onCsToggle: handleCsToggle,
         loadingId: statusLoading,
       }),
-    [handleStatusChange, statusLoading]
+    [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading]
   );
 
   async function handleSync() {
@@ -188,8 +240,13 @@ export default function OrdersPage() {
         {summaryCards.map((card) => {
           const Icon = card.icon;
           const count = counts[card.key] ?? 0;
+          const isClickable = !!(card.href || card.status);
+          const isActive = card.status && filters.status === card.status;
           const content = (
-            <Card key={card.key} className={(card as { href?: string }).href ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"}>
+            <Card
+              key={card.key}
+              className={`${isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"} ${isActive ? "ring-2 ring-primary" : ""}`}
+            >
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2 mb-1">
                   <div className={`p-1.5 rounded-md ${card.bg}`}>
@@ -203,14 +260,26 @@ export default function OrdersPage() {
               </CardContent>
             </Card>
           );
-          const href = (card as { href?: string }).href;
-          return href ? (
-            <Link key={card.key} href={href}>
-              {content}
-            </Link>
-          ) : (
-            <div key={card.key}>{content}</div>
-          );
+          if (card.href) {
+            return (
+              <Link key={card.key} href={card.href}>
+                {content}
+              </Link>
+            );
+          }
+          if (card.status) {
+            return (
+              <div
+                key={card.key}
+                onClick={() =>
+                  setStatus(filters.status === card.status ? "" : card.status!)
+                }
+              >
+                {content}
+              </div>
+            );
+          }
+          return <div key={card.key}>{content}</div>;
         })}
       </div>
 

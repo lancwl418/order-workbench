@@ -77,6 +77,8 @@ export async function resolveGangSheetUrls(
 export function isDirectImageUrl(url: string): boolean {
   return (
     url.includes("/uploads/") ||
-    url.includes("images.dripappsserver.com")
+    url.includes("images.dripappsserver.com") ||
+    url.includes(".r2.dev/") ||
+    url.includes("r2.cloudflarestorage.com/")
   );
 }

@@ -113,7 +113,9 @@ export interface MappedOrder {
   totalPrice: string; // Decimal as string for Prisma
   currency: string;
   shippingMethod: string | null;
-  internalStatus: "NEW" | "REVIEW" | "READY_TO_PRINT" | "PRINTED" | "READY_TO_SHIP" | "SHIPPED" | "CANCELLED";
+  internalStatus: "OPEN" | "REVIEW" | "SHIPPED" | "CANCELLED";
+  tags: string[];
+  notes: string | null;
 }
 
 /** Data shape for creating a Shipment from Shopify fulfillment */

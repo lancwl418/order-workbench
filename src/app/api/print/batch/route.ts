@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { orderIds, action, printerName } = parsed.data;
-  const newStatus = action === "print_started" ? "PRINTING" : "PRINTED";
+  const newPrintStatus = action === "print_started" ? "IN_QUEUE" : "DONE";
 
   const orders = await prisma.order.findMany({
     where: { id: { in: orderIds } },
@@ -44,21 +44,21 @@ export async function POST(req: NextRequest) {
 
   await prisma.printLog.createMany({ data: printLogs });
 
-  // Update order statuses
+  // Update print statuses
   await prisma.order.updateMany({
     where: { id: { in: orderIds } },
-    data: { internalStatus: newStatus },
+    data: { printStatus: newPrintStatus },
   });
 
-  // Log status changes
+  // Log print status changes
   const logEntries = orders
-    .filter((o) => o.internalStatus !== newStatus)
+    .filter((o) => o.printStatus !== newPrintStatus)
     .map((order) => ({
       orderId: order.id,
       userId: session.user?.id,
-      action: "status_change",
-      fromValue: order.internalStatus,
-      toValue: newStatus,
+      action: "print_status_change",
+      fromValue: order.printStatus,
+      toValue: newPrintStatus,
       message: `Batch print: ${action}`,
     }));
 
@@ -77,6 +77,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     processed: orderIds.length,
-    message: `${orderIds.length} orders updated to ${newStatus}`,
+    message: `${orderIds.length} orders print status updated to ${newPrintStatus}`,
   });
 }

@@ -1,15 +1,19 @@
 export const INTERNAL_STATUSES = [
-  "NEW",
+  "OPEN",
   "REVIEW",
-  "READY_TO_PRINT",
-  "PRINTING",
-  "PRINTED",
-  "READY_TO_SHIP",
   "LABEL_CREATED",
   "SHIPPED",
-  "ON_HOLD",
   "DELAYED",
   "CANCELLED",
+  "DISMISSED",
+] as const;
+
+export const PRINT_STATUSES = [
+  "NONE",
+  "READY",
+  "IN_QUEUE",
+  "GROUPED",
+  "DONE",
 ] as const;
 
 export const SHIPPING_ROUTES = [
@@ -26,18 +30,30 @@ export const LABEL_STATUSES = [
   "SYNC_FAILED",
 ] as const;
 
+export const PRINT_STATUS_LABELS: Record<string, string> = {
+  NONE: "No File",
+  READY: "Ready",
+  IN_QUEUE: "In Queue",
+  GROUPED: "Grouped",
+  DONE: "Done",
+};
+
+export const PRINT_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  NONE: { bg: "bg-gray-100", text: "text-gray-500" },
+  READY: { bg: "bg-blue-100", text: "text-blue-700" },
+  IN_QUEUE: { bg: "bg-purple-100", text: "text-purple-700" },
+  GROUPED: { bg: "bg-indigo-100", text: "text-indigo-700" },
+  DONE: { bg: "bg-cyan-100", text: "text-cyan-700" },
+};
+
 export const STATUS_LABELS: Record<string, string> = {
-  NEW: "New",
+  OPEN: "Open",
   REVIEW: "Review",
-  READY_TO_PRINT: "Ready to Print",
-  PRINTING: "Printing",
-  PRINTED: "Printed",
-  READY_TO_SHIP: "Ready to Ship",
   LABEL_CREATED: "Label Created",
   SHIPPED: "Shipped",
-  ON_HOLD: "On Hold",
   DELAYED: "Delayed",
   CANCELLED: "Cancelled",
+  DISMISSED: "Dismissed",
   NOT_ASSIGNED: "Not Assigned",
   THIRD_PARTY: "Third Party",
   SHOPIFY: "Shopify",
@@ -62,17 +78,13 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  NEW: { bg: "bg-slate-100", text: "text-slate-700" },
-  REVIEW: { bg: "bg-blue-100", text: "text-blue-700" },
-  READY_TO_PRINT: { bg: "bg-indigo-100", text: "text-indigo-700" },
-  PRINTING: { bg: "bg-purple-100", text: "text-purple-700" },
-  PRINTED: { bg: "bg-cyan-100", text: "text-cyan-700" },
-  READY_TO_SHIP: { bg: "bg-teal-100", text: "text-teal-700" },
-  LABEL_CREATED: { bg: "bg-emerald-100", text: "text-emerald-700" },
+  OPEN: { bg: "bg-slate-100", text: "text-slate-700" },
+  REVIEW: { bg: "bg-amber-100", text: "text-amber-700" },
+  LABEL_CREATED: { bg: "bg-orange-100", text: "text-orange-700" },
   SHIPPED: { bg: "bg-green-100", text: "text-green-700" },
-  ON_HOLD: { bg: "bg-amber-100", text: "text-amber-700" },
   DELAYED: { bg: "bg-red-100", text: "text-red-700" },
   CANCELLED: { bg: "bg-gray-200", text: "text-gray-500" },
+  DISMISSED: { bg: "bg-gray-200", text: "text-gray-400" },
   NOT_ASSIGNED: { bg: "bg-gray-100", text: "text-gray-500" },
   THIRD_PARTY: { bg: "bg-orange-100", text: "text-orange-700" },
   SHOPIFY: { bg: "bg-green-100", text: "text-green-700" },
@@ -104,15 +116,22 @@ export const DELAY_COLORS = {
 };
 
 export const CS_ISSUE_TYPES = [
-  "address_issue",
-  "artwork_issue",
-  "size_change",
-  "cancel_request",
-  "refund_request",
-  "delivery_inquiry",
-  "reprint_request",
-  "other",
+  "background",
+  "image_quality",
+  "size_issue",
+  "order_details",
+  "customer_details",
+  "others",
 ] as const;
+
+export const CS_ISSUE_TYPE_LABELS: Record<string, string> = {
+  background: "Background",
+  image_quality: "Image Quality",
+  size_issue: "Size Issue",
+  order_details: "Order Details",
+  customer_details: "Customer Details",
+  others: "Others",
+};
 
 export const SLA_BUSINESS_DAYS = parseInt(process.env.SLA_BUSINESS_DAYS || "3", 10);
 
@@ -170,8 +189,6 @@ export const DELIVERY_FAILURE_STATUSES = [
 ] as const;
 
 export const PRODUCTION_COMPLETE_STATUSES = [
-  "PRINTED",
-  "READY_TO_SHIP",
   "LABEL_CREATED",
   "SHIPPED",
   "CANCELLED",
@@ -179,15 +196,11 @@ export const PRODUCTION_COMPLETE_STATUSES = [
 
 /**
  * Status workflow: defines the linear progression of order statuses.
- * ON_HOLD and DELAYED are side-states (not in the main flow).
+ * DELAYED is a side-state (not in the main flow).
  */
 const STATUS_FLOW = [
-  "NEW",
+  "OPEN",
   "REVIEW",
-  "READY_TO_PRINT",
-  "PRINTING",
-  "PRINTED",
-  "READY_TO_SHIP",
   "LABEL_CREATED",
   "SHIPPED",
 ] as const;

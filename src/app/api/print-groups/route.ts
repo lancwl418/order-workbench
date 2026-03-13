@@ -28,6 +28,17 @@ export async function GET(req: NextRequest) {
               shopifyOrderNumber: true,
               customerName: true,
               internalStatus: true,
+              printStatus: true,
+              orderItems: {
+                select: {
+                  id: true,
+                  title: true,
+                  variantTitle: true,
+                  designFileUrl: true,
+                  originalDesignFileUrl: true,
+                  isPrinted: true,
+                },
+              },
             },
           },
         },

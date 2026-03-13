@@ -3,24 +3,29 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── ENUMS ───────────────────────────────────────────────────────
 
 enum InternalStatus {
-  NEW
+  OPEN
   REVIEW
-  READY_TO_PRINT
-  PRINTING
-  PRINTED
-  READY_TO_SHIP
   LABEL_CREATED
   SHIPPED
-  ON_HOLD
   DELAYED
   CANCELLED
+  DISMISSED
+}
+
+enum PrintStatus {
+  NONE
+  READY
+  IN_QUEUE
+  GROUPED
+  DONE
 }
 
 enum ShippingRoute {
@@ -75,8 +80,9 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  orderLogs OrderLog[]
-  printLogs PrintLog[]
+  orderLogs  OrderLog[]
+  printLogs  PrintLog[]
+  csComments CsComment[]
 
   @@map("users")
 }
@@ -107,7 +113,8 @@ model Order {
   shippingMethod String? @map("shipping_method")
 
   // Internal workflow fields
-  internalStatus InternalStatus @default(NEW) @map("internal_status")
+  internalStatus InternalStatus @default(OPEN) @map("internal_status")
+  printStatus    PrintStatus    @default(NONE) @map("print_status")
   shippingRoute  ShippingRoute  @default(NOT_ASSIGNED) @map("shipping_route")
   labelStatus    LabelStatus    @default(NOT_CREATED) @map("label_status")
 
@@ -129,8 +136,6 @@ model Order {
   slaDeadline DateTime? @map("sla_deadline")
   isOverdue   Boolean   @default(false) @map("is_overdue")
   delayFlag   Boolean   @default(false) @map("delay_flag")
-  holdReason  String?   @map("hold_reason")
-  holdAt      DateTime? @map("hold_at")
 
   // CS fields
   csNote     String?  @map("cs_note") @db.Text
@@ -153,8 +158,10 @@ model Order {
   printLogs       PrintLog[]
   exceptions      OrderException[]
   printGroupItems PrintGroupItem[]
+  csComments      CsComment[]
 
   @@index([internalStatus])
+  @@index([printStatus])
   @@index([shippingRoute])
   @@index([labelStatus])
   @@index([isOverdue])
@@ -181,8 +188,9 @@ model OrderItem {
   price             Decimal @db.Decimal(10, 2)
 
   // DTF-specific fields
-  designFileUrl String?  @map("design_file_url")
-  artworkRef    String?  @map("artwork_ref")
+  designFileUrl         String?  @map("design_file_url")
+  originalDesignFileUrl String?  @map("original_design_file_url")
+  artworkRef            String?  @map("artwork_ref")
   printSize     String?  @map("print_size")
   printNotes    String?  @map("print_notes") @db.Text
   isPrinted     Boolean  @default(false) @map("is_printed")
@@ -370,4 +378,19 @@ model PrintGroupItem {
   @@index([printGroupId])
   @@index([orderId])
   @@map("print_group_items")
+}
+
+model CsComment {
+  id          String   @id @default(cuid())
+  orderId     String   @map("order_id")
+  userId      String?  @map("user_id")
+  content     String   @db.Text
+  attachments String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("cs_comments")
 }

@@ -4,14 +4,20 @@ import { prisma } from "@/lib/prisma";
 import sharp from "sharp";
 
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
+const ORDER_MARGIN = 90; // separator height in px
 
-function orderLabelSvg(text: string, fontSize = 48): Buffer {
-  const padding = 10;
-  const width = text.length * fontSize * 0.65 + padding * 2;
-  const height = fontSize + padding * 2;
-  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${width}" height="${height}" fill="white" fill-opacity="0.85"/>
-    <text x="${padding}" y="${fontSize + padding / 2}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="black">${text}</text>
+function orderSeparatorSvg(
+  text: string,
+  canvasWidth: number,
+  height: number,
+  fontSize = 48
+): Buffer {
+  const lineY = height * 0.3;
+  const textY = height * 0.85;
+  const svg = `<svg width="${canvasWidth}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${canvasWidth}" height="${height}" fill="white"/>
+    <line x1="0" y1="${lineY}" x2="${canvasWidth}" y2="${lineY}" stroke="black" stroke-width="3" stroke-dasharray="20,12"/>
+    <text x="20" y="${textY}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="black">${text}</text>
   </svg>`;
   return Buffer.from(svg);
 }
@@ -75,6 +81,7 @@ export async function GET(
     raw: Buffer;
     width: number;
     height: number;
+    orderId: string;
     orderNumber: string;
   }[] = [];
 
@@ -89,6 +96,7 @@ export async function GET(
       raw: data,
       width: info.width,
       height: info.height,
+      orderId: group.items[i].orderId,
       orderNumber: group.items[i].order.shopifyOrderNumber || "",
     });
   }
@@ -97,13 +105,34 @@ export async function GET(
     Math.max(...images.map((img) => img.width)),
     MAX_WIDTH
   );
-  const totalHeight = images.reduce((sum, img) => sum + img.height, 0);
+
+  // Count margins: add separator before each new order (including the first)
+  let marginCount = 1; // first order gets a separator too
+  for (let i = 1; i < images.length; i++) {
+    if (images[i].orderId !== images[i - 1].orderId) marginCount++;
+  }
+  const totalHeight =
+    images.reduce((sum, img) => sum + img.height, 0) +
+    marginCount * ORDER_MARGIN;
 
   // Build composites with raw buffers + limitInputPixels on each overlay
   const composites: sharp.OverlayOptions[] = [];
   let yOffset = 0;
 
-  for (const img of images) {
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    const isNewOrder = i === 0 || img.orderId !== images[i - 1].orderId;
+
+    // Insert separator with order number before each new order
+    if (isNewOrder) {
+      composites.push({
+        input: orderSeparatorSvg(img.orderNumber, canvasWidth, ORDER_MARGIN),
+        top: yOffset,
+        left: 0,
+      });
+      yOffset += ORDER_MARGIN;
+    }
+
     composites.push({
       input: img.raw,
       raw: { width: img.width, height: img.height, channels: 4 },
@@ -111,14 +140,6 @@ export async function GET(
       top: yOffset,
       left: 0,
     });
-
-    if (img.orderNumber) {
-      composites.push({
-        input: orderLabelSvg(img.orderNumber),
-        top: yOffset + 20,
-        left: 20,
-      });
-    }
 
     yOffset += img.height;
   }
@@ -138,7 +159,7 @@ export async function GET(
 
   const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
 
-  return new NextResponse(combined, {
+  return new NextResponse(new Uint8Array(combined), {
     headers: {
       "Content-Type": "image/png",
       "Content-Disposition": `attachment; filename="${filename}"`,

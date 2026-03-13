@@ -5,17 +5,17 @@ export const orderQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(25),
   status: z
     .enum([
-      "NEW",
+      "OPEN",
       "REVIEW",
-      "READY_TO_PRINT",
-      "PRINTING",
-      "PRINTED",
-      "READY_TO_SHIP",
       "LABEL_CREATED",
       "SHIPPED",
-      "ON_HOLD",
       "DELAYED",
+      "CANCELLED",
+      "DISMISSED",
     ])
+    .optional(),
+  printStatus: z
+    .enum(["NONE", "READY", "IN_QUEUE", "GROUPED", "DONE"])
     .optional(),
   shippingRoute: z.enum(["NOT_ASSIGNED", "THIRD_PARTY", "SHOPIFY"]).optional(),
   labelStatus: z
@@ -40,17 +40,17 @@ export const orderQuerySchema = z.object({
 export const orderUpdateSchema = z.object({
   internalStatus: z
     .enum([
-      "NEW",
+      "OPEN",
       "REVIEW",
-      "READY_TO_PRINT",
-      "PRINTING",
-      "PRINTED",
-      "READY_TO_SHIP",
       "LABEL_CREATED",
       "SHIPPED",
-      "ON_HOLD",
       "DELAYED",
+      "CANCELLED",
+      "DISMISSED",
     ])
+    .optional(),
+  printStatus: z
+    .enum(["NONE", "READY", "IN_QUEUE", "GROUPED", "DONE"])
     .optional(),
   shippingRoute: z.enum(["NOT_ASSIGNED", "THIRD_PARTY", "SHOPIFY"]).optional(),
   labelStatus: z
@@ -64,7 +64,6 @@ export const orderUpdateSchema = z.object({
     .optional(),
   priority: z.number().int().min(0).max(5).optional(),
   assignedOperator: z.string().nullable().optional(),
-  holdReason: z.string().nullable().optional(),
   csNote: z.string().nullable().optional(),
   csFlag: z.boolean().optional(),
   csPriority: z.number().int().min(0).max(5).optional(),
@@ -78,17 +77,17 @@ export const bulkUpdateSchema = z.object({
   orderIds: z.array(z.string()).min(1),
   internalStatus: z
     .enum([
-      "NEW",
+      "OPEN",
       "REVIEW",
-      "READY_TO_PRINT",
-      "PRINTING",
-      "PRINTED",
-      "READY_TO_SHIP",
       "LABEL_CREATED",
       "SHIPPED",
-      "ON_HOLD",
       "DELAYED",
+      "CANCELLED",
+      "DISMISSED",
     ])
+    .optional(),
+  printStatus: z
+    .enum(["NONE", "READY", "IN_QUEUE", "GROUPED", "DONE"])
     .optional(),
   shippingRoute: z.enum(["NOT_ASSIGNED", "THIRD_PARTY", "SHOPIFY"]).optional(),
   assignedOperator: z.string().nullable().optional(),

@@ -43,7 +43,9 @@ function useLabelsOrders(page: number, statusFilter: string) {
     dir: "desc",
     view: "all",
   });
-  if (statusFilter) {
+  if (statusFilter === "DONE") {
+    params.set("printStatus", "DONE");
+  } else if (statusFilter) {
     params.set("status", statusFilter);
   }
 
@@ -63,7 +65,7 @@ function useLabelsOrders(page: number, statusFilter: string) {
 
 export default function LabelsPage() {
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("READY_TO_SHIP");
+  const [statusFilter, setStatusFilter] = useState("DONE");
   const { orders, pagination, isLoading, refresh } = useLabelsOrders(
     page,
     statusFilter
@@ -176,8 +178,8 @@ export default function LabelsPage() {
             <SelectValue placeholder="Filter status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="READY_TO_SHIP">
-              {STATUS_LABELS.READY_TO_SHIP}
+            <SelectItem value="DONE">
+              Print Done
             </SelectItem>
             <SelectItem value="LABEL_CREATED">
               {STATUS_LABELS.LABEL_CREATED}

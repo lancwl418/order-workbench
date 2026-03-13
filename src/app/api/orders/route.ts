@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     "shopifyOrderNumber",
     "customerName",
     "internalStatus",
+    "printStatus",
     "priority",
     "totalPrice",
   ];
@@ -76,7 +77,14 @@ function buildWhereClause(
   // View presets
   switch (params.view) {
     case "print-queue":
-      where.internalStatus = "READY_TO_PRINT";
+      where.printStatus = "IN_QUEUE";
+      where.printGroupItems = {
+        none: {
+          printGroup: {
+            status: { in: ["BUILDING", "READY"] },
+          },
+        },
+      };
       break;
     case "cs-queue":
       where.csFlag = true;
@@ -84,7 +92,6 @@ function buildWhereClause(
     case "exceptions":
       where.OR = [
         { isOverdue: true },
-        { internalStatus: "ON_HOLD" },
         { internalStatus: "DELAYED" },
         { delayFlag: true },
       ];
@@ -94,6 +101,10 @@ function buildWhereClause(
   // Additional filters (can narrow down within a view)
   if (params.status && params.view === "all") {
     where.internalStatus = params.status;
+  }
+
+  if (params.printStatus) {
+    where.printStatus = params.printStatus;
   }
 
   if (params.shippingRoute) {

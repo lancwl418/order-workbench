@@ -56,10 +56,10 @@ export async function PATCH(
   // Get unique order IDs in the group
   const orderIds = [...new Set(group.items.map((item) => item.orderId))];
 
-  // Update all orders to PRINTED
+  // Update all orders printStatus to PRINTED
   await prisma.order.updateMany({
     where: { id: { in: orderIds } },
-    data: { internalStatus: "PRINTED" },
+    data: { printStatus: "DONE" },
   });
 
   // Mark all order items as printed
@@ -72,13 +72,72 @@ export async function PATCH(
   const logEntries = orderIds.map((orderId) => ({
     orderId,
     userId: session.user?.id,
-    action: "status_change",
-    fromValue: "PRINTING",
-    toValue: "PRINTED",
+    action: "print_status_change",
+    fromValue: "GROUPED",
+    toValue: "DONE",
     message: `Print group completed: ${group.name}`,
   }));
 
   await prisma.orderLog.createMany({ data: logEntries });
 
   return NextResponse.json({ success: true, ordersUpdated: orderIds.length });
+}
+
+// Release (dissolve) an entire group - orders go back to IN_QUEUE
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const group = await prisma.printGroup.findUnique({
+    where: { id },
+    include: {
+      items: {
+        select: { orderId: true },
+      },
+    },
+  });
+
+  if (!group) {
+    return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+
+  if (group.status === "PRINTED") {
+    return NextResponse.json(
+      { error: "Cannot release a PRINTED group" },
+      { status: 400 }
+    );
+  }
+
+  const orderIds = [...new Set(group.items.map((item) => item.orderId))];
+
+  // Delete the group (cascades to items)
+  await prisma.printGroup.delete({ where: { id } });
+
+  // Set orders back to IN_QUEUE print status
+  if (orderIds.length > 0) {
+    await prisma.order.updateMany({
+      where: { id: { in: orderIds } },
+      data: { printStatus: "IN_QUEUE" },
+    });
+
+    await prisma.orderLog.createMany({
+      data: orderIds.map((orderId) => ({
+        orderId,
+        userId: session.user?.id,
+        action: "print_status_change",
+        fromValue: group.status === "READY" ? "GROUPED" : "IN_QUEUE",
+        toValue: "IN_QUEUE",
+        message: `Released from print group: ${group.name}`,
+      })),
+    });
+  }
+
+  return NextResponse.json({ success: true, ordersReleased: orderIds.length });
 }
