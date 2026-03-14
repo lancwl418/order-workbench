@@ -140,6 +140,7 @@ async function handleOrderUpdated(
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
       shippingMethod: orderData.shippingMethod,
+      internalStatus: orderData.internalStatus,
       ...trackingFields,
     },
   });
@@ -203,6 +204,20 @@ async function handleFulfillmentUpsert(
   const shipmentStatus = payload.shipment_status || null;
   const fulfillmentId = String(payload.id);
 
+  // Determine internalStatus based on fulfillment + shipment status
+  let newInternalStatus: string | undefined;
+  if (shipmentStatus === "delivered") {
+    newInternalStatus = "SHIPPED";
+  } else if (shipmentStatus === "in_transit" || shipmentStatus === "out_for_delivery") {
+    newInternalStatus = "SHIPPED";
+  } else if (trackingNumber && (!shipmentStatus || shipmentStatus === "label_printed" || shipmentStatus === "label_purchased")) {
+    // Has tracking but not yet moving → label created
+    newInternalStatus = "LABEL_CREATED";
+  } else if (payload.status === "success") {
+    // Fulfilled in Shopify
+    newInternalStatus = "SHIPPED";
+  }
+
   // Update order-level fields
   await prisma.order.update({
     where: { id: order.id },
@@ -210,6 +225,7 @@ async function handleFulfillmentUpsert(
       shopifyFulfillStatus: payload.status,
       ...(trackingNumber ? { trackingNumber } : {}),
       ...(carrier ? { carrier } : {}),
+      ...(newInternalStatus ? { internalStatus: newInternalStatus as never } : {}),
     },
   });
 
