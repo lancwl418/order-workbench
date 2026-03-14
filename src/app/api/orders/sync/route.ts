@@ -32,9 +32,10 @@ export async function POST(req: NextRequest) {
 
     const shopifyOrders = await fetchOrders({
       status,
-      limit: limit || 50,
+      limit: limit || 250,
       createdAtMin,
       updatedAtMin,
+      fetchAll: true,
     });
 
     let created = 0;

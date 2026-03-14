@@ -23,12 +23,14 @@ export async function fetchOrders(params?: {
   sinceId?: string;
   createdAtMin?: string;
   updatedAtMin?: string;
+  fetchAll?: boolean;
 }): Promise<ShopifyOrder[]> {
   const client = createShopifyRestClient();
+  const pageSize = Math.min(params?.limit || 250, 250);
 
   const query: Record<string, string | number> = {
     status: params?.status || "any",
-    limit: params?.limit || 50,
+    limit: pageSize,
   };
 
   if (params?.sinceId) {
@@ -41,13 +43,26 @@ export async function fetchOrders(params?: {
     query.updated_at_min = params.updatedAtMin;
   }
 
-  const response = await client.get({
-    path: "orders",
-    query,
-  });
+  const allOrders: ShopifyOrder[] = [];
+  let response = await client.get({ path: "orders", query });
+  let body = response.body as { orders: ShopifyOrder[] };
+  allOrders.push(...body.orders);
 
-  const body = response.body as { orders: ShopifyOrder[] };
-  return body.orders;
+  // Paginate if fetchAll is true and there are more pages
+  if (params?.fetchAll) {
+    let pageInfo = response.pageInfo;
+    while (pageInfo?.nextPage) {
+      response = await client.get({
+        path: "orders",
+        query: pageInfo.nextPage.query,
+      });
+      body = response.body as { orders: ShopifyOrder[] };
+      allOrders.push(...body.orders);
+      pageInfo = response.pageInfo;
+    }
+  }
+
+  return allOrders;
 }
 
 /**
