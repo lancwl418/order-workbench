@@ -190,6 +190,46 @@ export function createColumns(opts: {
       },
     },
     {
+      id: "tracking",
+      header: "Tracking",
+      cell: ({ row }) => {
+        const tracking = row.original.trackingNumber;
+        const shipment = row.original.shipments?.[0];
+        const carrier = shipment?.carrier || row.original.carrier;
+        const trackingUrl = shipment?.trackingUrl;
+        const transitStatus = shipment?.status;
+
+        if (!tracking) {
+          return <span className="text-muted-foreground text-sm">-</span>;
+        }
+
+        return (
+          <div className="space-y-0.5">
+            {carrier && (
+              <span className="text-xs font-medium text-muted-foreground block">
+                {carrier}
+              </span>
+            )}
+            {trackingUrl ? (
+              <a
+                href={trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
+              >
+                {tracking}
+              </a>
+            ) : (
+              <span className="text-xs font-mono block max-w-[140px] truncate">
+                {tracking}
+              </span>
+            )}
+            {transitStatus && <StatusBadge status={transitStatus} />}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "printStatus",
       header: "Print Status",
       cell: ({ row }) => {
@@ -286,46 +326,6 @@ export function createColumns(opts: {
                 )}
               </Button>
             )}
-          </div>
-        );
-      },
-    },
-    {
-      id: "tracking",
-      header: "Tracking",
-      cell: ({ row }) => {
-        const tracking = row.original.trackingNumber;
-        const shipment = row.original.shipments?.[0];
-        const carrier = shipment?.carrier || row.original.carrier;
-        const trackingUrl = shipment?.trackingUrl;
-        const transitStatus = shipment?.status;
-
-        if (!tracking) {
-          return <span className="text-muted-foreground text-sm">-</span>;
-        }
-
-        return (
-          <div className="space-y-0.5">
-            {carrier && (
-              <span className="text-xs font-medium text-muted-foreground block">
-                {carrier}
-              </span>
-            )}
-            {trackingUrl ? (
-              <a
-                href={trackingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
-              >
-                {tracking}
-              </a>
-            ) : (
-              <span className="text-xs font-mono block max-w-[140px] truncate">
-                {tracking}
-              </span>
-            )}
-            {transitStatus && <StatusBadge status={transitStatus} />}
           </div>
         );
       },
