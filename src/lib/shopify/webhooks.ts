@@ -204,18 +204,18 @@ async function handleFulfillmentUpsert(
   const shipmentStatus = payload.shipment_status || null;
   const fulfillmentId = String(payload.id);
 
-  // Determine internalStatus based on fulfillment + shipment status
+  // Map shipment/fulfillment status → order internalStatus
   let newInternalStatus: string | undefined;
   if (shipmentStatus === "delivered") {
-    newInternalStatus = "SHIPPED";
+    newInternalStatus = "DELIVERED";
   } else if (shipmentStatus === "in_transit" || shipmentStatus === "out_for_delivery") {
     newInternalStatus = "SHIPPED";
-  } else if (trackingNumber && (!shipmentStatus || shipmentStatus === "label_printed" || shipmentStatus === "label_purchased")) {
-    // Has tracking but not yet moving → label created
+  } else if (shipmentStatus === "failure" || shipmentStatus === "attempted_delivery") {
+    newInternalStatus = "DELAYED";
+  } else if (trackingNumber && (!shipmentStatus || shipmentStatus === "label_printed" || shipmentStatus === "label_purchased" || shipmentStatus === "confirmed")) {
     newInternalStatus = "LABEL_CREATED";
-  } else if (payload.status === "success") {
-    // Fulfilled in Shopify
-    newInternalStatus = "SHIPPED";
+  } else if (payload.status === "success" && trackingNumber) {
+    newInternalStatus = "LABEL_CREATED";
   }
 
   // Update order-level fields

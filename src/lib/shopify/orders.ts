@@ -211,25 +211,12 @@ function mapShopifyToInternalStatus(
   financialStatus: string,
   cancelledAt?: string | null
 ): MappedOrder["internalStatus"] {
-  // Cancelled in Shopify
-  if (cancelledAt) {
-    return "CANCELLED";
-  }
+  if (cancelledAt) return "CANCELLED";
+  if (financialStatus === "refunded" || financialStatus === "voided") return "CANCELLED";
 
-  // Refunded or voided - treat as cancelled
-  if (financialStatus === "refunded" || financialStatus === "voided") {
-    return "CANCELLED";
-  }
-
-  // Already fulfilled in Shopify
-  if (fulfillmentStatus === "fulfilled") {
-    return "SHIPPED";
-  }
-
-  // Partially fulfilled — keep as OPEN (print status is separate)
-  if (fulfillmentStatus === "partial") {
-    return "OPEN";
-  }
+  // Fulfilled → will be refined by fulfillment webhook with actual tracking status
+  // For initial sync, mark as LABEL_CREATED (tracking exists but status unknown)
+  if (fulfillmentStatus === "fulfilled") return "LABEL_CREATED";
 
   return "OPEN";
 }
