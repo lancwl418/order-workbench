@@ -76,12 +76,19 @@ export async function POST(
     });
   }
 
-  // Log the change
+  // If the order had no print files before, set printStatus to READY
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { shopifyOrderNumber: true },
+    select: { shopifyOrderNumber: true, printStatus: true },
   });
+  if (order?.printStatus === "NONE") {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { printStatus: "READY" },
+    });
+  }
 
+  // Log the change
   await prisma.orderLog.create({
     data: {
       orderId,
