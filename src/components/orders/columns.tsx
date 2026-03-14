@@ -133,6 +133,67 @@ export function createColumns(opts: {
       ),
     },
     {
+      id: "tracking",
+      header: "Tracking",
+      cell: ({ row }) => {
+        const tracking = row.original.trackingNumber;
+        const shipment = row.original.shipments?.[0];
+        const carrier = shipment?.carrier || row.original.carrier;
+        const trackingUrl = shipment?.trackingUrl;
+        const transitStatus = shipment?.status;
+
+        if (!tracking) {
+          return <span className="text-muted-foreground text-sm">-</span>;
+        }
+
+        return (
+          <div className="space-y-0.5">
+            {carrier && (
+              <span className="text-xs font-medium text-muted-foreground block">
+                {carrier}
+              </span>
+            )}
+            {trackingUrl ? (
+              <a
+                href={trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
+              >
+                {tracking}
+              </a>
+            ) : (
+              <span className="text-xs font-mono block max-w-[140px] truncate">
+                {tracking}
+              </span>
+            )}
+            {transitStatus && <StatusBadge status={transitStatus} />}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "totalPrice",
+      header: "Total",
+      cell: ({ row }) => {
+        const price = row.getValue("totalPrice") as string | null;
+        return (
+          <span className="text-sm">
+            {price ? `$${parseFloat(price).toFixed(2)}` : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      id: "items",
+      header: "Items",
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">
+          {row.original.orderItems.length}
+        </span>
+      ),
+    },
+    {
       accessorKey: "internalStatus",
       header: "Order Status",
       cell: ({ row }) => {
@@ -268,79 +329,6 @@ export function createColumns(opts: {
           </div>
         );
       },
-    },
-    {
-      accessorKey: "shippingRoute",
-      header: "Route",
-      cell: ({ row }) => {
-        const route = row.getValue("shippingRoute") as string;
-        return route === "NOT_ASSIGNED" ? (
-          <span className="text-muted-foreground text-sm">-</span>
-        ) : (
-          <StatusBadge status={route} />
-        );
-      },
-    },
-    {
-      id: "tracking",
-      header: "Tracking",
-      cell: ({ row }) => {
-        const tracking = row.original.trackingNumber;
-        const shipment = row.original.shipments?.[0];
-        const carrier = shipment?.carrier || row.original.carrier;
-        const trackingUrl = shipment?.trackingUrl;
-        const transitStatus = shipment?.status;
-
-        if (!tracking) {
-          return <span className="text-muted-foreground text-sm">-</span>;
-        }
-
-        return (
-          <div className="space-y-0.5">
-            {carrier && (
-              <span className="text-xs font-medium text-muted-foreground block">
-                {carrier}
-              </span>
-            )}
-            {trackingUrl ? (
-              <a
-                href={trackingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
-              >
-                {tracking}
-              </a>
-            ) : (
-              <span className="text-xs font-mono block max-w-[140px] truncate">
-                {tracking}
-              </span>
-            )}
-            {transitStatus && <StatusBadge status={transitStatus} />}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "totalPrice",
-      header: "Total",
-      cell: ({ row }) => {
-        const price = row.getValue("totalPrice") as string | null;
-        return (
-          <span className="text-sm">
-            {price ? `$${parseFloat(price).toFixed(2)}` : "-"}
-          </span>
-        );
-      },
-    },
-    {
-      id: "items",
-      header: "Items",
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original.orderItems.length}
-        </span>
-      ),
     },
   ];
 }
