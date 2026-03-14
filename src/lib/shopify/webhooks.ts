@@ -222,9 +222,14 @@ async function handleFulfillmentUpsert(
     newInternalStatus = "LABEL_CREATED";
   }
 
-  // Print status → DONE only when actually in transit, delivered, or delayed
+  // Print status → DONE only when actually in transit/delivered/delayed AND order has print files
+  // If current printStatus is NONE, it means no print files exist → don't set DONE
   const printDoneStatuses = ["SHIPPED", "DELIVERED", "DELAYED"];
-  const newPrintStatus = newInternalStatus && printDoneStatuses.includes(newInternalStatus) ? "DONE" : undefined;
+  const shouldMarkPrintDone =
+    newInternalStatus &&
+    printDoneStatuses.includes(newInternalStatus) &&
+    order.printStatus !== "NONE";
+  const newPrintStatus = shouldMarkPrintDone ? "DONE" : undefined;
 
   // Update order-level fields
   await prisma.order.update({

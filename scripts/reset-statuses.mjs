@@ -44,6 +44,10 @@ async function main() {
     let newStatus;
     let newPrintStatus;
 
+    const hasPrintFiles = order.orderItems.some((i) => i.designFileUrl);
+    // Print workflow statuses that should be preserved (not overwritten)
+    const printWorkflowStatuses = ["IN_QUEUE", "GROUPED"];
+
     if (isCancelled) {
       newStatus = "CANCELLED";
       newPrintStatus = "NONE";
@@ -51,33 +55,42 @@ async function main() {
     } else if (fulfillStatus === "fulfilled" || fulfillStatus === "partial") {
       if (hasDelivered) {
         newStatus = "DELIVERED";
-        newPrintStatus = "DONE";
+        newPrintStatus = hasPrintFiles ? "DONE" : "NONE";
         stats.delivered++;
-        stats.print_done++;
+        if (hasPrintFiles) stats.print_done++;
       } else if (hasFailure) {
         newStatus = "DELAYED";
-        newPrintStatus = "DONE";
+        newPrintStatus = hasPrintFiles ? "DONE" : "NONE";
         stats.delayed++;
-        stats.print_done++;
+        if (hasPrintFiles) stats.print_done++;
       } else if (hasInTransit) {
         newStatus = "SHIPPED";
-        newPrintStatus = "DONE";
+        newPrintStatus = hasPrintFiles ? "DONE" : "NONE";
         stats.shipped++;
-        stats.print_done++;
+        if (hasPrintFiles) stats.print_done++;
       } else if (hasTracking) {
-        // Label created but not yet in transit → print status stays as-is
+        // Label created but not yet in transit → print is NOT done
         newStatus = "LABEL_CREATED";
-        newPrintStatus = order.printStatus || "NONE";
+        if (printWorkflowStatuses.includes(order.printStatus)) {
+          newPrintStatus = order.printStatus;
+        } else {
+          newPrintStatus = hasPrintFiles ? "READY" : "NONE";
+        }
         stats.label_created++;
       } else {
+        // Fulfilled but no shipment data → assume shipped
         newStatus = "SHIPPED";
-        newPrintStatus = "DONE";
+        newPrintStatus = hasPrintFiles ? "DONE" : "NONE";
         stats.shipped++;
-        stats.print_done++;
+        if (hasPrintFiles) stats.print_done++;
       }
     } else {
       newStatus = "OPEN";
-      newPrintStatus = order.orderItems.some((i) => i.designFileUrl) ? "READY" : "NONE";
+      if (printWorkflowStatuses.includes(order.printStatus)) {
+        newPrintStatus = order.printStatus;
+      } else {
+        newPrintStatus = hasPrintFiles ? "READY" : "NONE";
+      }
       stats.open++;
     }
 
