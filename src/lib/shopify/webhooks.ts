@@ -60,9 +60,13 @@ async function handleOrderCreate(
     ? { trackingNumber: latestFulfillment.trackingNumber, carrier: latestFulfillment.carrier }
     : {};
 
+  // Auto-detect print files → set printStatus to READY
+  const hasDesignFiles = items.some((item) => item.designFileUrl);
+  const printFields = hasDesignFiles ? { printStatus: "READY" as const } : {};
+
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
-    create: { ...orderData, ...trackingFields },
+    create: { ...orderData, ...trackingFields, ...printFields },
     update: {
       shopifyStatus: orderData.shopifyStatus,
       shopifyFulfillStatus: orderData.shopifyFulfillStatus,
