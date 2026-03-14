@@ -25,41 +25,38 @@ export async function fetchOrders(params?: {
   updatedAtMin?: string;
   fetchAll?: boolean;
 }): Promise<ShopifyOrder[]> {
-  const client = createShopifyRestClient();
-  const pageSize = Math.min(params?.limit || 250, 250);
+  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const token = process.env.SHOPIFY_ACCESS_TOKEN!;
+  const version = process.env.SHOPIFY_API_VERSION || "2025-01";
+  const baseUrl = `https://${store}/admin/api/${version}`;
 
-  const query: Record<string, string | number> = {
+  const searchParams = new URLSearchParams({
     status: params?.status || "any",
-    limit: pageSize,
-  };
+    limit: String(Math.min(params?.limit || 250, 250)),
+  });
 
-  if (params?.sinceId) {
-    query.since_id = params.sinceId;
-  }
-  if (params?.createdAtMin) {
-    query.created_at_min = params.createdAtMin;
-  }
-  if (params?.updatedAtMin) {
-    query.updated_at_min = params.updatedAtMin;
-  }
+  if (params?.sinceId) searchParams.set("since_id", params.sinceId);
+  if (params?.createdAtMin) searchParams.set("created_at_min", params.createdAtMin);
+  if (params?.updatedAtMin) searchParams.set("updated_at_min", params.updatedAtMin);
 
   const allOrders: ShopifyOrder[] = [];
-  let response = await client.get({ path: "orders", query });
-  let body = response.body as { orders: ShopifyOrder[] };
-  allOrders.push(...body.orders);
+  let url: string | null = `${baseUrl}/orders.json?${searchParams}`;
 
-  // Paginate if fetchAll is true and there are more pages
-  if (params?.fetchAll) {
-    let pageInfo = response.pageInfo;
-    while (pageInfo?.nextPage) {
-      response = await client.get({
-        path: "orders",
-        query: pageInfo.nextPage.query,
-      });
-      body = response.body as { orders: ShopifyOrder[] };
-      allOrders.push(...body.orders);
-      pageInfo = response.pageInfo;
-    }
+  while (url) {
+    const res = await fetch(url, {
+      headers: { "X-Shopify-Access-Token": token },
+    });
+    if (!res.ok) throw new Error(`Shopify API error: ${res.status}`);
+
+    const data = await res.json();
+    allOrders.push(...data.orders);
+
+    if (!params?.fetchAll) break;
+
+    // Parse Link header for next page
+    const link = res.headers.get("link");
+    const nextMatch = link?.match(/<([^>]+)>;\s*rel="next"/);
+    url = nextMatch ? nextMatch[1] : null;
   }
 
   return allOrders;
