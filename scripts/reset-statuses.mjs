@@ -49,25 +49,31 @@ async function main() {
       newPrintStatus = "NONE";
       stats.cancelled++;
     } else if (fulfillStatus === "fulfilled" || fulfillStatus === "partial") {
-      newPrintStatus = "DONE";
-      stats.print_done++;
-
       if (hasDelivered) {
         newStatus = "DELIVERED";
+        newPrintStatus = "DONE";
         stats.delivered++;
+        stats.print_done++;
       } else if (hasFailure) {
         newStatus = "DELAYED";
+        newPrintStatus = "DONE";
         stats.delayed++;
+        stats.print_done++;
       } else if (hasInTransit) {
         newStatus = "SHIPPED";
+        newPrintStatus = "DONE";
         stats.shipped++;
+        stats.print_done++;
       } else if (hasTracking) {
+        // Label created but not yet in transit → print status stays as-is
         newStatus = "LABEL_CREATED";
+        newPrintStatus = order.printStatus || "NONE";
         stats.label_created++;
       } else {
-        // Fulfilled but no tracking → assume shipped
         newStatus = "SHIPPED";
+        newPrintStatus = "DONE";
         stats.shipped++;
+        stats.print_done++;
       }
     } else {
       newStatus = "OPEN";

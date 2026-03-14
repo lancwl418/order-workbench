@@ -3,6 +3,7 @@ export const INTERNAL_STATUSES = [
   "REVIEW",
   "LABEL_CREATED",
   "SHIPPED",
+  "DELIVERED",
   "DELAYED",
   "CANCELLED",
   "DISMISSED",
@@ -51,6 +52,7 @@ export const STATUS_LABELS: Record<string, string> = {
   REVIEW: "Review",
   LABEL_CREATED: "Label Created",
   SHIPPED: "Shipped",
+  DELIVERED: "Delivered",
   DELAYED: "Delayed",
   CANCELLED: "Cancelled",
   DISMISSED: "Dismissed",
@@ -82,6 +84,7 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   REVIEW: { bg: "bg-amber-100", text: "text-amber-700" },
   LABEL_CREATED: { bg: "bg-orange-100", text: "text-orange-700" },
   SHIPPED: { bg: "bg-green-100", text: "text-green-700" },
+  DELIVERED: { bg: "bg-emerald-100", text: "text-emerald-700" },
   DELAYED: { bg: "bg-red-100", text: "text-red-700" },
   CANCELLED: { bg: "bg-gray-200", text: "text-gray-500" },
   DISMISSED: { bg: "bg-gray-200", text: "text-gray-400" },
@@ -203,6 +206,7 @@ const STATUS_FLOW = [
   "REVIEW",
   "LABEL_CREATED",
   "SHIPPED",
+  "DELIVERED",
 ] as const;
 
 export function getNextStatus(current: string): string | null {

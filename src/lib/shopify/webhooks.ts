@@ -218,6 +218,10 @@ async function handleFulfillmentUpsert(
     newInternalStatus = "LABEL_CREATED";
   }
 
+  // Print status → DONE only when actually in transit, delivered, or delayed
+  const printDoneStatuses = ["SHIPPED", "DELIVERED", "DELAYED"];
+  const newPrintStatus = newInternalStatus && printDoneStatuses.includes(newInternalStatus) ? "DONE" : undefined;
+
   // Update order-level fields
   await prisma.order.update({
     where: { id: order.id },
@@ -226,6 +230,7 @@ async function handleFulfillmentUpsert(
       ...(trackingNumber ? { trackingNumber } : {}),
       ...(carrier ? { carrier } : {}),
       ...(newInternalStatus ? { internalStatus: newInternalStatus as never } : {}),
+      ...(newPrintStatus ? { printStatus: newPrintStatus as never } : {}),
     },
   });
 
