@@ -43,7 +43,7 @@ export async function fetchOrders(params?: {
   let url: string | null = `${baseUrl}/orders.json?${searchParams}`;
 
   while (url) {
-    const res = await fetch(url, {
+    const res: Response = await fetch(url, {
       headers: { "X-Shopify-Access-Token": token },
     });
     if (!res.ok) throw new Error(`Shopify API error: ${res.status}`);
