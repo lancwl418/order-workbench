@@ -80,10 +80,10 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  OPEN: { bg: "bg-slate-100", text: "text-slate-700" },
-  REVIEW: { bg: "bg-amber-100", text: "text-amber-700" },
+  OPEN: { bg: "bg-yellow-100", text: "text-yellow-700" },
+  REVIEW: { bg: "bg-purple-100", text: "text-purple-700" },
   LABEL_CREATED: { bg: "bg-orange-100", text: "text-orange-700" },
-  SHIPPED: { bg: "bg-green-100", text: "text-green-700" },
+  SHIPPED: { bg: "bg-blue-100", text: "text-blue-700" },
   DELIVERED: { bg: "bg-emerald-100", text: "text-emerald-700" },
   DELAYED: { bg: "bg-red-100", text: "text-red-700" },
   CANCELLED: { bg: "bg-gray-200", text: "text-gray-500" },
