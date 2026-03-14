@@ -189,6 +189,7 @@ export default function OrdersPage() {
         onPrintStatusChange: handlePrintStatusChange,
         onCsToggle: handleCsToggle,
         loadingId: statusLoading,
+        shopifyStoreDomain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN,
       }),
     [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading]
   );

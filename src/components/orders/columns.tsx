@@ -27,13 +27,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronRight, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag } from "lucide-react";
 
 export function createColumns(opts: {
   onStatusChange: (orderId: string, newStatus: string) => Promise<void>;
   onPrintStatusChange?: (orderId: string, newPrintStatus: string) => Promise<void>;
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   loadingId: string | null;
+  shopifyStoreDomain?: string;
 }): ColumnDef<OrderListItem>[] {
   return [
     {
@@ -200,7 +206,55 @@ export function createColumns(opts: {
         const transitStatus = shipment?.status;
 
         if (!tracking) {
-          return <span className="text-muted-foreground text-sm">-</span>;
+          const shopifyOrderId = row.original.shopifyOrderId;
+          const domain = opts.shopifyStoreDomain;
+
+          return (
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button variant="outline" size="xs" className="gap-1 text-xs">
+                    <Tag className="h-3 w-3" />
+                    Create Label
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                }
+              />
+              <PopoverContent className="w-44 p-1" align="start">
+                <button
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => {
+                    if (domain && shopifyOrderId) {
+                      window.open(
+                        `https://${domain}/admin/orders/${shopifyOrderId}`,
+                        "_blank"
+                      );
+                    }
+                  }}
+                  disabled={!domain || !shopifyOrderId}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Shopify
+                </button>
+                <TooltipProvider delay={0}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground/50 cursor-not-allowed"
+                          disabled
+                        >
+                          <Tag className="h-3.5 w-3.5" />
+                          OMS
+                        </button>
+                      }
+                    />
+                    <TooltipContent side="right">Coming soon</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </PopoverContent>
+            </Popover>
+          );
         }
 
         return (
