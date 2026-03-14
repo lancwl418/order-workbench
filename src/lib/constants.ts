@@ -41,10 +41,10 @@ export const PRINT_STATUS_LABELS: Record<string, string> = {
 
 export const PRINT_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   NONE: { bg: "bg-gray-100", text: "text-gray-500" },
-  READY: { bg: "bg-blue-100", text: "text-blue-700" },
+  READY: { bg: "bg-yellow-100", text: "text-yellow-700" },
   IN_QUEUE: { bg: "bg-purple-100", text: "text-purple-700" },
   GROUPED: { bg: "bg-indigo-100", text: "text-indigo-700" },
-  DONE: { bg: "bg-cyan-100", text: "text-cyan-700" },
+  DONE: { bg: "bg-emerald-100", text: "text-emerald-700" },
 };
 
 export const STATUS_LABELS: Record<string, string> = {
