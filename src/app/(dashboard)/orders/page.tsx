@@ -4,7 +4,6 @@ import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { DataTable } from "@/components/orders/data-table";
 import { createColumns } from "@/components/orders/columns";
 import { OrderFilterBar } from "@/components/orders/order-filters";
@@ -58,7 +57,6 @@ const summaryCardDefs: {
 ];
 
 export default function OrdersPage() {
-  const isMobile = useIsMobile();
   const tOrders = useTranslations("orders");
   const tStatus = useTranslations("status");
   const tPrint = useTranslations("printStatus");
@@ -178,21 +176,6 @@ export default function OrdersPage() {
     [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading, tOrders, printLabels]
   );
 
-  const columnVisibility = useMemo(
-    () =>
-      isMobile
-        ? {
-            customerName: false,
-            shopifyCreatedAt: false,
-            totalPrice: false,
-            items: false,
-            tracking: false,
-            printStatus: false,
-          }
-        : undefined,
-    [isMobile]
-  );
-
   async function handleSync() {
     setSyncing(true);
     try {
@@ -236,7 +219,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="flex overflow-x-auto gap-3 pb-2 mb-6 md:grid md:grid-cols-3 lg:grid-cols-7">
+      <div className="flex overflow-x-auto scrollbar-none gap-3 pb-2 mb-6 md:grid md:grid-cols-3 lg:grid-cols-7">
         {summaryCardDefs.map((card) => {
           const Icon = card.icon;
           const count = counts[card.key] ?? 0;
@@ -309,7 +292,6 @@ export default function OrdersPage() {
           setSelectedOrders(rows as OrderListItem[])
         }
         isLoading={isLoading}
-        columnVisibility={columnVisibility}
       />
     </div>
   );
