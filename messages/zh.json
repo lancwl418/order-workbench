@@ -148,7 +148,12 @@
     },
     "createLabel": "创建面单",
     "comingSoon": "即将上线",
-    "noTracking": "-"
+    "noTracking": "-",
+    "noPrint": "无打印文件",
+    "addToQueue": "加入打印队列",
+    "reprintAddToQueue": "重打/加入列表",
+    "csRemove": "移除客服标记",
+    "csFlag": "标记为客服订单"
   },
   "orderDetail": {
     "orderPrefix": "订单 #",
@@ -301,7 +306,7 @@
     "manageLabels": "管理追踪号和面单同步",
     "trackingPlaceholder": "追踪号",
     "syncToShopify": "同步到 Shopify",
-    "synced": "已同步",
+    "synced": "同步",
     "printDone": "打印完成",
     "noOrdersInStatus": "该状态下暂无订单。",
     "columns": {

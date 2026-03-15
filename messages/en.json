@@ -148,7 +148,12 @@
     },
     "createLabel": "Create Label",
     "comingSoon": "Coming soon",
-    "noTracking": "-"
+    "noTracking": "-",
+    "noPrint": "No Print",
+    "addToQueue": "Add to Queue",
+    "reprintAddToQueue": "Reprint / Add to Queue",
+    "csRemove": "Remove CS flag",
+    "csFlag": "Flag as CS order"
   },
   "orderDetail": {
     "orderPrefix": "Order #",
