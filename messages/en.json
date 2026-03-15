@@ -184,7 +184,7 @@
     "noActivity": "No activity yet.",
     "exceptions": "Active Exceptions",
     "csComments": "CS Comments",
-    "addComment": "Add a comment...",
+    "addComment": "Add a comment... use @ to notify someone",
     "attach": "Attach",
     "uploading": "Uploading...",
     "send": "Send",
@@ -336,7 +336,7 @@
     "select": "Select...",
     "csNotes": "CS Notes",
     "unknownCustomer": "Unknown customer",
-    "addCommentPlaceholder": "Add a comment... (Cmd+Enter to submit)",
+    "addCommentPlaceholder": "Add a comment... use @ to notify someone",
     "noComments": "No comments yet",
     "flagDialog": {
       "title": "Flag as CS Order",

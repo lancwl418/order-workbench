@@ -165,16 +165,39 @@ export function MentionInput({
         className={className}
       />
 
-      {/* @ hint icon */}
-      <div className="absolute right-2 bottom-2 text-muted-foreground/40 pointer-events-none">
+      {/* @ hint button */}
+      <button
+        type="button"
+        className="absolute right-2 bottom-2 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        onClick={() => {
+          const textarea = textareaRef.current;
+          if (!textarea) return;
+          const pos = textarea.selectionStart;
+          const before = value.slice(0, pos);
+          const after = value.slice(pos);
+          const needsSpace = before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n");
+          const insert = (needsSpace ? " " : "") + "@";
+          onChange(before + insert + after);
+          setShowDropdown(true);
+          setFilter("");
+          setMentionStart(before.length + (needsSpace ? 1 : 0));
+          setSelectedIndex(0);
+          setTimeout(() => {
+            const newPos = before.length + insert.length;
+            textarea.setSelectionRange(newPos, newPos);
+            textarea.focus();
+          }, 0);
+        }}
+        tabIndex={-1}
+      >
         <AtSign className="h-3.5 w-3.5" />
-      </div>
+      </button>
 
       {/* Mention dropdown */}
       {showDropdown && filteredUsers.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 left-0 mt-1 w-56 rounded-md border bg-popover shadow-md"
+          className="absolute z-50 left-0 bottom-full mb-1 w-56 max-h-48 overflow-y-auto rounded-md border bg-popover shadow-md"
         >
           {filteredUsers.slice(0, 8).map((user, i) => (
             <button

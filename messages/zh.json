@@ -184,7 +184,7 @@
     "noActivity": "暂无操作记录",
     "exceptions": "异常信息",
     "csComments": "客服备注",
-    "addComment": "添加备注...",
+    "addComment": "添加备注... 用 @ 通知相关人员",
     "attach": "附件",
     "uploading": "上传中...",
     "send": "发送",
@@ -336,7 +336,7 @@
     "select": "选择...",
     "csNotes": "客服备注",
     "unknownCustomer": "未知客户",
-    "addCommentPlaceholder": "添加备注... (Cmd+Enter 提交)",
+    "addCommentPlaceholder": "添加备注... 用 @ 通知相关人员",
     "noComments": "暂无备注",
     "flagDialog": {
       "title": "标记为客服订单",
