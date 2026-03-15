@@ -111,8 +111,8 @@
   "summary": {
     "open": "Open",
     "inPrintQueue": "In Print Queue",
-    "printDone": "Print Done",
-    "shipped": "Shipped",
+    "csQueue": "CS Queue",
+    "inTransit": "In Transit",
     "shipmentIssues": "Shipment Issues",
     "processingDelays": "Processing Delays",
     "totalOrders": "Total Orders"

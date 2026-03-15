@@ -39,6 +39,7 @@ import {
   CheckCircle2,
   PackageX,
   Clock,
+  Headset,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -66,8 +67,8 @@ const summaryCardDefs: {
 }[] = [
   { key: "OPEN", labelKey: "open", icon: Package, color: "text-slate-600", bg: "bg-slate-50", status: "OPEN" },
   { key: "_printInQueue", labelKey: "inPrintQueue", icon: Printer, color: "text-purple-600", bg: "bg-purple-50", href: "/print-queue" },
-  { key: "_printDone", labelKey: "printDone", icon: CheckCircle2, color: "text-cyan-600", bg: "bg-cyan-50" },
-  { key: "SHIPPED", labelKey: "shipped", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", status: "SHIPPED" },
+  { key: "_csQueue", labelKey: "csQueue", icon: Headset, color: "text-amber-600", bg: "bg-amber-50", href: "/cs-queue" },
+  { key: "SHIPPED", labelKey: "inTransit", icon: Truck, color: "text-blue-600", bg: "bg-blue-50", status: "SHIPPED" },
   { key: "_shipmentIssues", labelKey: "shipmentIssues", icon: PackageX, color: "text-orange-600", bg: "bg-orange-50", href: "/exceptions?category=shipment" },
   { key: "_processingDelays", labelKey: "processingDelays", icon: Clock, color: "text-purple-600", bg: "bg-purple-50", href: "/exceptions?category=processing" },
   { key: "_total", labelKey: "totalOrders", icon: Package, color: "text-slate-600", bg: "bg-slate-50" },

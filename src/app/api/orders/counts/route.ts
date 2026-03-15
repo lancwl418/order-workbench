@@ -10,7 +10,7 @@ export async function GET() {
 
   const activeStatuses = ["OPEN", "INVESTIGATING"] as const;
 
-  const [statusCounts, printStatusCounts, total, shipmentIssues, processingDelays] =
+  const [statusCounts, printStatusCounts, total, shipmentIssues, processingDelays, csQueueCount] =
     await prisma.$transaction([
       prisma.order.groupBy({
         by: ["internalStatus"],
@@ -41,6 +41,9 @@ export async function GET() {
           status: { in: [...activeStatuses] },
         },
       }),
+      prisma.order.count({
+        where: { csFlag: true },
+      }),
     ]);
 
   const counts: Record<string, number> = {};
@@ -63,6 +66,7 @@ export async function GET() {
   counts._shipmentIssues = shipmentIssues;
   counts._processingDelays = processingDelays;
   counts._exceptions = shipmentIssues + processingDelays;
+  counts._csQueue = csQueueCount;
 
   return NextResponse.json(counts);
 }

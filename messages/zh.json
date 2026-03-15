@@ -111,8 +111,8 @@
   "summary": {
     "open": "待处理",
     "inPrintQueue": "打印队列中",
-    "printDone": "打印完成",
-    "shipped": "已发货",
+    "csQueue": "客服中",
+    "inTransit": "运输中",
     "shipmentIssues": "物流异常",
     "processingDelays": "处理延迟",
     "totalOrders": "总订单数"
