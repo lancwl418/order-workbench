@@ -10,7 +10,24 @@ import { OrderFilterBar } from "@/components/orders/order-filters";
 import { BulkActions } from "@/components/orders/bulk-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { CS_ISSUE_TYPES } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
 import {
   RefreshCw,
@@ -61,6 +78,9 @@ export default function OrdersPage() {
   const tStatus = useTranslations("status");
   const tPrint = useTranslations("printStatus");
   const tSummary = useTranslations("summary");
+  const tCS = useTranslations("csQueue");
+  const tIssue = useTranslations("csIssueType");
+  const tCommon = useTranslations("common");
 
   const {
     orders,
@@ -79,6 +99,12 @@ export default function OrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<OrderListItem[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [statusLoading, setStatusLoading] = useState<string | null>(null);
+
+  // CS Flag dialog state
+  const [csFlagOrderId, setCsFlagOrderId] = useState<string | null>(null);
+  const [csFlagIssueType, setCsFlagIssueType] = useState<string>("");
+  const [csFlagComment, setCsFlagComment] = useState("");
+  const [csFlagSubmitting, setCsFlagSubmitting] = useState(false);
 
   const handleStatusChange = useCallback(
     async (orderId: string, newStatus: string) => {
@@ -124,14 +150,22 @@ export default function OrdersPage() {
 
   const handleCsToggle = useCallback(
     async (orderId: string, csFlag: boolean) => {
+      if (csFlag) {
+        // Open dialog for flagging
+        setCsFlagOrderId(orderId);
+        setCsFlagIssueType("");
+        setCsFlagComment("");
+        return;
+      }
+      // Unflag directly
       try {
         const res = await fetch(`/api/orders/${orderId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ csFlag }),
+          body: JSON.stringify({ csFlag: false }),
         });
         if (!res.ok) throw new Error("Failed");
-        toast.success(csFlag ? "Flagged as CS order" : "CS flag removed");
+        toast.success("CS flag removed");
         refresh();
       } catch {
         toast.error("Failed to update CS flag");
@@ -139,6 +173,48 @@ export default function OrdersPage() {
     },
     [refresh]
   );
+
+  const handleCsFlagSubmit = useCallback(async () => {
+    if (!csFlagOrderId) return;
+    setCsFlagSubmitting(true);
+    try {
+      // 1. Flag the order (with optional issue type)
+      const patchBody: Record<string, unknown> = { csFlag: true };
+      if (csFlagIssueType) {
+        patchBody.csIssueType = csFlagIssueType;
+      }
+      const res = await fetch(`/api/orders/${csFlagOrderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patchBody),
+      });
+      if (!res.ok) throw new Error("Failed to flag order");
+
+      // 2. Add comment if provided
+      if (csFlagComment.trim()) {
+        const commentRes = await fetch(
+          `/api/orders/${csFlagOrderId}/cs-comments`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: csFlagComment.trim(),
+              attachments: [],
+            }),
+          }
+        );
+        if (!commentRes.ok) throw new Error("Failed to add comment");
+      }
+
+      toast.success("Flagged as CS order");
+      setCsFlagOrderId(null);
+      refresh();
+    } catch {
+      toast.error("Failed to flag CS order");
+    } finally {
+      setCsFlagSubmitting(false);
+    }
+  }, [csFlagOrderId, csFlagIssueType, csFlagComment, refresh]);
 
   // Build print status label map for columns
   const printLabels: Record<string, string> = {};
@@ -293,6 +369,80 @@ export default function OrdersPage() {
         }
         isLoading={isLoading}
       />
+
+      {/* CS Flag Dialog */}
+      <Dialog
+        open={!!csFlagOrderId}
+        onOpenChange={(open) => {
+          if (!open) setCsFlagOrderId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tCS("flagDialog.title")}</DialogTitle>
+            <DialogDescription>{tCS("flaggedDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{tCS("flagDialog.issueType")}</Label>
+              <Select
+                value={csFlagIssueType}
+                onValueChange={(v) => setCsFlagIssueType(v ?? "")}
+              >
+                <SelectTrigger className="w-full">
+                  {csFlagIssueType ? (
+                    <span>{tIssue.has(csFlagIssueType) ? tIssue(csFlagIssueType) : csFlagIssueType}</span>
+                  ) : (
+                    <span className="text-muted-foreground">{tCS("select")}</span>
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  {CS_ISSUE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {tIssue.has(type) ? tIssue(type) : type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{tCS("flagDialog.comment")}</Label>
+              <Textarea
+                value={csFlagComment}
+                onChange={(e) => setCsFlagComment(e.target.value)}
+                placeholder={tCS("flagDialog.commentPlaceholder")}
+                rows={3}
+                className="text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleCsFlagSubmit();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCsFlagOrderId(null)}
+              disabled={csFlagSubmitting}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button onClick={handleCsFlagSubmit} disabled={csFlagSubmitting}>
+              {csFlagSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {tCS("flagDialog.submitting")}
+                </>
+              ) : (
+                tCS("flagDialog.submit")
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

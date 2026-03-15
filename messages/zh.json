@@ -328,6 +328,14 @@
     "unknownCustomer": "未知客户",
     "addCommentPlaceholder": "添加备注... (Cmd+Enter 提交)",
     "noComments": "暂无备注",
+    "flagDialog": {
+      "title": "标记为客服订单",
+      "issueType": "问题类型",
+      "comment": "备注",
+      "commentPlaceholder": "描述问题（可选）...",
+      "submit": "标记订单",
+      "submitting": "标记中..."
+    },
     "columns": {
       "priority": "优先级",
       "orderNumber": "订单号",

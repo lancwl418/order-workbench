@@ -328,6 +328,14 @@
     "unknownCustomer": "Unknown customer",
     "addCommentPlaceholder": "Add a comment... (Cmd+Enter to submit)",
     "noComments": "No comments yet",
+    "flagDialog": {
+      "title": "Flag as CS Order",
+      "issueType": "Issue Type",
+      "comment": "Comment",
+      "commentPlaceholder": "Describe the issue (optional)...",
+      "submit": "Flag Order",
+      "submitting": "Flagging..."
+    },
     "columns": {
       "priority": "Priority",
       "orderNumber": "Order #",
