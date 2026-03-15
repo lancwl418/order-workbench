@@ -38,8 +38,8 @@ export function OrderFilterBar({
     filters.search || filters.status || filters.shippingRoute;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4">
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
+    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 mb-4">
+      <div className="relative flex-1 min-w-0 sm:min-w-[200px] max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder={tOrders("filters.search")}
@@ -55,7 +55,7 @@ export function OrderFilterBar({
           onStatusChange(!v || v === "ALL" ? undefined : v)
         }
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-full sm:w-[160px]">
           <SelectValue placeholder={tOrders("filters.allStatuses")} />
         </SelectTrigger>
         <SelectContent>
@@ -74,7 +74,7 @@ export function OrderFilterBar({
           onRouteChange(!v || v === "ALL" ? undefined : v)
         }
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue placeholder={tOrders("filters.allRoutes")} />
         </SelectTrigger>
         <SelectContent>

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DataTable } from "@/components/orders/data-table";
 import { createColumns } from "@/components/orders/columns";
 import { OrderFilterBar } from "@/components/orders/order-filters";
@@ -57,6 +58,7 @@ const summaryCardDefs: {
 ];
 
 export default function OrdersPage() {
+  const isMobile = useIsMobile();
   const tOrders = useTranslations("orders");
   const tStatus = useTranslations("status");
   const tPrint = useTranslations("printStatus");
@@ -176,6 +178,21 @@ export default function OrdersPage() {
     [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading, tOrders, printLabels]
   );
 
+  const columnVisibility = useMemo(
+    () =>
+      isMobile
+        ? {
+            customerName: false,
+            shopifyCreatedAt: false,
+            totalPrice: false,
+            items: false,
+            tracking: false,
+            printStatus: false,
+          }
+        : undefined,
+    [isMobile]
+  );
+
   async function handleSync() {
     setSyncing(true);
     try {
@@ -201,8 +218,8 @@ export default function OrdersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">{tOrders("title")}</h1>
+      <div className="flex items-center justify-between gap-2 mb-6">
+        <h1 className="text-xl sm:text-2xl font-semibold">{tOrders("title")}</h1>
         <Button
           variant="outline"
           size="sm"
@@ -214,12 +231,12 @@ export default function OrdersPage() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {syncing ? tOrders("syncing") : tOrders("syncFromShopify")}
+          <span className="hidden sm:inline">{syncing ? tOrders("syncing") : tOrders("syncFromShopify")}</span>
         </Button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
+      <div className="flex overflow-x-auto gap-3 pb-2 mb-6 md:grid md:grid-cols-3 lg:grid-cols-7">
         {summaryCardDefs.map((card) => {
           const Icon = card.icon;
           const count = counts[card.key] ?? 0;
@@ -229,7 +246,7 @@ export default function OrdersPage() {
           const content = (
             <Card
               key={card.key}
-              className={`${isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"} ${isActive ? "ring-2 ring-primary" : ""}`}
+              className={`min-w-[130px] shrink-0 md:min-w-0 md:shrink ${isClickable ? "cursor-pointer hover:shadow-md transition-shadow" : "cursor-default"} ${isActive ? "ring-2 ring-primary" : ""}`}
             >
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -292,6 +309,7 @@ export default function OrdersPage() {
           setSelectedOrders(rows as OrderListItem[])
         }
         isLoading={isLoading}
+        columnVisibility={columnVisibility}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   flexRender,
   type ColumnDef,
   type RowSelectionState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { useState } from "react";
 import {
@@ -31,6 +32,7 @@ interface DataTableProps<TData> {
   onPageChange?: (page: number) => void;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   isLoading?: boolean;
+  columnVisibility?: VisibilityState;
 }
 
 export function DataTable<TData>({
@@ -40,6 +42,7 @@ export function DataTable<TData>({
   onPageChange,
   onRowSelectionChange,
   isLoading,
+  columnVisibility,
 }: DataTableProps<TData>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -60,6 +63,7 @@ export function DataTable<TData>({
     },
     state: {
       rowSelection,
+      ...(columnVisibility ? { columnVisibility } : {}),
     },
     manualPagination: true,
     pageCount: pagination?.totalPages || 1,
@@ -131,7 +135,7 @@ export function DataTable<TData>({
 
       {pagination && (
         <div className="flex items-center justify-between py-4">
-          <div className="text-sm text-muted-foreground">
+          <div className="hidden sm:block text-sm text-muted-foreground">
             {selectedCount > 0 && (
               <span className="mr-4">{selectedCount} selected</span>
             )}
@@ -139,7 +143,7 @@ export function DataTable<TData>({
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
             {pagination.total}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
             <Button
               variant="outline"
               size="sm"
@@ -149,7 +153,7 @@ export function DataTable<TData>({
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm">
-              Page {pagination.page} of {pagination.totalPages}
+              {pagination.page} / {pagination.totalPages}
             </span>
             <Button
               variant="outline"

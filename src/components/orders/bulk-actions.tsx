@@ -58,12 +58,12 @@ export function BulkActions({ selectedOrders, onComplete }: BulkActionsProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md mb-4">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 p-3 bg-muted/50 rounded-md mb-4">
       <span className="text-sm font-medium">
         {tCommon("selected", { count: selectedOrders.length })}
       </span>
       <Select value={newStatus} onValueChange={(v) => v && setNewStatus(v)}>
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder={tOrders("bulk.setStatus")} />
         </SelectTrigger>
         <SelectContent>

@@ -159,9 +159,9 @@ export default function LabelsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-2 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">{tLabels("labelStatus")}</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold">{tLabels("labelStatus")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {tLabels("manageLabels")}
           </p>
@@ -194,12 +194,12 @@ export default function LabelsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{tLabels("columns.orderNumber")}</TableHead>
-              <TableHead>{tLabels("columns.customer")}</TableHead>
-              <TableHead>{tLabels("columns.route")}</TableHead>
+              <TableHead className="hidden sm:table-cell">{tLabels("columns.customer")}</TableHead>
+              <TableHead className="hidden md:table-cell">{tLabels("columns.route")}</TableHead>
               <TableHead>{tLabels("columns.labelStatus")}</TableHead>
               <TableHead>{tLabels("columns.tracking")}</TableHead>
-              <TableHead>{tLabels("columns.date")}</TableHead>
-              <TableHead className="w-[280px]">{tLabels("columns.actions")}</TableHead>
+              <TableHead className="hidden md:table-cell">{tLabels("columns.date")}</TableHead>
+              <TableHead>{tLabels("columns.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -237,12 +237,12 @@ export default function LabelsPage() {
                         {order.shopifyOrderNumber || order.id.slice(0, 8)}
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="max-w-[120px] truncate">
                         {order.customerName || "-"}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {order.shippingRoute === "NOT_ASSIGNED" ? (
                         <span className="text-muted-foreground text-sm">
                           -
@@ -265,7 +265,7 @@ export default function LabelsPage() {
                         {order.trackingNumber || "-"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                       {formatDate(order.shopifyCreatedAt)}
                     </TableCell>
                     <TableCell>
@@ -274,7 +274,7 @@ export default function LabelsPage() {
                           <>
                             <Input
                               placeholder={tLabels("trackingPlaceholder")}
-                              className="h-7 w-[140px] text-xs"
+                              className="h-7 w-[100px] sm:w-[140px] text-xs"
                               value={trackingInputs[order.id] || ""}
                               onChange={(e) =>
                                 handleTrackingChange(
@@ -333,12 +333,12 @@ export default function LabelsPage() {
 
       {pagination && pagination.total > 0 && (
         <div className="flex items-center justify-between py-4">
-          <div className="text-sm text-muted-foreground">
+          <div className="hidden sm:block text-sm text-muted-foreground">
             {tCommon("showing")} {(pagination.page - 1) * pagination.limit + 1}-
             {Math.min(pagination.page * pagination.limit, pagination.total)} {tCommon("of")}{" "}
             {pagination.total}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
             <Button
               variant="outline"
               size="sm"
@@ -348,7 +348,7 @@ export default function LabelsPage() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm">
-              {tCommon("page")} {pagination.page} {tCommon("of")} {pagination.totalPages}
+              {pagination.page} / {pagination.totalPages}
             </span>
             <Button
               variant="outline"

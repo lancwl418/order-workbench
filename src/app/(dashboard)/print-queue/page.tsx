@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { usePrintGroups } from "@/hooks/use-print-groups";
 import { DataTable } from "@/components/orders/data-table";
 import { StatusBadge } from "@/components/orders/status-badge";
@@ -44,6 +45,7 @@ import {
 const MAX_HEIGHT = 360;
 
 export default function PrintQueuePage() {
+  const isMobile = useIsMobile();
   const tPQ = useTranslations("printQueue");
   const tCommon = useTranslations("common");
 
@@ -348,6 +350,18 @@ export default function PrintQueuePage() {
     [actionLoading, handleAddToGroup, handleDismiss, tPQ]
   );
 
+  const columnVisibility = useMemo(
+    () =>
+      isMobile
+        ? {
+            customerName: false,
+            shopifyCreatedAt: false,
+            printFiles: false,
+          }
+        : undefined,
+    [isMobile]
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -377,6 +391,7 @@ export default function PrintQueuePage() {
           pagination={pagination}
           onPageChange={setPage}
           isLoading={isLoading}
+          columnVisibility={columnVisibility}
         />
       </div>
 
@@ -464,7 +479,7 @@ function GroupBuilderCard({
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Layers className="h-5 w-5" />
             {group.name}
@@ -781,8 +796,8 @@ function PrintGroupCard({
   return (
     <Card>
       <CardContent className="py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-muted-foreground hover:text-foreground"
@@ -806,7 +821,7 @@ function PrintGroupCard({
               {group.totalHeight.toFixed(1)}&quot;
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isReady && (
               <>
                 <Button

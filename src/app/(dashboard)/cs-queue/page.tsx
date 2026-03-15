@@ -5,6 +5,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DataTable } from "@/components/orders/data-table";
 import { StatusBadge } from "@/components/orders/status-badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ function PriorityStars({ priority }: { priority: number }) {
 }
 
 export default function CSQueuePage() {
+  const isMobile = useIsMobile();
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -248,6 +250,18 @@ export default function CSQueuePage() {
     [resolvingId, handleResolve, handleIssueTypeChange, tCS, tIssue]
   );
 
+  const columnVisibility = useMemo(
+    () =>
+      isMobile
+        ? {
+            customerName: false,
+            shopifyCreatedAt: false,
+            csIssueType: false,
+          }
+        : undefined,
+    [isMobile]
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -272,6 +286,7 @@ export default function CSQueuePage() {
         pagination={pagination}
         onPageChange={setPage}
         isLoading={isLoading}
+        columnVisibility={columnVisibility}
       />
 
       {/* CS Comment Sheet */}

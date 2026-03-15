@@ -112,12 +112,12 @@ export default function OrderDetailPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           {tCommon("back")}
         </Button>
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-xl sm:text-2xl font-semibold">
           {t("orderPrefix")}{order.shopifyOrderNumber || order.id.slice(0, 8)}
         </h1>
         <div className="flex items-center gap-1">

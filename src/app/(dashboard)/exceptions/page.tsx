@@ -90,9 +90,9 @@ export default function ExceptionsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-2 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">{tExceptions("title")}</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold">{tExceptions("title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {counts ? `${counts.totalOpen} ${tExceptions("openExceptions")}` : tCommon("loading")}
           </p>
@@ -109,13 +109,13 @@ export default function ExceptionsPage() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {scanning ? tExceptions("scanning") : tExceptions("runScan")}
+            <span className="hidden sm:inline">{scanning ? tExceptions("scanning") : tExceptions("runScan")}</span>
           </Button>
         </div>
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto">
         <Button
           size="sm"
           variant={tab === "shipment" ? "default" : "outline"}
