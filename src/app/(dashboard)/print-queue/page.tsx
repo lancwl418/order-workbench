@@ -9,6 +9,15 @@ import { StatusBadge } from "@/components/orders/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import type { OrderListItem, PrintGroupWithItems, PrintGroupOrderItem } from "@/types";
@@ -28,6 +37,7 @@ import {
   Pencil,
   Check,
   Undo2,
+  AlertTriangle,
 } from "lucide-react";
 
 const MAX_HEIGHT = 360;
@@ -47,7 +57,16 @@ export default function PrintQueuePage() {
 
   const buildingGroup = groups.find((g) => g.status === "BUILDING");
   const readyGroups = groups.filter((g) => g.status === "READY");
-  const printedGroups = groups.filter((g) => g.status === "PRINTED");
+
+  // Printed today: PRINTED groups whose updatedAt is today (local time)
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+  const printedTodayGroups = groups.filter(
+    (g) => g.status === "PRINTED" && new Date(g.updatedAt).getTime() >= todayStart
+  );
 
   // API already filters to IN_QUEUE only
   const queueOrders = orders;
@@ -358,7 +377,7 @@ export default function PrintQueuePage() {
       </div>
 
       {/* Section C: Print Groups */}
-      {(readyGroups.length > 0 || printedGroups.length > 0) && (
+      {readyGroups.length > 0 && (
         <div>
           <h2 className="text-lg font-medium mb-3">Print Groups</h2>
           <div className="space-y-3">
@@ -372,15 +391,19 @@ export default function PrintQueuePage() {
                 actionLoading={actionLoading}
               />
             ))}
-            {printedGroups.map((group) => (
-              <PrintGroupCard
-                key={group.id}
-                group={group}
-                onMarkPrinted={handleMarkPrinted}
-                onReleaseGroup={handleReleaseGroup}
-                onRemoveOrder={handleRemoveFromGroup}
-                actionLoading={actionLoading}
-              />
+          </div>
+        </div>
+      )}
+
+      {/* Section D: Printed Today */}
+      {printedTodayGroups.length > 0 && (
+        <div>
+          <h2 className="text-lg font-medium mb-3 text-muted-foreground">
+            Printed Today
+          </h2>
+          <div className="space-y-3 opacity-60">
+            {printedTodayGroups.map((group) => (
+              <PrintedGroupCard key={group.id} group={group} />
             ))}
           </div>
         </div>
@@ -695,6 +718,7 @@ function PrintGroupCard({
   actionLoading: string | null;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
 
   // Group items by order for summary
   const orderMap = new Map<
@@ -719,7 +743,6 @@ function PrintGroupCard({
   }
 
   const isReady = group.status === "READY";
-  const isPrinted = group.status === "PRINTED";
 
   const [downloading, setDownloading] = useState(false);
 
@@ -743,7 +766,7 @@ function PrintGroupCard({
   }
 
   return (
-    <Card className={isPrinted ? "opacity-60" : ""}>
+    <Card>
       <CardContent className="py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -759,10 +782,10 @@ function PrintGroupCard({
             </button>
             <span className="font-medium">{group.name}</span>
             <Badge
-              variant={isReady ? "default" : "secondary"}
-              className={isReady ? "bg-green-100 text-green-700" : ""}
+              variant="default"
+              className="bg-green-100 text-green-700"
             >
-              {isReady ? "Ready" : "Printed"}
+              Ready
             </Badge>
             <span className="text-sm text-muted-foreground">
               {orderMap.size} order{orderMap.size !== 1 ? "s" : ""} &middot;{" "}
@@ -802,7 +825,7 @@ function PrintGroupCard({
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => onMarkPrinted(group.id)}
+                  onClick={() => setConfirmPrintOpen(true)}
                   disabled={actionLoading === `printed-${group.id}`}
                 >
                   {actionLoading === `printed-${group.id}` ? (
@@ -881,6 +904,116 @@ function PrintGroupCard({
                 </div>
               );
             })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Mark Printed confirmation dialog */}
+      <Dialog open={confirmPrintOpen} onOpenChange={setConfirmPrintOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Confirm Print Complete
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure <strong>{group.name}</strong> ({orderMap.size} order{orderMap.size !== 1 ? "s" : ""}) has been printed?
+              This group will be removed from the queue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" size="sm" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              size="sm"
+              onClick={() => {
+                setConfirmPrintOpen(false);
+                onMarkPrinted(group.id);
+              }}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirm Printed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+/* ─── Printed Group Card (read-only, greyed out) ───────────────── */
+
+function PrintedGroupCard({ group }: { group: PrintGroupWithItems }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const orderMap = new Map<
+    string,
+    { orderNumber: string | null; customerName: string | null; files: typeof group.items }
+  >();
+  for (const item of group.items) {
+    const existing = orderMap.get(item.orderId);
+    if (existing) {
+      existing.files.push(item);
+    } else {
+      orderMap.set(item.orderId, {
+        orderNumber: item.order.shopifyOrderNumber,
+        customerName: item.order.customerName,
+        files: [item],
+      });
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {expanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            <span className="font-medium">{group.name}</span>
+            <Badge variant="secondary">Printed</Badge>
+            <span className="text-sm text-muted-foreground">
+              {orderMap.size} order{orderMap.size !== 1 ? "s" : ""} &middot;{" "}
+              {group.items.length} file{group.items.length !== 1 ? "s" : ""} &middot;{" "}
+              {group.totalHeight.toFixed(1)}&quot;
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(group.updatedAt).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+          </div>
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+        </div>
+
+        {expanded && (
+          <div className="mt-3 pl-7 space-y-2">
+            {[...orderMap.entries()].map(([orderId, data]) => (
+              <div key={orderId} className="flex items-center gap-3 text-sm">
+                <Link
+                  href={`/orders/${orderId}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  #{data.orderNumber || orderId.slice(0, 8)}
+                </Link>
+                <span className="text-muted-foreground">
+                  {data.customerName || "-"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {data.files.length} file{data.files.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
