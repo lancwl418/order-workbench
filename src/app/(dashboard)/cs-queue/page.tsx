@@ -40,6 +40,7 @@ import {
   Image as ImageIcon,
   X,
 } from "lucide-react";
+import { MentionInput } from "@/components/cs/mention-input";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -334,6 +335,7 @@ function CommentSheet({
   );
 
   const [content, setContent] = useState("");
+  const [mentions, setMentions] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<
     { url: string; filename: string }[]
   >([]);
@@ -388,10 +390,12 @@ function CommentSheet({
         body: JSON.stringify({
           content: content.trim(),
           attachments: attachments.map((a) => a.url),
+          mentions,
         }),
       });
       if (!res.ok) throw new Error("Failed");
       setContent("");
+      setMentions([]);
       setAttachments([]);
       mutate();
       toast.success("Comment added");
@@ -420,13 +424,15 @@ function CommentSheet({
 
       {/* New comment form */}
       <div className="px-4 space-y-2">
-        <Textarea
+        <MentionInput
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onChange={setContent}
+          mentions={mentions}
+          onMentionsChange={setMentions}
           placeholder={tCS("addCommentPlaceholder")}
           rows={3}
           className="text-sm"
+          onSubmit={handleSubmit}
         />
 
         {/* Attachment previews */}
@@ -526,7 +532,15 @@ function CommentItem({ comment }: { comment: CsCommentWithUser }) {
         </span>
       </div>
       {comment.content && (
-        <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+        <p className="text-sm whitespace-pre-wrap">
+          {comment.content.split(/(@\S+)/g).map((part, i) =>
+            part.startsWith("@") ? (
+              <span key={i} className="font-medium text-primary">{part}</span>
+            ) : (
+              part
+            )
+          )}
+        </p>
       )}
       {comment.attachments.length > 0 && (
         <div className="flex flex-wrap gap-2">

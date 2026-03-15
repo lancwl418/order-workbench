@@ -319,6 +319,11 @@
       "actions": "操作"
     }
   },
+  "notifications": {
+    "title": "通知",
+    "markAllRead": "全部已读",
+    "empty": "暂无通知"
+  },
   "csQueue": {
     "title": "客服队列",
     "description": "客服审核队列",

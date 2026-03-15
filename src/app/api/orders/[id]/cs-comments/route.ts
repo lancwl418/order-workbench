@@ -6,6 +6,7 @@ import { z } from "zod";
 const createCommentSchema = z.object({
   content: z.string().min(1),
   attachments: z.array(z.string()).optional(),
+  mentions: z.array(z.string()).optional(), // user IDs
 });
 
 export async function GET(
@@ -55,17 +56,40 @@ export async function POST(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
+  const mentions = parsed.data.mentions || [];
+
   const comment = await prisma.csComment.create({
     data: {
       orderId: id,
       userId: session.user?.id,
       content: parsed.data.content,
       attachments: parsed.data.attachments || [],
+      mentions,
     },
     include: {
       user: { select: { displayName: true, username: true } },
     },
   });
+
+  // Create notifications for mentioned users
+  if (mentions.length > 0) {
+    const fromName =
+      session.user?.name || session.user?.email || "Someone";
+    const orderNumber = order.shopifyOrderNumber || id.slice(0, 8);
+
+    await prisma.notification.createMany({
+      data: mentions
+        .filter((uid) => uid !== session.user?.id) // don't notify yourself
+        .map((uid) => ({
+          userId: uid,
+          type: "mention",
+          message: `${fromName} mentioned you on order #${orderNumber}`,
+          orderId: id,
+          commentId: comment.id,
+          fromUserId: session.user?.id,
+        })),
+    });
+  }
 
   return NextResponse.json(comment, { status: 201 });
 }
