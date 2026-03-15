@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Readable } from "node:stream";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import sharp from "sharp";
@@ -28,9 +29,9 @@ function orderSeparatorSvg(
  * Fetches all gang sheet PNGs in the group, stitches them vertically
  * into one combined image, and returns it as a PNG download.
  *
- * Gang sheets can be very large (380MP+). To bypass sharp's 268MP
- * pixel limit, each image is pre-decoded to raw RGBA, and every
- * sharp() call + composite overlay uses limitInputPixels: false.
+ * Memory-optimised: uses compressed PNG buffers in composite (not raw RGBA)
+ * and streams the output, so libvips can process large images (~380MP+)
+ * without holding everything in memory at once.
  */
 export async function GET(
   _req: NextRequest,
@@ -76,9 +77,9 @@ export async function GET(
     })
   );
 
-  // Pre-decode each image to raw RGBA pixels (bypasses pixel limit on composite)
+  // Read dimensions from metadata only (no full pixel decode – saves memory)
   const images: {
-    raw: Buffer;
+    buf: Buffer;
     width: number;
     height: number;
     orderId: string;
@@ -87,15 +88,12 @@ export async function GET(
 
   for (let i = 0; i < imageBuffers.length; i++) {
     const buf = imageBuffers[i];
-    const { data, info } = await sharp(buf, { limitInputPixels: false })
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+    const meta = await sharp(buf, { limitInputPixels: false }).metadata();
 
     images.push({
-      raw: data,
-      width: info.width,
-      height: info.height,
+      buf,
+      width: meta.width!,
+      height: meta.height!,
       orderId: group.items[i].orderId,
       orderNumber: group.items[i].order.shopifyOrderNumber || "",
     });
@@ -107,7 +105,7 @@ export async function GET(
   );
 
   // Count margins: add separator before each new order (including the first)
-  let marginCount = 1; // first order gets a separator too
+  let marginCount = 1;
   for (let i = 1; i < images.length; i++) {
     if (images[i].orderId !== images[i - 1].orderId) marginCount++;
   }
@@ -115,7 +113,8 @@ export async function GET(
     images.reduce((sum, img) => sum + img.height, 0) +
     marginCount * ORDER_MARGIN;
 
-  // Build composites with raw buffers + limitInputPixels on each overlay
+  // Build composites using compressed PNG buffers (not raw RGBA).
+  // libvips decodes them on-demand during compositing, using far less memory.
   const composites: sharp.OverlayOptions[] = [];
   let yOffset = 0;
 
@@ -123,7 +122,6 @@ export async function GET(
     const img = images[i];
     const isNewOrder = i === 0 || img.orderId !== images[i - 1].orderId;
 
-    // Insert separator with order number before each new order
     if (isNewOrder) {
       composites.push({
         input: orderSeparatorSvg(img.orderNumber, canvasWidth, ORDER_MARGIN),
@@ -134,8 +132,7 @@ export async function GET(
     }
 
     composites.push({
-      input: img.raw,
-      raw: { width: img.width, height: img.height, channels: 4 },
+      input: img.buf,
       limitInputPixels: false,
       top: yOffset,
       left: 0,
@@ -144,7 +141,8 @@ export async function GET(
     yOffset += img.height;
   }
 
-  const combined = await sharp({
+  // Stream the output instead of buffering the full PNG in memory
+  const pipeline = sharp({
     create: {
       width: canvasWidth,
       height: totalHeight,
@@ -154,16 +152,19 @@ export async function GET(
     limitInputPixels: false,
   })
     .composite(composites)
-    .png()
-    .toBuffer();
+    .png();
 
   const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
 
-  return new NextResponse(new Uint8Array(combined), {
+  // Convert Node.js readable stream to Web ReadableStream
+  const nodeStream = pipeline as unknown as Readable;
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+  return new Response(webStream, {
     headers: {
       "Content-Type": "image/png",
       "Content-Disposition": `attachment; filename="${filename}"`,
-      "Content-Length": String(combined.length),
+      "Transfer-Encoding": "chunked",
     },
   });
 }
