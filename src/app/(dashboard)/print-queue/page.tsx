@@ -997,23 +997,52 @@ function PrintedGroupCard({ group }: { group: PrintGroupWithItems }) {
         </div>
 
         {expanded && (
-          <div className="mt-3 pl-7 space-y-2">
-            {[...orderMap.entries()].map(([orderId, data]) => (
-              <div key={orderId} className="flex items-center gap-3 text-sm">
-                <Link
-                  href={`/orders/${orderId}`}
-                  className="font-medium text-primary hover:underline"
-                >
-                  #{data.orderNumber || orderId.slice(0, 8)}
-                </Link>
-                <span className="text-muted-foreground">
-                  {data.customerName || "-"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {data.files.length} file{data.files.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-            ))}
+          <div className="mt-3 pl-7 space-y-3">
+            {[...orderMap.entries()].map(([orderId, data]) => {
+              const orderHeight = data.files.reduce(
+                (sum, f) => sum + f.heightInches, 0
+              );
+              return (
+                <div key={orderId} className="space-y-1">
+                  <div className="flex items-center gap-3 text-sm">
+                    <Link
+                      href={`/orders/${orderId}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      #{data.orderNumber || orderId.slice(0, 8)}
+                    </Link>
+                    <span className="text-muted-foreground">
+                      {data.customerName || "-"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {orderHeight.toFixed(1)}&quot;
+                    </span>
+                  </div>
+                  <div className="pl-4 space-y-0.5">
+                    {data.files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center gap-2 text-xs"
+                      >
+                        <a
+                          href={file.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate max-w-[300px] flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          {file.filename}
+                        </a>
+                        <span className="text-muted-foreground shrink-0">
+                          {file.widthPx}&times;{file.heightPx}px &middot;{" "}
+                          {file.heightInches.toFixed(1)}&quot;
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
