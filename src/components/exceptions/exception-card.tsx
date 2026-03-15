@@ -1,9 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import {
   EXCEPTION_TYPE_LABELS,
   EXCEPTION_TYPE_COLORS,
@@ -14,7 +24,7 @@ import {
 } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { ExceptionWithRelations } from "@/types";
-import { Search, CheckCircle2, User } from "lucide-react";
+import { Search, CheckCircle2, User, AlertTriangle } from "lucide-react";
 
 export function ExceptionCard({
   exception,
@@ -25,6 +35,7 @@ export function ExceptionCard({
   onInvestigate: (id: string) => void;
   onResolve: (id: string) => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const typeColor =
     EXCEPTION_TYPE_COLORS[exception.type] || { bg: "bg-gray-100", text: "text-gray-700" };
   const statusColor =
@@ -145,13 +156,45 @@ export function ExceptionCard({
             <Button
               size="xs"
               variant="outline"
-              onClick={() => onResolve(exception.id)}
+              onClick={() => setConfirmOpen(true)}
             >
               <CheckCircle2 className="h-3 w-3" />
               Resolve
             </Button>
           </div>
         )}
+
+        {/* Resolve confirmation dialog */}
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogContent showCloseButton={false} className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Confirm Resolve
+              </DialogTitle>
+              <DialogDescription>
+                Resolve <strong>{EXCEPTION_TYPE_LABELS[exception.type] || exception.type}</strong> for
+                order <strong>#{exception.order.shopifyOrderNumber || exception.order.id.slice(0, 8)}</strong>?
+                This exception will not reappear unless manually re-flagged.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" size="sm" />}>
+                Cancel
+              </DialogClose>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  onResolve(exception.id);
+                }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Confirm Resolve
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

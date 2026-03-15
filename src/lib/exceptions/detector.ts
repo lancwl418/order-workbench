@@ -70,10 +70,7 @@ async function detectNoMovementAfterLabel(): Promise<number> {
         },
       },
       exceptions: {
-        where: {
-          type: "NO_MOVEMENT_AFTER_LABEL",
-          status: { in: ["OPEN", "INVESTIGATING"] },
-        },
+        where: { type: "NO_MOVEMENT_AFTER_LABEL" },
       },
     },
   });
@@ -88,8 +85,13 @@ async function detectNoMovementAfterLabel(): Promise<number> {
     const referenceDate = shipment.shippedAt || shipment.createdAt;
     const daysSinceLabel = differenceInCalendarDays(now, referenceDate);
 
-    if (shipment.exceptions.length > 0) {
-      for (const ex of shipment.exceptions) {
+    // Skip if already resolved/auto-resolved (don't re-create)
+    const resolved = shipment.exceptions.filter((e) => e.status === "RESOLVED" || e.status === "AUTO_RESOLVED");
+    if (resolved.length > 0) continue;
+
+    const active = shipment.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
+    if (active.length > 0) {
+      for (const ex of active) {
         if (ex.daysSinceLabel !== daysSinceLabel) {
           await prisma.orderException.update({
             where: { id: ex.id },
@@ -149,10 +151,7 @@ async function detectLongTransit(): Promise<number> {
         },
       },
       exceptions: {
-        where: {
-          type: "LONG_TRANSIT",
-          status: { in: ["OPEN", "INVESTIGATING"] },
-        },
+        where: { type: "LONG_TRANSIT" },
       },
     },
   });
@@ -168,8 +167,13 @@ async function detectLongTransit(): Promise<number> {
 
     const transitDays = differenceInBusinessDays(now, shipment.shippedAt);
 
-    if (shipment.exceptions.length > 0) {
-      for (const ex of shipment.exceptions) {
+    // Skip if already resolved (don't re-create)
+    const resolved = shipment.exceptions.filter((e) => e.status === "RESOLVED" || e.status === "AUTO_RESOLVED");
+    if (resolved.length > 0) continue;
+
+    const active = shipment.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
+    if (active.length > 0) {
+      for (const ex of active) {
         if (ex.transitDays !== transitDays) {
           await prisma.orderException.update({
             where: { id: ex.id },
@@ -228,16 +232,14 @@ async function detectDeliveryFailure(): Promise<number> {
         },
       },
       exceptions: {
-        where: {
-          type: "DELIVERY_FAILURE",
-          status: { in: ["OPEN", "INVESTIGATING"] },
-        },
+        where: { type: "DELIVERY_FAILURE" },
       },
     },
   });
 
   let detected = 0;
   for (const shipment of shipments) {
+    // Skip if any exception exists (active or resolved)
     if (shipment.exceptions.length > 0) continue;
 
     // Skip if another shipment on this order is already delivered
@@ -292,10 +294,7 @@ async function detectProductionDelay(): Promise<number> {
     },
     include: {
       exceptions: {
-        where: {
-          type: "PRODUCTION_DELAY",
-          status: { in: ["OPEN", "INVESTIGATING"] },
-        },
+        where: { type: "PRODUCTION_DELAY" },
       },
     },
   });
@@ -306,8 +305,13 @@ async function detectProductionDelay(): Promise<number> {
       ? differenceInHours(now, order.shopifyCreatedAt)
       : 0;
 
-    if (order.exceptions.length > 0) {
-      for (const ex of order.exceptions) {
+    // Skip if already resolved (don't re-create)
+    const resolved = order.exceptions.filter((e) => e.status === "RESOLVED" || e.status === "AUTO_RESOLVED");
+    if (resolved.length > 0) continue;
+
+    const active = order.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
+    if (active.length > 0) {
+      for (const ex of active) {
         if (ex.hoursSincePaid !== hoursSincePaid) {
           await prisma.orderException.update({
             where: { id: ex.id },

@@ -45,11 +45,11 @@ export async function onShipmentUpdated(shipmentId: string): Promise<void> {
 
   // Delivery failure → create exception if not exists
   if (DELIVERY_FAILURE_STATUSES.includes(status as (typeof DELIVERY_FAILURE_STATUSES)[number])) {
+    // Don't re-create if any exception exists (active or resolved)
     const existing = await prisma.orderException.findFirst({
       where: {
         shipmentId,
         type: "DELIVERY_FAILURE",
-        status: { in: ["OPEN", "INVESTIGATING"] },
       },
     });
 
