@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import useSWR from "swr";
+import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
 import { DataTable } from "@/components/orders/data-table";
 import { StatusBadge } from "@/components/orders/status-badge";
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { formatDate, timeAgo } from "@/lib/utils";
-import { CS_ISSUE_TYPES, CS_ISSUE_TYPE_LABELS } from "@/lib/constants";
+import { CS_ISSUE_TYPES } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
 import type { CsCommentWithUser } from "@/types";
 import Link from "next/link";
@@ -59,6 +60,10 @@ function PriorityStars({ priority }: { priority: number }) {
 }
 
 export default function CSQueuePage() {
+  const tCS = useTranslations("csQueue");
+  const tIssue = useTranslations("csIssueType");
+  const tCommon = useTranslations("common");
+
   const {
     orders,
     pagination,
@@ -114,14 +119,14 @@ export default function CSQueuePage() {
     () => [
       {
         accessorKey: "csPriority",
-        header: "Priority",
+        header: tCS("columns.priority"),
         cell: ({ row }) => (
           <PriorityStars priority={row.original.csPriority || 0} />
         ),
       },
       {
         accessorKey: "shopifyOrderNumber",
-        header: "Order #",
+        header: tCS("columns.orderNumber"),
         cell: ({ row }) => (
           <Link
             href={`/orders/${row.original.id}`}
@@ -133,7 +138,7 @@ export default function CSQueuePage() {
       },
       {
         accessorKey: "customerName",
-        header: "Customer",
+        header: tCS("columns.customer"),
         cell: ({ row }) => (
           <div className="max-w-[150px] truncate">
             {row.getValue("customerName") || "-"}
@@ -142,14 +147,14 @@ export default function CSQueuePage() {
       },
       {
         accessorKey: "internalStatus",
-        header: "Status",
+        header: tCS("columns.status"),
         cell: ({ row }) => (
           <StatusBadge status={row.getValue("internalStatus")} />
         ),
       },
       {
         accessorKey: "csIssueType",
-        header: "Issue Type",
+        header: tCS("columns.issueType"),
         cell: ({ row }) => {
           const id = row.original.id;
           const current = row.original.csIssueType;
@@ -161,15 +166,15 @@ export default function CSQueuePage() {
             >
               <SelectTrigger className="h-7 w-[140px] text-xs">
                 {current ? (
-                  <span>{CS_ISSUE_TYPE_LABELS[current] || current}</span>
+                  <span>{tIssue.has(current) ? tIssue(current) : current}</span>
                 ) : (
-                  <span className="text-muted-foreground">Select...</span>
+                  <span className="text-muted-foreground">{tCS("select")}</span>
                 )}
               </SelectTrigger>
               <SelectContent>
                 {CS_ISSUE_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
-                    {CS_ISSUE_TYPE_LABELS[t] || t}
+                    {tIssue.has(t) ? tIssue(t) : t}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -179,7 +184,7 @@ export default function CSQueuePage() {
       },
       {
         id: "csComments",
-        header: "CS Notes",
+        header: tCS("columns.csNotes"),
         cell: ({ row }) => {
           const order = row.original;
           const note = order.csNote;
@@ -192,7 +197,7 @@ export default function CSQueuePage() {
               {note ? (
                 <span className="max-w-[150px] truncate">{note}</span>
               ) : (
-                <span className="text-xs">Add note</span>
+                <span className="text-xs">{tCS("addNote")}</span>
               )}
             </button>
           );
@@ -200,7 +205,7 @@ export default function CSQueuePage() {
       },
       {
         accessorKey: "shopifyCreatedAt",
-        header: "Date",
+        header: tCS("columns.date"),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
             {formatDate(row.getValue("shopifyCreatedAt"))}
@@ -209,7 +214,7 @@ export default function CSQueuePage() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: tCS("columns.actions"),
         cell: ({ row }) => {
           const id = row.original.id;
           const loading = resolvingId === id;
@@ -218,7 +223,7 @@ export default function CSQueuePage() {
             <div className="flex items-center gap-2">
               <Link href={`/orders/${id}`}>
                 <Button size="sm" variant="outline">
-                  View
+                  {tCS("view")}
                 </Button>
               </Link>
               <Button
@@ -233,23 +238,23 @@ export default function CSQueuePage() {
                 ) : (
                   <Flag className="h-3 w-3" />
                 )}
-                Resolve
+                {tCS("resolve")}
               </Button>
             </div>
           );
         },
       },
     ],
-    [resolvingId, handleResolve, handleIssueTypeChange]
+    [resolvingId, handleResolve, handleIssueTypeChange, tCS, tIssue]
   );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Customer Service Queue</h1>
+          <h1 className="text-2xl font-semibold">{tCS("fullTitle")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Orders flagged for customer service attention
+            {tCS("flaggedDescription")}
           </p>
         </div>
         <Button
@@ -257,7 +262,7 @@ export default function CSQueuePage() {
           size="sm"
           onClick={() => setSort("csPriority", "desc")}
         >
-          Sort by Priority
+          {tCS("sortByPriority")}
         </Button>
       </div>
 
@@ -301,6 +306,10 @@ function CommentSheet({
   orderNumber: string | null;
   customerName: string | null;
 }) {
+  const tCS = useTranslations("csQueue");
+  const tCommon = useTranslations("common");
+  const tOD = useTranslations("orderDetail");
+
   const {
     data: comments,
     mutate,
@@ -389,9 +398,9 @@ function CommentSheet({
     <>
       <SheetHeader>
         <SheetTitle>
-          CS Notes — #{orderNumber || orderId.slice(0, 8)}
+          {tCS("csNotes")} — #{orderNumber || orderId.slice(0, 8)}
         </SheetTitle>
-        <SheetDescription>{customerName || "Unknown customer"}</SheetDescription>
+        <SheetDescription>{customerName || tCS("unknownCustomer")}</SheetDescription>
       </SheetHeader>
 
       {/* New comment form */}
@@ -400,7 +409,7 @@ function CommentSheet({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Add a comment... (Cmd+Enter to submit)"
+          placeholder={tCS("addCommentPlaceholder")}
           rows={3}
           className="text-sm"
         />
@@ -448,7 +457,7 @@ function CommentSheet({
             ) : (
               <Paperclip className="h-3 w-3" />
             )}
-            {uploading ? "Uploading..." : "Attach"}
+            {uploading ? tCommon("uploading") : tOD("attach")}
           </Button>
           <Button
             size="sm"
@@ -460,7 +469,7 @@ function CommentSheet({
             ) : (
               <Send className="h-3 w-3" />
             )}
-            Send
+            {tOD("send")}
           </Button>
         </div>
       </div>
@@ -473,7 +482,7 @@ function CommentSheet({
           </div>
         ) : comments.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            No comments yet
+            {tCS("noComments")}
           </p>
         ) : (
           comments.map((comment) => (
@@ -488,8 +497,10 @@ function CommentSheet({
 /* ─── Comment Item ──────────────────────────────────────────────── */
 
 function CommentItem({ comment }: { comment: CsCommentWithUser }) {
+  const tCommon = useTranslations("common");
+
   const userName =
-    comment.user?.displayName || comment.user?.username || "System";
+    comment.user?.displayName || comment.user?.username || tCommon("system");
 
   return (
     <div className="rounded-md border p-3 space-y-2">
@@ -506,7 +517,6 @@ function CommentItem({ comment }: { comment: CsCommentWithUser }) {
         <div className="flex flex-wrap gap-2">
           {comment.attachments.map((url, i) => {
             const filename = url.split("/").pop() || "file";
-            const isImage = /\.(png|jpe?g|webp)$/i.test(filename);
             return (
               <a
                 key={i}
@@ -533,6 +543,5 @@ function AttachmentIcon({ filename }: { filename: string }) {
 }
 
 function decodeFilename(filename: string): string {
-  // Strip timestamp prefix like "1710000000-"
   return filename.replace(/^\d{10,}-/, "");
 }

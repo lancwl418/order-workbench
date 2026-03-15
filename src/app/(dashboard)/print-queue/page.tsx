@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
 import { usePrintGroups } from "@/hooks/use-print-groups";
 import { DataTable } from "@/components/orders/data-table";
@@ -43,6 +44,9 @@ import {
 const MAX_HEIGHT = 360;
 
 export default function PrintQueuePage() {
+  const tPQ = useTranslations("printQueue");
+  const tCommon = useTranslations("common");
+
   const {
     orders,
     pagination,
@@ -232,7 +236,7 @@ export default function PrintQueuePage() {
     () => [
       {
         accessorKey: "shopifyOrderNumber",
-        header: "Order #",
+        header: tPQ("columns.orderNumber"),
         cell: ({ row }) => (
           <Link
             href={`/orders/${row.original.id}`}
@@ -244,7 +248,7 @@ export default function PrintQueuePage() {
       },
       {
         accessorKey: "customerName",
-        header: "Customer",
+        header: tPQ("columns.customer"),
         cell: ({ row }) => (
           <div className="max-w-[150px] truncate">
             {row.getValue("customerName") || "-"}
@@ -253,7 +257,7 @@ export default function PrintQueuePage() {
       },
       {
         id: "items",
-        header: "Items",
+        header: tPQ("columns.items"),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
             {row.original.orderItems.length}
@@ -262,7 +266,7 @@ export default function PrintQueuePage() {
       },
       {
         id: "printFiles",
-        header: "Print Files",
+        header: tPQ("columns.printFiles"),
         cell: ({ row }) => {
           const urls = row.original.orderItems
             .filter((item) => item.designFileUrl)
@@ -279,14 +283,14 @@ export default function PrintQueuePage() {
             );
           return (
             <span className="text-sm text-muted-foreground">
-              {unique.length} file{unique.length > 1 ? "s" : ""}
+              {unique.length} {unique.length > 1 ? tPQ("files") : tPQ("file")}
             </span>
           );
         },
       },
       {
         accessorKey: "shopifyCreatedAt",
-        header: "Date",
+        header: tPQ("columns.date"),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
             {formatDate(row.getValue("shopifyCreatedAt"))}
@@ -295,7 +299,7 @@ export default function PrintQueuePage() {
       },
       {
         accessorKey: "internalStatus",
-        header: "Status",
+        header: tPQ("columns.status"),
         cell: ({ row }) => (
           <StatusBadge status={row.getValue("internalStatus")} />
         ),
@@ -321,14 +325,14 @@ export default function PrintQueuePage() {
                 ) : (
                   <Plus className="h-3 w-3" />
                 )}
-                Add to Group
+                {tPQ("addToGroup")}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 disabled={dismissLoading}
                 onClick={() => handleDismiss(id)}
-                title="Remove from queue"
+                title={tPQ("removeFromQueue")}
               >
                 {dismissLoading ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -341,15 +345,15 @@ export default function PrintQueuePage() {
         },
       },
     ],
-    [actionLoading, handleAddToGroup, handleDismiss]
+    [actionLoading, handleAddToGroup, handleDismiss, tPQ]
   );
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Print Queue</h1>
+        <h1 className="text-2xl font-semibold">{tPQ("title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Combine orders into print groups for efficient batch printing
+          {tPQ("description")}
         </p>
       </div>
 
@@ -366,7 +370,7 @@ export default function PrintQueuePage() {
 
       {/* Section B: Ready to Print orders */}
       <div>
-        <h2 className="text-lg font-medium mb-3">In Queue</h2>
+        <h2 className="text-lg font-medium mb-3">{tPQ("inQueue")}</h2>
         <DataTable
           columns={columns}
           data={queueOrders}
@@ -379,7 +383,7 @@ export default function PrintQueuePage() {
       {/* Section C: Print Groups */}
       {readyGroups.length > 0 && (
         <div>
-          <h2 className="text-lg font-medium mb-3">Print Groups</h2>
+          <h2 className="text-lg font-medium mb-3">{tPQ("printGroups")}</h2>
           <div className="space-y-3">
             {readyGroups.map((group) => (
               <PrintGroupCard
@@ -399,7 +403,7 @@ export default function PrintQueuePage() {
       {printedTodayGroups.length > 0 && (
         <div>
           <h2 className="text-lg font-medium mb-3 text-muted-foreground">
-            Printed Today
+            {tPQ("printedToday")}
           </h2>
           <div className="space-y-3 opacity-60">
             {printedTodayGroups.map((group) => (
@@ -427,6 +431,9 @@ function GroupBuilderCard({
   onFileReplaced: () => void;
   actionLoading: string | null;
 }) {
+  const tPQ = useTranslations("printQueue");
+  const tCommon = useTranslations("common");
+
   const pct = Math.min((group.totalHeight / MAX_HEIGHT) * 100, 100);
   const isWarning = pct > 80;
 
@@ -462,7 +469,7 @@ function GroupBuilderCard({
             <Layers className="h-5 w-5" />
             {group.name}
             <Badge variant="outline" className="ml-2">
-              Building
+              {tPQ("building")}
             </Badge>
           </CardTitle>
           <Button
@@ -477,7 +484,7 @@ function GroupBuilderCard({
             ) : (
               <Layers className="h-4 w-4" />
             )}
-            Combine Group
+            {tPQ("combineGroup")}
           </Button>
         </div>
       </CardHeader>
@@ -490,7 +497,7 @@ function GroupBuilderCard({
               {group.totalHeight.toFixed(1)}&quot; / {MAX_HEIGHT}&quot;
             </span>
             <span className="text-muted-foreground">
-              {orderMap.size} order{orderMap.size !== 1 ? "s" : ""}
+              {orderMap.size} {orderMap.size !== 1 ? tPQ("orders_count") : tPQ("order")}
             </span>
           </div>
           <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -506,7 +513,7 @@ function GroupBuilderCard({
         {/* Orders in group */}
         {orderMap.size === 0 && (
           <p className="text-sm text-muted-foreground">
-            No orders yet. Click &quot;Add to Group&quot; on orders below.
+            {tPQ("noOrdersYet")}
           </p>
         )}
         <div className="space-y-2">
@@ -547,6 +554,9 @@ function GroupBuilderOrderEntry({
   onFileReplaced: () => void;
   actionLoading: string | null;
 }) {
+  const tPQ = useTranslations("printQueue");
+  const tCommon = useTranslations("common");
+
   const [editing, setEditing] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [replacing, setReplacing] = useState(false);
@@ -610,7 +620,7 @@ function GroupBuilderOrderEntry({
             {data.customerName || "-"}
           </span>
           <span className="text-xs text-muted-foreground">
-            {data.files.length} file{data.files.length > 1 ? "s" : ""} &middot;{" "}
+            {data.files.length} {data.files.length > 1 ? tPQ("files") : tPQ("file")} &middot;{" "}
             {orderHeight.toFixed(1)}&quot;
           </span>
         </div>
@@ -620,7 +630,7 @@ function GroupBuilderOrderEntry({
               size="sm"
               variant="ghost"
               onClick={startEditing}
-              title="Replace print files"
+              title={tPQ("replacePrintFiles")}
             >
               <Pencil className="h-3 w-3" />
             </Button>
@@ -685,7 +695,7 @@ function GroupBuilderOrderEntry({
               ) : (
                 <Check className="h-3 w-3" />
               )}
-              Save
+              {tCommon("save")}
             </Button>
             <Button
               size="xs"
@@ -693,7 +703,7 @@ function GroupBuilderOrderEntry({
               onClick={() => setEditing(false)}
               disabled={replacing}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
           </div>
         </div>
@@ -717,6 +727,9 @@ function PrintGroupCard({
   onRemoveOrder: (groupId: string, orderId: string) => void;
   actionLoading: string | null;
 }) {
+  const tPQ = useTranslations("printQueue");
+  const tCommon = useTranslations("common");
+
   const [expanded, setExpanded] = useState(true);
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
 
@@ -785,11 +798,11 @@ function PrintGroupCard({
               variant="default"
               className="bg-green-100 text-green-700"
             >
-              Ready
+              {tPQ("ready")}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {orderMap.size} order{orderMap.size !== 1 ? "s" : ""} &middot;{" "}
-              {group.items.length} file{group.items.length !== 1 ? "s" : ""} &middot;{" "}
+              {orderMap.size} {orderMap.size !== 1 ? tPQ("orders_count") : tPQ("order")} &middot;{" "}
+              {group.items.length} {group.items.length !== 1 ? tPQ("files") : tPQ("file")} &middot;{" "}
               {group.totalHeight.toFixed(1)}&quot;
             </span>
           </div>
@@ -801,14 +814,14 @@ function PrintGroupCard({
                   variant="ghost"
                   onClick={() => onReleaseGroup(group.id)}
                   disabled={actionLoading === `release-${group.id}`}
-                  title="Release all orders back to queue"
+                  title={tPQ("release")}
                 >
                   {actionLoading === `release-${group.id}` ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <Undo2 className="h-3 w-3" />
                   )}
-                  Release
+                  {tPQ("release")}
                 </Button>
                 <Button
                   size="sm"
@@ -821,7 +834,7 @@ function PrintGroupCard({
                   ) : (
                     <Download className="h-3 w-3" />
                   )}
-                  {downloading ? "Combining..." : "Download Combined"}
+                  {downloading ? tPQ("combining") : tPQ("downloadCombined")}
                 </Button>
                 <Button
                   size="sm"
@@ -833,7 +846,7 @@ function PrintGroupCard({
                   ) : (
                     <CheckCircle2 className="h-3 w-3" />
                   )}
-                  Mark Printed
+                  {tPQ("markPrinted")}
                 </Button>
               </>
             )}
@@ -868,7 +881,7 @@ function PrintGroupCard({
                         variant="ghost"
                         onClick={() => onRemoveOrder(group.id, orderId)}
                         disabled={actionLoading === `remove-${orderId}`}
-                        title="Remove from group"
+                        title={tPQ("removeFromGroup")}
                       >
                         {actionLoading === `remove-${orderId}` ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -914,16 +927,18 @@ function PrintGroupCard({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Confirm Print Complete
+              {tPQ("confirmPrintTitle")}
             </DialogTitle>
             <DialogDescription>
-              Are you sure <strong>{group.name}</strong> ({orderMap.size} order{orderMap.size !== 1 ? "s" : ""}) has been printed?
-              This group will be removed from the queue.
+              {tPQ("confirmPrintMessage", {
+                groupName: group.name,
+                orderCount: orderMap.size,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" size="sm" />}>
-              Cancel
+              {tCommon("cancel")}
             </DialogClose>
             <Button
               size="sm"
@@ -933,7 +948,7 @@ function PrintGroupCard({
               }}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Confirm Printed
+              {tPQ("confirmPrinted")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -945,6 +960,8 @@ function PrintGroupCard({
 /* ─── Printed Group Card (read-only, greyed out) ───────────────── */
 
 function PrintedGroupCard({ group }: { group: PrintGroupWithItems }) {
+  const tPQ = useTranslations("printQueue");
+
   const [expanded, setExpanded] = useState(false);
 
   const orderMap = new Map<
@@ -980,10 +997,10 @@ function PrintedGroupCard({ group }: { group: PrintGroupWithItems }) {
               )}
             </button>
             <span className="font-medium">{group.name}</span>
-            <Badge variant="secondary">Printed</Badge>
+            <Badge variant="secondary">{tPQ("printed")}</Badge>
             <span className="text-sm text-muted-foreground">
-              {orderMap.size} order{orderMap.size !== 1 ? "s" : ""} &middot;{" "}
-              {group.items.length} file{group.items.length !== 1 ? "s" : ""} &middot;{" "}
+              {orderMap.size} {orderMap.size !== 1 ? tPQ("orders_count") : tPQ("order")} &middot;{" "}
+              {group.items.length} {group.items.length !== 1 ? tPQ("files") : tPQ("file")} &middot;{" "}
               {group.totalHeight.toFixed(1)}&quot;
             </span>
             <span className="text-xs text-muted-foreground">

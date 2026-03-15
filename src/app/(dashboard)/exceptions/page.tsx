@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useExceptions, useExceptionCounts } from "@/hooks/use-exceptions";
 import { ExceptionCard } from "@/components/exceptions/exception-card";
 import { useExceptionActions } from "@/components/exceptions/exception-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  EXCEPTION_TYPE_LABELS,
   EXCEPTION_TYPE_COLORS,
 } from "@/lib/constants";
 import {
@@ -36,6 +36,10 @@ const TYPE_ICONS: Record<string, typeof AlertTriangle> = {
 };
 
 export default function ExceptionsPage() {
+  const tExceptions = useTranslations("exceptions");
+  const tException = useTranslations("exception");
+  const tCommon = useTranslations("common");
+
   const [tab, setTab] = useState<Tab>("shipment");
   const { counts, refreshCounts } = useExceptionCounts();
 
@@ -88,9 +92,9 @@ export default function ExceptionsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Exceptions</h1>
+          <h1 className="text-2xl font-semibold">{tExceptions("title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {counts ? `${counts.totalOpen} open exceptions` : "Loading..."}
+            {counts ? `${counts.totalOpen} ${tExceptions("openExceptions")}` : tCommon("loading")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -105,7 +109,7 @@ export default function ExceptionsPage() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {scanning ? "Scanning..." : "Run Scan"}
+            {scanning ? tExceptions("scanning") : tExceptions("runScan")}
           </Button>
         </div>
       </div>
@@ -118,7 +122,7 @@ export default function ExceptionsPage() {
           onClick={() => setTab("shipment")}
         >
           <PackageX className="h-4 w-4" />
-          Shipment Issues
+          {tExceptions("shipmentIssues")}
           {counts && counts.shipmentIssues > 0 && (
             <span className="ml-1.5 bg-white/20 rounded-full px-1.5 text-xs">
               {counts.shipmentIssues}
@@ -131,7 +135,7 @@ export default function ExceptionsPage() {
           onClick={() => setTab("processing")}
         >
           <Clock className="h-4 w-4" />
-          Processing Delays
+          {tExceptions("processingDelays")}
           {counts && counts.processingDelays > 0 && (
             <span className="ml-1.5 bg-white/20 rounded-full px-1.5 text-xs">
               {counts.processingDelays}
@@ -143,13 +147,13 @@ export default function ExceptionsPage() {
       {isLoading ? (
         <div className="flex items-center justify-center h-48 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Loading...
+          {tCommon("loading")}
         </div>
       ) : exceptions.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">
-              No {tab === "shipment" ? "shipment issues" : "processing delays"} found.
+              {tab === "shipment" ? tExceptions("noShipmentIssues") : tExceptions("noProcessingDelays")}
             </p>
           </CardContent>
         </Card>
@@ -164,6 +168,7 @@ export default function ExceptionsPage() {
               bg: "bg-gray-100",
               text: "text-gray-700",
             };
+            const typeLabel = tException.has(`type.${type}`) ? tException(`type.${type}`) : type;
 
             return (
               <div key={type}>
@@ -172,7 +177,7 @@ export default function ExceptionsPage() {
                 >
                   <Icon className={`h-4 w-4 ${color.text}`} />
                   <h2 className={`text-sm font-semibold ${color.text}`}>
-                    {EXCEPTION_TYPE_LABELS[type] || type} ({items.length})
+                    {typeLabel} ({items.length})
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

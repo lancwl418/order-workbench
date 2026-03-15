@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/orders/status-badge";
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
-import { STATUS_LABELS } from "@/lib/constants";
 import type { OrderListItem, PaginatedResponse } from "@/types";
 import Link from "next/link";
 import {
@@ -64,6 +64,10 @@ function useLabelsOrders(page: number, statusFilter: string) {
 }
 
 export default function LabelsPage() {
+  const tLabels = useTranslations("labels");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("DONE");
   const { orders, pagination, isLoading, refresh } = useLabelsOrders(
@@ -90,7 +94,6 @@ export default function LabelsPage() {
 
     setSavingTracking(order.id);
     try {
-      // Update the order with tracking number and set label status
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -102,8 +105,6 @@ export default function LabelsPage() {
 
       if (!res.ok) throw new Error("Failed to update order");
 
-      // If there are existing shipments, update the first one
-      // Otherwise create a new shipment with the tracking number
       const shipmentRes = await fetch("/api/shipments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,9 +161,9 @@ export default function LabelsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Label Status</h1>
+          <h1 className="text-2xl font-semibold">{tLabels("labelStatus")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage tracking numbers and label sync
+            {tLabels("manageLabels")}
           </p>
         </div>
         <Select
@@ -179,10 +180,10 @@ export default function LabelsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="DONE">
-              Print Done
+              {tLabels("printDone")}
             </SelectItem>
             <SelectItem value="LABEL_CREATED">
-              {STATUS_LABELS.LABEL_CREATED}
+              {tStatus("LABEL_CREATED")}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -192,13 +193,13 @@ export default function LabelsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order #</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Route</TableHead>
-              <TableHead>Label Status</TableHead>
-              <TableHead>Tracking #</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="w-[280px]">Actions</TableHead>
+              <TableHead>{tLabels("columns.orderNumber")}</TableHead>
+              <TableHead>{tLabels("columns.customer")}</TableHead>
+              <TableHead>{tLabels("columns.route")}</TableHead>
+              <TableHead>{tLabels("columns.labelStatus")}</TableHead>
+              <TableHead>{tLabels("columns.tracking")}</TableHead>
+              <TableHead>{tLabels("columns.date")}</TableHead>
+              <TableHead className="w-[280px]">{tLabels("columns.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -208,7 +209,7 @@ export default function LabelsPage() {
                   colSpan={7}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  Loading...
+                  {tCommon("loading")}
                 </TableCell>
               </TableRow>
             ) : orders.length === 0 ? (
@@ -217,7 +218,7 @@ export default function LabelsPage() {
                   colSpan={7}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No orders in this status.
+                  {tLabels("noOrdersInStatus")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -272,7 +273,7 @@ export default function LabelsPage() {
                         {!order.trackingNumber && (
                           <>
                             <Input
-                              placeholder="Tracking #"
+                              placeholder={tLabels("trackingPlaceholder")}
                               className="h-7 w-[140px] text-xs"
                               value={trackingInputs[order.id] || ""}
                               onChange={(e) =>
@@ -312,12 +313,12 @@ export default function LabelsPage() {
                               ) : (
                                 <Upload className="h-3 w-3" />
                               )}
-                              Sync to Shopify
+                              {tLabels("syncToShopify")}
                             </Button>
                           )}
                         {order.labelStatus === "SYNCED_TO_SHOPIFY" && (
                           <span className="text-xs text-green-600 font-medium">
-                            Synced
+                            {tLabels("synced")}
                           </span>
                         )}
                       </div>
@@ -333,8 +334,8 @@ export default function LabelsPage() {
       {pagination && pagination.total > 0 && (
         <div className="flex items-center justify-between py-4">
           <div className="text-sm text-muted-foreground">
-            Showing {(pagination.page - 1) * pagination.limit + 1}-
-            {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+            {tCommon("showing")} {(pagination.page - 1) * pagination.limit + 1}-
+            {Math.min(pagination.page * pagination.limit, pagination.total)} {tCommon("of")}{" "}
             {pagination.total}
           </div>
           <div className="flex items-center gap-2">
@@ -347,7 +348,7 @@ export default function LabelsPage() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm">
-              Page {pagination.page} of {pagination.totalPages}
+              {tCommon("page")} {pagination.page} {tCommon("of")} {pagination.totalPages}
             </span>
             <Button
               variant="outline"

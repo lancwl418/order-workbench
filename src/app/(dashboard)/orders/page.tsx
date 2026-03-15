@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import useSWR from "swr";
+import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
 import { DataTable } from "@/components/orders/data-table";
 import { createColumns } from "@/components/orders/columns";
@@ -9,7 +10,6 @@ import { OrderFilterBar } from "@/components/orders/order-filters";
 import { BulkActions } from "@/components/orders/bulk-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { STATUS_LABELS, PRINT_STATUS_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import type { OrderListItem } from "@/types";
 import {
@@ -38,72 +38,30 @@ function useStatusCounts() {
   return { counts: data || {}, refreshCounts: mutate };
 }
 
-const summaryCards: {
+const summaryCardDefs: {
   key: string;
-  label: string;
+  labelKey: string;
   icon: typeof Package;
   color: string;
   bg: string;
   href?: string;
   status?: string;
 }[] = [
-  {
-    key: "OPEN",
-    label: "Open",
-    icon: Package,
-    color: "text-slate-600",
-    bg: "bg-slate-50",
-    status: "OPEN",
-  },
-  {
-    key: "_printInQueue",
-    label: "In Print Queue",
-    icon: Printer,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    href: "/print-queue",
-  },
-  {
-    key: "_printDone",
-    label: "Print Done",
-    icon: CheckCircle2,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
-  },
-  {
-    key: "SHIPPED",
-    label: "Shipped",
-    icon: CheckCircle2,
-    color: "text-green-600",
-    bg: "bg-green-50",
-    status: "SHIPPED",
-  },
-  {
-    key: "_shipmentIssues",
-    label: "Shipment Issues",
-    icon: PackageX,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
-    href: "/exceptions?category=shipment",
-  },
-  {
-    key: "_processingDelays",
-    label: "Processing Delays",
-    icon: Clock,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    href: "/exceptions?category=processing",
-  },
-  {
-    key: "_total",
-    label: "Total Orders",
-    icon: Package,
-    color: "text-slate-600",
-    bg: "bg-slate-50",
-  },
+  { key: "OPEN", labelKey: "open", icon: Package, color: "text-slate-600", bg: "bg-slate-50", status: "OPEN" },
+  { key: "_printInQueue", labelKey: "inPrintQueue", icon: Printer, color: "text-purple-600", bg: "bg-purple-50", href: "/print-queue" },
+  { key: "_printDone", labelKey: "printDone", icon: CheckCircle2, color: "text-cyan-600", bg: "bg-cyan-50" },
+  { key: "SHIPPED", labelKey: "shipped", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", status: "SHIPPED" },
+  { key: "_shipmentIssues", labelKey: "shipmentIssues", icon: PackageX, color: "text-orange-600", bg: "bg-orange-50", href: "/exceptions?category=shipment" },
+  { key: "_processingDelays", labelKey: "processingDelays", icon: Clock, color: "text-purple-600", bg: "bg-purple-50", href: "/exceptions?category=processing" },
+  { key: "_total", labelKey: "totalOrders", icon: Package, color: "text-slate-600", bg: "bg-slate-50" },
 ];
 
 export default function OrdersPage() {
+  const tOrders = useTranslations("orders");
+  const tStatus = useTranslations("status");
+  const tPrint = useTranslations("printStatus");
+  const tSummary = useTranslations("summary");
+
   const {
     orders,
     pagination,
@@ -132,7 +90,7 @@ export default function OrdersPage() {
           body: JSON.stringify({ internalStatus: newStatus }),
         });
         if (!res.ok) throw new Error("Failed");
-        toast.success(`Status → ${STATUS_LABELS[newStatus]}`);
+        toast.success(`Status → ${tStatus.has(newStatus) ? tStatus(newStatus) : newStatus}`);
         await Promise.all([refresh(), refreshCounts()]);
       } catch {
         toast.error("Failed to update status");
@@ -140,7 +98,7 @@ export default function OrdersPage() {
         setStatusLoading(null);
       }
     },
-    [refresh, refreshCounts]
+    [refresh, refreshCounts, tStatus]
   );
 
   const handlePrintStatusChange = useCallback(
@@ -153,7 +111,7 @@ export default function OrdersPage() {
           body: JSON.stringify({ printStatus: newPrintStatus }),
         });
         if (!res.ok) throw new Error("Failed");
-        toast.success(`Print status → ${PRINT_STATUS_LABELS[newPrintStatus]}`);
+        toast.success(`Print status → ${tPrint.has(newPrintStatus) ? tPrint(newPrintStatus) : newPrintStatus}`);
         await Promise.all([refresh(), refreshCounts()]);
       } catch {
         toast.error("Failed to update print status");
@@ -161,7 +119,7 @@ export default function OrdersPage() {
         setStatusLoading(null);
       }
     },
-    [refresh, refreshCounts]
+    [refresh, refreshCounts, tPrint]
   );
 
   const handleCsToggle = useCallback(
@@ -182,6 +140,12 @@ export default function OrdersPage() {
     [refresh]
   );
 
+  // Build print status label map for columns
+  const printLabels: Record<string, string> = {};
+  for (const s of ["NONE", "READY", "IN_QUEUE", "GROUPED", "DONE"]) {
+    printLabels[s] = tPrint.has(s) ? tPrint(s) : s;
+  }
+
   const columns = useMemo(
     () =>
       createColumns({
@@ -190,8 +154,26 @@ export default function OrdersPage() {
         onCsToggle: handleCsToggle,
         loadingId: statusLoading,
         shopifyStoreDomain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN,
+        t: {
+          orderNumber: tOrders("columns.orderNumber"),
+          customer: tOrders("columns.customer"),
+          date: tOrders("columns.date"),
+          total: tOrders("columns.total"),
+          items: tOrders("columns.items"),
+          orderStatus: tOrders("columns.orderStatus"),
+          tracking: tOrders("columns.tracking"),
+          printStatus: tOrders("columns.printStatus"),
+          createLabel: tOrders("createLabel"),
+          comingSoon: tOrders("comingSoon"),
+          noPrint: "No Print",
+          addToQueue: "Add to Queue",
+          reprintAddToQueue: "Reprint / Add to Queue",
+          printLabels,
+          csRemove: "Remove CS flag",
+          csFlag: "Flag as CS order",
+        },
       }),
-    [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading]
+    [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading, tOrders, printLabels]
   );
 
   async function handleSync() {
@@ -220,7 +202,7 @@ export default function OrdersPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Order Workbench</h1>
+        <h1 className="text-2xl font-semibold">{tOrders("title")}</h1>
         <Button
           variant="outline"
           size="sm"
@@ -232,17 +214,18 @@ export default function OrdersPage() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {syncing ? "Syncing..." : "Sync from Shopify"}
+          {syncing ? tOrders("syncing") : tOrders("syncFromShopify")}
         </Button>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
-        {summaryCards.map((card) => {
+        {summaryCardDefs.map((card) => {
           const Icon = card.icon;
           const count = counts[card.key] ?? 0;
           const isClickable = !!(card.href || card.status);
           const isActive = card.status && filters.status === card.status;
+          const label = tSummary.has(card.labelKey) ? tSummary(card.labelKey) : card.labelKey;
           const content = (
             <Card
               key={card.key}
@@ -254,7 +237,7 @@ export default function OrdersPage() {
                     <Icon className={`h-3.5 w-3.5 ${card.color}`} />
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {card.label}
+                    {label}
                   </span>
                 </div>
                 <p className="text-2xl font-semibold">{count}</p>

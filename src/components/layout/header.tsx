@@ -1,8 +1,9 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, Languages } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -21,18 +22,29 @@ import {
   Headphones,
 } from "lucide-react";
 
-const navItems = [
-  { label: "Orders", href: "/orders", icon: ClipboardList },
-  { label: "Print Queue", href: "/print-queue", icon: Printer },
-  { label: "Shipping", href: "/shipping", icon: Truck },
-  { label: "Labels", href: "/labels", icon: Tag },
-  { label: "Exceptions", href: "/exceptions", icon: AlertTriangle },
-  { label: "CS Queue", href: "/cs-queue", icon: Headphones },
-];
+const navKeys = [
+  { key: "orders", href: "/orders", icon: ClipboardList },
+  { key: "printQueue", href: "/print-queue", icon: Printer },
+  { key: "shipping", href: "/shipping", icon: Truck },
+  { key: "labels", href: "/labels", icon: Tag },
+  { key: "exceptions", href: "/exceptions", icon: AlertTriangle },
+  { key: "csQueue", href: "/cs-queue", icon: Headphones },
+] as const;
+
+function toggleLocale() {
+  const current = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith("NEXT_LOCALE="))
+    ?.split("=")[1] || "en";
+  const next = current === "en" ? "zh" : "en";
+  document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000`;
+  window.location.reload();
+}
 
 export function Header() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -46,10 +58,10 @@ export function Header() {
         </SheetTrigger>
         <SheetContent side="left" className="w-60 p-0">
           <SheetTitle className="flex items-center h-14 px-4 border-b font-semibold">
-            DTF Workbench
+            {t("title")}
           </SheetTitle>
           <nav className="py-4 px-2 space-y-1">
-            {navItems.map((item) => {
+            {navKeys.map((item) => {
               const isActive =
                 pathname === item.href ||
                 pathname.startsWith(item.href + "/");
@@ -65,7 +77,7 @@ export function Header() {
                   )}
                 >
                   <item.icon className="h-4 w-4" />
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               );
             })}
@@ -76,6 +88,16 @@ export function Header() {
       <div className="flex-1" />
 
       <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleLocale}
+          className="text-xs gap-1 text-muted-foreground"
+          title="Switch language"
+        >
+          <Languages className="h-3.5 w-3.5" />
+          EN / 中
+        </Button>
         {session?.user && (
           <span className="text-sm text-muted-foreground hidden sm:inline">
             {session.user.name}

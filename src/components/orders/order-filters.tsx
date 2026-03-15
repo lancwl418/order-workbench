@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { INTERNAL_STATUSES, SHIPPING_ROUTES, STATUS_LABELS } from "@/lib/constants";
+import { INTERNAL_STATUSES, SHIPPING_ROUTES } from "@/lib/constants";
+import { StatusBadge } from "./status-badge";
 import { Search, X } from "lucide-react";
 import type { OrderFilters } from "@/hooks/use-orders";
 
@@ -28,6 +30,10 @@ export function OrderFilterBar({
   onRouteChange,
   onReset,
 }: OrderFilterProps) {
+  const tOrders = useTranslations("orders");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
   const hasFilters =
     filters.search || filters.status || filters.shippingRoute;
 
@@ -36,7 +42,7 @@ export function OrderFilterBar({
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search orders..."
+          placeholder={tOrders("filters.search")}
           value={filters.search || ""}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9"
@@ -50,13 +56,13 @@ export function OrderFilterBar({
         }
       >
         <SelectTrigger className="w-[160px]">
-          <SelectValue placeholder="All Statuses" />
+          <SelectValue placeholder={tOrders("filters.allStatuses")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All Statuses</SelectItem>
+          <SelectItem value="ALL">{tOrders("filters.allStatuses")}</SelectItem>
           {INTERNAL_STATUSES.map((s) => (
             <SelectItem key={s} value={s}>
-              {STATUS_LABELS[s]}
+              {tStatus.has(s) ? tStatus(s) : s}
             </SelectItem>
           ))}
         </SelectContent>
@@ -69,13 +75,13 @@ export function OrderFilterBar({
         }
       >
         <SelectTrigger className="w-[150px]">
-          <SelectValue placeholder="All Routes" />
+          <SelectValue placeholder={tOrders("filters.allRoutes")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All Routes</SelectItem>
+          <SelectItem value="ALL">{tOrders("filters.allRoutes")}</SelectItem>
           {SHIPPING_ROUTES.map((r) => (
             <SelectItem key={r} value={r}>
-              {STATUS_LABELS[r]}
+              {tStatus.has(r) ? tStatus(r) : r}
             </SelectItem>
           ))}
         </SelectContent>
@@ -84,7 +90,7 @@ export function OrderFilterBar({
       {hasFilters && (
         <Button variant="ghost" size="sm" onClick={onReset}>
           <X className="h-4 w-4 mr-1" />
-          Reset
+          {tCommon("reset")}
         </Button>
       )}
     </div>

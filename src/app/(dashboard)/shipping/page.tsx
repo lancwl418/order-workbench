@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import useSWR from "swr";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/orders/status-badge";
 import {
@@ -57,6 +58,10 @@ function useShippingOrders(page: number) {
 }
 
 export default function ShippingPage() {
+  const tShipping = useTranslations("shipping");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
   const [page, setPage] = useState(1);
   const { orders, pagination, isLoading, refresh } = useShippingOrders(page);
 
@@ -103,8 +108,9 @@ export default function ShippingPage() {
         throw new Error(err.error || "Failed to route order");
       }
 
+      const routeLabel = route === "THIRD_PARTY" ? tShipping("thirdParty") : tShipping("shopify");
       toast.success(
-        `Order #${order.shopifyOrderNumber || order.id.slice(0, 8)} routed to ${route === "THIRD_PARTY" ? "Third Party" : "Shopify"}`
+        `Order #${order.shopifyOrderNumber || order.id.slice(0, 8)} → ${routeLabel}`
       );
       refresh();
     } catch (err) {
@@ -117,15 +123,15 @@ export default function ShippingPage() {
   }
 
   const routeLabel =
-    confirmDialog.route === "THIRD_PARTY" ? "Third Party" : "Shopify";
+    confirmDialog.route === "THIRD_PARTY" ? tShipping("thirdParty") : tShipping("shopify");
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">Shipping Routing</h1>
+          <h1 className="text-2xl font-semibold">{tShipping("routing")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Assign shipping routes for printed orders
+            {tShipping("routingDescription")}
           </p>
         </div>
       </div>
@@ -134,13 +140,13 @@ export default function ShippingPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order #</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Route</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead>{tShipping("columns.orderNumber")}</TableHead>
+              <TableHead>{tShipping("columns.customer")}</TableHead>
+              <TableHead>{tShipping("columns.items")}</TableHead>
+              <TableHead>{tShipping("columns.date")}</TableHead>
+              <TableHead>{tShipping("columns.status")}</TableHead>
+              <TableHead>{tShipping("columns.route")}</TableHead>
+              <TableHead>{tShipping("columns.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -150,7 +156,7 @@ export default function ShippingPage() {
                   colSpan={7}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  Loading...
+                  {tCommon("loading")}
                 </TableCell>
               </TableRow>
             ) : orders.length === 0 ? (
@@ -159,7 +165,7 @@ export default function ShippingPage() {
                   colSpan={7}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No orders awaiting routing.
+                  {tShipping("noOrdersAwaiting")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -205,7 +211,7 @@ export default function ShippingPage() {
                           ) : (
                             <Truck className="h-3 w-3" />
                           )}
-                          Third Party
+                          {tShipping("thirdParty")}
                         </Button>
                         <Button
                           size="sm"
@@ -218,7 +224,7 @@ export default function ShippingPage() {
                           ) : (
                             <ShoppingBag className="h-3 w-3" />
                           )}
-                          Shopify
+                          {tShipping("shopify")}
                         </Button>
                       </div>
                     </TableCell>
@@ -233,8 +239,8 @@ export default function ShippingPage() {
       {pagination && pagination.total > 0 && (
         <div className="flex items-center justify-between py-4">
           <div className="text-sm text-muted-foreground">
-            Showing {(pagination.page - 1) * pagination.limit + 1}-
-            {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
+            {tCommon("showing")} {(pagination.page - 1) * pagination.limit + 1}-
+            {Math.min(pagination.page * pagination.limit, pagination.total)} {tCommon("of")}{" "}
             {pagination.total}
           </div>
           <div className="flex items-center gap-2">
@@ -247,7 +253,7 @@ export default function ShippingPage() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm">
-              Page {pagination.page} of {pagination.totalPages}
+              {tCommon("page")} {pagination.page} {tCommon("of")} {pagination.totalPages}
             </span>
             <Button
               variant="outline"
@@ -269,16 +275,12 @@ export default function ShippingPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Routing</DialogTitle>
+            <DialogTitle>{tShipping("confirmRouting")}</DialogTitle>
             <DialogDescription>
-              Route order{" "}
-              <strong>
-                #
-                {confirmDialog.order?.shopifyOrderNumber ||
-                  confirmDialog.order?.id.slice(0, 8)}
-              </strong>{" "}
-              to <strong>{routeLabel}</strong>? This will set the order status
-              to Ready to Ship.
+              {tShipping("routeConfirmMessage", {
+                orderNumber: confirmDialog.order?.shopifyOrderNumber || confirmDialog.order?.id.slice(0, 8) || "",
+                route: routeLabel,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -288,9 +290,9 @@ export default function ShippingPage() {
                 setConfirmDialog({ open: false, order: null, route: null })
               }
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
-            <Button onClick={handleRoute}>Confirm</Button>
+            <Button onClick={handleRoute}>{tCommon("confirm")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

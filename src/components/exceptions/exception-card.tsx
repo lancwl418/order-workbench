@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,12 +16,9 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  EXCEPTION_TYPE_LABELS,
   EXCEPTION_TYPE_COLORS,
-  EXCEPTION_STATUS_LABELS,
   EXCEPTION_STATUS_COLORS,
   EXCEPTION_SEVERITY_COLORS,
-  STATUS_LABELS,
 } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { ExceptionWithRelations } from "@/types";
@@ -35,6 +33,11 @@ export function ExceptionCard({
   onInvestigate: (id: string) => void;
   onResolve: (id: string) => void;
 }) {
+  const tException = useTranslations("exception");
+  const tExceptions = useTranslations("exceptions");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const typeColor =
     EXCEPTION_TYPE_COLORS[exception.type] || { bg: "bg-gray-100", text: "text-gray-700" };
@@ -42,6 +45,10 @@ export function ExceptionCard({
     EXCEPTION_STATUS_COLORS[exception.status] || { bg: "bg-gray-100", text: "text-gray-700" };
   const severityColor =
     EXCEPTION_SEVERITY_COLORS[exception.severity] || { bg: "bg-gray-100", text: "text-gray-700" };
+
+  const typeLabel = tException.has(`type.${exception.type}`) ? tException(`type.${exception.type}`) : exception.type;
+  const statusLabel = tException.has(`status.${exception.status}`) ? tException(`status.${exception.status}`) : exception.status;
+  const severityLabel = tException.has(`severity.${exception.severity}`) ? tException(`severity.${exception.severity}`) : exception.severity;
 
   return (
     <Card className="border">
@@ -65,7 +72,7 @@ export function ExceptionCard({
             variant="outline"
             className={`${severityColor.bg} ${severityColor.text} border-0 text-[10px] px-1.5`}
           >
-            {exception.severity}
+            {severityLabel}
           </Badge>
         </div>
 
@@ -75,30 +82,30 @@ export function ExceptionCard({
             variant="outline"
             className={`${typeColor.bg} ${typeColor.text} border-0 text-[10px]`}
           >
-            {EXCEPTION_TYPE_LABELS[exception.type] || exception.type}
+            {typeLabel}
           </Badge>
           <Badge
             variant="outline"
             className={`${statusColor.bg} ${statusColor.text} border-0 text-[10px]`}
           >
-            {EXCEPTION_STATUS_LABELS[exception.status] || exception.status}
+            {statusLabel}
           </Badge>
         </div>
 
         {/* Days count - prominent */}
         {exception.daysSinceLabel != null && (
           <p className="text-sm font-semibold text-red-600">
-            {exception.daysSinceLabel} days
+            {exception.daysSinceLabel} {tExceptions("days")}
           </p>
         )}
         {exception.transitDays != null && (
           <p className="text-sm font-semibold text-amber-600">
-            {exception.transitDays} business days in transit
+            {exception.transitDays} {tExceptions("businessDaysInTransit")}
           </p>
         )}
         {exception.hoursSincePaid != null && (
           <p className="text-sm font-semibold text-purple-600">
-            {Math.floor(exception.hoursSincePaid / 24)}d {exception.hoursSincePaid % 24}h since paid
+            {Math.floor(exception.hoursSincePaid / 24)}d {exception.hoursSincePaid % 24}h {tExceptions("sincePaid")}
           </p>
         )}
 
@@ -107,20 +114,20 @@ export function ExceptionCard({
           {exception.shipment && (
             <p>
               {exception.shipment.carrier && `${exception.shipment.carrier} - `}
-              {exception.shipment.trackingNumber || "No tracking"}
+              {exception.shipment.trackingNumber || tExceptions("noTracking")}
             </p>
           )}
           {exception.shipment?.shippedAt && (
             <p>
-              Fulfilled {new Date(exception.shipment.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              {tExceptions("fulfilled")} {new Date(exception.shipment.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
             </p>
           )}
           <p className="text-muted-foreground/70">
-            Detected {timeAgo(exception.detectedAt)}
+            {tExceptions("detected")} {timeAgo(exception.detectedAt)}
           </p>
           {exception.order.internalStatus && (
             <p>
-              Order status: {STATUS_LABELS[exception.order.internalStatus] || exception.order.internalStatus}
+              {tExceptions("orderStatus")} {tStatus.has(exception.order.internalStatus) ? tStatus(exception.order.internalStatus) : exception.order.internalStatus}
             </p>
           )}
         </div>
@@ -150,7 +157,7 @@ export function ExceptionCard({
                 onClick={() => onInvestigate(exception.id)}
               >
                 <Search className="h-3 w-3" />
-                Investigate
+                {tExceptions("investigate")}
               </Button>
             )}
             <Button
@@ -159,7 +166,7 @@ export function ExceptionCard({
               onClick={() => setConfirmOpen(true)}
             >
               <CheckCircle2 className="h-3 w-3" />
-              Resolve
+              {tExceptions("resolve")}
             </Button>
           </div>
         )}
@@ -170,17 +177,18 @@ export function ExceptionCard({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Confirm Resolve
+                {tExceptions("confirmResolveTitle")}
               </DialogTitle>
               <DialogDescription>
-                Resolve <strong>{EXCEPTION_TYPE_LABELS[exception.type] || exception.type}</strong> for
-                order <strong>#{exception.order.shopifyOrderNumber || exception.order.id.slice(0, 8)}</strong>?
-                This exception will not reappear unless manually re-flagged.
+                {tExceptions("confirmResolveMessage", {
+                  type: typeLabel,
+                  orderNumber: exception.order.shopifyOrderNumber || exception.order.id.slice(0, 8),
+                })}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <DialogClose render={<Button variant="outline" size="sm" />}>
-                Cancel
+                {tCommon("cancel")}
               </DialogClose>
               <Button
                 size="sm"
@@ -190,7 +198,7 @@ export function ExceptionCard({
                 }}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Confirm Resolve
+                {tExceptions("confirmResolve")}
               </Button>
             </DialogFooter>
           </DialogContent>

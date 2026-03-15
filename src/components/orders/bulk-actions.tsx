@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -9,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { INTERNAL_STATUSES, STATUS_LABELS } from "@/lib/constants";
+import { INTERNAL_STATUSES } from "@/lib/constants";
+import { StatusBadge } from "./status-badge";
 import { toast } from "sonner";
 import type { OrderListItem } from "@/types";
 
@@ -19,6 +21,10 @@ interface BulkActionsProps {
 }
 
 export function BulkActions({ selectedOrders, onComplete }: BulkActionsProps) {
+  const tOrders = useTranslations("orders");
+  const tStatus = useTranslations("status");
+  const tCommon = useTranslations("common");
+
   const [newStatus, setNewStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -54,22 +60,22 @@ export function BulkActions({ selectedOrders, onComplete }: BulkActionsProps) {
   return (
     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-md mb-4">
       <span className="text-sm font-medium">
-        {selectedOrders.length} selected
+        {tCommon("selected", { count: selectedOrders.length })}
       </span>
       <Select value={newStatus} onValueChange={(v) => v && setNewStatus(v)}>
         <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Set status..." />
+          <SelectValue placeholder={tOrders("bulk.setStatus")} />
         </SelectTrigger>
         <SelectContent>
           {INTERNAL_STATUSES.map((s) => (
             <SelectItem key={s} value={s}>
-              {STATUS_LABELS[s]}
+              {tStatus.has(s) ? tStatus(s) : s}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <Button size="sm" onClick={handleApply} disabled={!newStatus || loading}>
-        {loading ? "Applying..." : "Apply"}
+        {loading ? tOrders("bulk.applying") : tOrders("bulk.apply")}
       </Button>
     </div>
   );

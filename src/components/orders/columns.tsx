@@ -14,9 +14,7 @@ import { formatDate } from "@/lib/utils";
 import {
   INTERNAL_STATUSES,
   PRINT_STATUSES,
-  PRINT_STATUS_LABELS,
   PRINT_STATUS_COLORS,
-  STATUS_LABELS,
 } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
 import Link from "next/link";
@@ -40,7 +38,26 @@ export function createColumns(opts: {
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   loadingId: string | null;
   shopifyStoreDomain?: string;
+  t: {
+    orderNumber: string;
+    customer: string;
+    date: string;
+    total: string;
+    items: string;
+    orderStatus: string;
+    tracking: string;
+    printStatus: string;
+    createLabel: string;
+    comingSoon: string;
+    noPrint: string;
+    addToQueue: string;
+    reprintAddToQueue: string;
+    printLabels: Record<string, string>;
+    csRemove: string;
+    csFlag: string;
+  };
 }): ColumnDef<OrderListItem>[] {
+  const { t } = opts;
   return [
     {
       id: "select",
@@ -62,12 +79,11 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "shopifyOrderNumber",
-      header: "Order #",
+      header: t.orderNumber,
       cell: ({ row }) => {
         const csFlag = row.original.csFlag;
         const note = row.original.notes;
         const id = row.original.id;
-        const canToggle = true;
 
         return (
           <div className="flex items-center gap-1.5">
@@ -84,13 +100,11 @@ export function createColumns(opts: {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (canToggle) opts.onCsToggle?.(id, !csFlag);
+                        opts.onCsToggle?.(id, !csFlag);
                       }}
                       className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium transition-colors ${
                         csFlag
-                          ? canToggle
-                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                            : "bg-amber-100 text-amber-700 cursor-default"
+                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
                           : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted"
                       }`}
                     >
@@ -100,7 +114,7 @@ export function createColumns(opts: {
                   }
                 />
                 <TooltipContent>
-                  {csFlag ? "Remove CS flag" : "Flag as CS order"}
+                  {csFlag ? t.csRemove : t.csFlag}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -122,7 +136,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "customerName",
-      header: "Customer",
+      header: t.customer,
       cell: ({ row }) => (
         <div className="max-w-[150px] truncate">
           {row.getValue("customerName") || "-"}
@@ -131,7 +145,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "shopifyCreatedAt",
-      header: "Date",
+      header: t.date,
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
           {formatDate(row.getValue("shopifyCreatedAt"))}
@@ -140,7 +154,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "totalPrice",
-      header: "Total",
+      header: t.total,
       cell: ({ row }) => {
         const price = row.getValue("totalPrice") as string | null;
         return (
@@ -152,7 +166,7 @@ export function createColumns(opts: {
     },
     {
       id: "items",
-      header: "Items",
+      header: t.items,
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.orderItems.length}
@@ -161,7 +175,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "internalStatus",
-      header: "Order Status",
+      header: t.orderStatus,
       cell: ({ row }) => {
         const status = row.original.internalStatus;
         const id = row.original.id;
@@ -197,7 +211,7 @@ export function createColumns(opts: {
     },
     {
       id: "tracking",
-      header: "Tracking",
+      header: t.tracking,
       cell: ({ row }) => {
         const tracking = row.original.trackingNumber;
         const shipment = row.original.shipments?.[0];
@@ -215,7 +229,7 @@ export function createColumns(opts: {
                 render={
                   <Button variant="outline" size="xs" className="gap-1 text-xs">
                     <Tag className="h-3 w-3" />
-                    Create Label
+                    {t.createLabel}
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 }
@@ -249,7 +263,7 @@ export function createColumns(opts: {
                         </button>
                       }
                     />
-                    <TooltipContent side="right">Coming soon</TooltipContent>
+                    <TooltipContent side="right">{t.comingSoon}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </PopoverContent>
@@ -285,7 +299,7 @@ export function createColumns(opts: {
     },
     {
       accessorKey: "printStatus",
-      header: "Print Status",
+      header: t.printStatus,
       cell: ({ row }) => {
         const printStatus = row.original.printStatus;
         const id = row.original.id;
@@ -300,7 +314,7 @@ export function createColumns(opts: {
           const colors = PRINT_STATUS_COLORS[s] || { bg: "bg-gray-100", text: "text-gray-500" };
           return (
             <Badge variant="outline" className={`${colors.bg} ${colors.text} border-0 text-xs`}>
-              {PRINT_STATUS_LABELS[s] || s}
+              {t.printLabels[s] || s}
             </Badge>
           );
         };
@@ -343,7 +357,7 @@ export function createColumns(opts: {
                 className="text-xs text-muted-foreground border-dashed gap-1"
               >
                 <PrinterCheck className="h-3 w-3" />
-                No Print
+                {t.noPrint}
               </Badge>
             )}
             {canQueue && opts.onPrintStatusChange && (
@@ -357,7 +371,7 @@ export function createColumns(opts: {
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <>
-                    Add to Queue
+                    {t.addToQueue}
                     <ChevronRight className="h-3 w-3" />
                   </>
                 )}
@@ -374,7 +388,7 @@ export function createColumns(opts: {
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <>
-                    Reprint / Add to Queue
+                    {t.reprintAddToQueue}
                     <Undo2 className="h-3 w-3" />
                   </>
                 )}
