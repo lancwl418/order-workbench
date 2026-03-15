@@ -129,6 +129,14 @@ async function handleOrderUpdated(
     ? { trackingNumber: latestFulfillment.trackingNumber, carrier: latestFulfillment.carrier }
     : {};
 
+  // Only let orders/updated set internalStatus for CANCELLED and OPEN.
+  // Fulfillment-derived statuses (LABEL_CREATED, SHIPPED, DELIVERED, DELAYED)
+  // are managed by the fulfillment webhook which has accurate tracking data.
+  const safeStatusOverrides = ["CANCELLED", "OPEN"];
+  const statusFields = safeStatusOverrides.includes(orderData.internalStatus)
+    ? { internalStatus: orderData.internalStatus }
+    : {};
+
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
     create: { ...orderData, ...trackingFields },
@@ -144,7 +152,7 @@ async function handleOrderUpdated(
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
       shippingMethod: orderData.shippingMethod,
-      internalStatus: orderData.internalStatus,
+      ...statusFields,
       ...trackingFields,
     },
   });
