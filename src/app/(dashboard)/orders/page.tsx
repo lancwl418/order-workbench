@@ -200,7 +200,7 @@ export default function OrdersPage() {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center justify-between gap-2 mb-6">
         <h1 className="text-xl sm:text-2xl font-semibold">{tOrders("title")}</h1>
         <Button

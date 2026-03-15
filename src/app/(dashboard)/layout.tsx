@@ -20,9 +20,9 @@ export default async function DashboardLayout({
     <SessionProvider>
       <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 md:ml-60">
+        <div className="flex-1 md:ml-60 min-w-0">
           <Header />
-          <main className="p-4 md:p-6">{children}</main>
+          <main className="p-4 md:p-6 overflow-hidden">{children}</main>
         </div>
       </div>
       <Toaster />
