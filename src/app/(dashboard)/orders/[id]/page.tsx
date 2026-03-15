@@ -119,14 +119,20 @@ export default function OrderDetailPage() {
         <h1 className="text-2xl font-semibold">
           Order #{order.shopifyOrderNumber || order.id.slice(0, 8)}
         </h1>
-        <StatusBadge status={order.internalStatus} />
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">Order:</span>
+          <StatusBadge status={order.internalStatus} />
+        </div>
         {order.printStatus && order.printStatus !== "NONE" && (
-          <Badge
-            variant="outline"
-            className={`${PRINT_STATUS_COLORS[order.printStatus]?.bg || "bg-gray-100"} ${PRINT_STATUS_COLORS[order.printStatus]?.text || "text-gray-500"} border-0 text-xs`}
-          >
-            {PRINT_STATUS_LABELS[order.printStatus] || order.printStatus}
-          </Badge>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">Print:</span>
+            <Badge
+              variant="outline"
+              className={`${PRINT_STATUS_COLORS[order.printStatus]?.bg || "bg-gray-100"} ${PRINT_STATUS_COLORS[order.printStatus]?.text || "text-gray-500"} border-0 text-xs`}
+            >
+              {PRINT_STATUS_LABELS[order.printStatus] || order.printStatus}
+            </Badge>
+          </div>
         )}
       </div>
 
