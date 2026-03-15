@@ -103,6 +103,14 @@ async function handleOrderCreate(
     });
   }
 
+  // Auto-detect print files → set printStatus to READY (handles both create and update paths)
+  if (upsertedOrder.printStatus === "NONE" && hasDesignFiles) {
+    await prisma.order.update({
+      where: { id: upsertedOrder.id },
+      data: { printStatus: "READY" },
+    });
+  }
+
   await prisma.orderLog.create({
     data: {
       orderId: upsertedOrder.id,
@@ -174,6 +182,15 @@ async function handleOrderUpdated(
         syncStatus: "SYNCED", status: f.shipmentStatus || f.status, shippedAt: f.shippedAt,
       },
       update: { trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier, status: f.shipmentStatus || f.status },
+    });
+  }
+
+  // Auto-detect print files → set printStatus to READY if currently NONE
+  const hasDesignFiles = items.some((item) => item.designFileUrl);
+  if (upsertedOrder.printStatus === "NONE" && hasDesignFiles) {
+    await prisma.order.update({
+      where: { id: upsertedOrder.id },
+      data: { printStatus: "READY" },
     });
   }
 
