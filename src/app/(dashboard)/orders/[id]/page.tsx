@@ -23,6 +23,7 @@ import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, 
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
+import { MentionInput } from "@/components/cs/mention-input";
 
 type LogEntry = {
   id: string;
@@ -781,6 +782,7 @@ function CsCommentsSection({ orderId }: { orderId: string }) {
   );
 
   const [content, setContent] = useState("");
+  const [mentions, setMentions] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<{ url: string; filename: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -820,10 +822,12 @@ function CsCommentsSection({ orderId }: { orderId: string }) {
         body: JSON.stringify({
           content: content.trim(),
           attachments: attachments.map((a) => a.url),
+          mentions,
         }),
       });
       if (!res.ok) throw new Error("Failed");
       setContent("");
+      setMentions([]);
       setAttachments([]);
       mutate();
       toast.success("Comment added");
@@ -843,18 +847,15 @@ function CsCommentsSection({ orderId }: { orderId: string }) {
 
       {/* New comment form */}
       <div className="space-y-2 mb-3">
-        <Textarea
+        <MentionInput
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
+          onChange={setContent}
+          mentions={mentions}
+          onMentionsChange={setMentions}
           placeholder={t("addComment")}
           rows={2}
           className="text-sm"
+          onSubmit={handleSubmit}
         />
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -925,7 +926,15 @@ function CsCommentsSection({ orderId }: { orderId: string }) {
                   </span>
                 </div>
                 {comment.content && (
-                  <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {comment.content.split(/(@\S+)/g).map((part, i) =>
+                      part.startsWith("@") ? (
+                        <span key={i} className="font-medium text-primary">{part}</span>
+                      ) : (
+                        part
+                      )
+                    )}
+                  </p>
                 )}
                 {comment.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">

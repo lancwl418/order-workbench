@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, Languages } from "lucide-react";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import {
   Sheet,
   SheetContent,
@@ -88,6 +89,7 @@ export function Header() {
       <div className="flex-1" />
 
       <div className="flex items-center gap-3">
+        <NotificationBell />
         <Button
           variant="ghost"
           size="sm"

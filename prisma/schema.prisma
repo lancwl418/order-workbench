@@ -81,9 +81,10 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  orderLogs  OrderLog[]
-  printLogs  PrintLog[]
-  csComments CsComment[]
+  orderLogs     OrderLog[]
+  printLogs     PrintLog[]
+  csComments    CsComment[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -387,11 +388,32 @@ model CsComment {
   userId      String?  @map("user_id")
   content     String   @db.Text
   attachments String[] @default([])
+  mentions    String[] @default([]) // user IDs mentioned via @
   createdAt   DateTime @default(now()) @map("created_at")
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  notifications Notification[]
 
   @@index([orderId])
   @@map("cs_comments")
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")     // recipient
+  type       String   @default("mention")  // "mention"
+  message    String   @db.Text
+  orderId    String?  @map("order_id")
+  commentId  String?  @map("comment_id")
+  fromUserId String?  @map("from_user_id")
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment CsComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
 }
