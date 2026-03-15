@@ -50,7 +50,7 @@ export async function GET(
       items: {
         include: {
           order: {
-            select: { shopifyOrderNumber: true },
+            select: { shopifyOrderNumber: true, customerName: true },
           },
         },
         orderBy: { position: "asc" },
@@ -83,19 +83,25 @@ export async function GET(
     width: number;
     height: number;
     orderId: string;
-    orderNumber: string;
+    label: string;
   }[] = [];
 
   for (let i = 0; i < imageBuffers.length; i++) {
     const buf = imageBuffers[i];
     const meta = await sharp(buf, { limitInputPixels: false }).metadata();
+    const item = group.items[i];
+    const orderNum = item.order.shopifyOrderNumber || "";
+    const customer = item.order.customerName || "";
+    const label = [orderNum ? `#${orderNum}` : "", customer]
+      .filter(Boolean)
+      .join("  —  ");
 
     images.push({
       buf,
       width: meta.width!,
       height: meta.height!,
-      orderId: group.items[i].orderId,
-      orderNumber: group.items[i].order.shopifyOrderNumber || "",
+      orderId: item.orderId,
+      label,
     });
   }
 
@@ -124,7 +130,7 @@ export async function GET(
 
     if (isNewOrder) {
       composites.push({
-        input: orderSeparatorSvg(img.orderNumber, canvasWidth, ORDER_MARGIN),
+        input: orderSeparatorSvg(img.label, canvasWidth, ORDER_MARGIN),
         top: yOffset,
         left: 0,
       });
