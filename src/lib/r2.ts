@@ -1,4 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+import type { Readable } from "node:stream";
 
 let _client: S3Client | null = null;
 
@@ -50,6 +52,45 @@ export async function uploadToR2(
   );
 
   // Remove trailing slash from publicUrl if present
+  const base = publicUrl.replace(/\/$/, "");
+  return `${base}/${key}`;
+}
+
+/**
+ * Stream-upload a file to R2 using multipart upload.
+ * Keeps memory usage low for large files.
+ */
+export async function streamUploadToR2(
+  stream: Readable,
+  key: string,
+  contentType: string,
+  contentLength?: number
+): Promise<string> {
+  const bucket = process.env.R2_BUCKET_NAME;
+  const publicUrl = process.env.R2_PUBLIC_URL;
+
+  if (!bucket || !publicUrl) {
+    throw new Error("R2 bucket or public URL not configured");
+  }
+
+  const client = getClient();
+
+  const upload = new Upload({
+    client,
+    params: {
+      Bucket: bucket,
+      Key: key,
+      Body: stream,
+      ContentType: contentType,
+      ...(contentLength ? { ContentLength: contentLength } : {}),
+    },
+    // 10MB parts, up to 4 concurrent uploads
+    partSize: 10 * 1024 * 1024,
+    queueSize: 4,
+  });
+
+  await upload.done();
+
   const base = publicUrl.replace(/\/$/, "");
   return `${base}/${key}`;
 }

@@ -3,9 +3,9 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { streamUploadToR2 } from "@/lib/r2";
 import sharp from "sharp";
 
 // Allow up to 5 minutes for large image processing
@@ -38,11 +38,8 @@ function orderSeparatorSvg(
  * GET /api/print-groups/:id/download
  *
  * Fetches all gang sheet PNGs in the group, stitches them vertically
- * into one combined image, and returns it as a PNG download.
- *
- * Uses a single-pass composite: pre-calculates all y-offsets then
- * composites everything in one sharp call. libvips processes in tiles
- * so peak memory stays low regardless of total image height.
+ * into one combined image, streams it to R2, cleans up /tmp immediately,
+ * and redirects the client to the R2 CDN URL.
  */
 export async function GET(
   _req: NextRequest,
@@ -154,43 +151,27 @@ export async function GET(
       .png({ compressionLevel: 1 })
       .toFile(outputPath);
 
-    // Verify
-    const outputMeta = await sharp(outputPath, { limitInputPixels: false }).metadata();
-    console.log(
-      `Output: ${outputMeta.width}x${outputMeta.height}px, format: ${outputMeta.format}`
-    );
-
-    const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
     const stat = await fs.stat(outputPath);
-
     console.log(`Output file size: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
-    // Delete intermediate files immediately — only output.png is needed now
-    await Promise.all(
-      pieces.map((p) => fs.rm(p.filePath, { force: true }).catch(() => {}))
+    // Step 4: Stream upload to R2 (no full-file memory read)
+    const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
+    const r2Key = `combined/${Date.now()}-${filename}`;
+    const uploadStream = createReadStream(outputPath);
+
+    const r2Url = await streamUploadToR2(
+      uploadStream,
+      r2Key,
+      "image/png",
+      stat.size
     );
+    console.log(`Uploaded to R2: ${r2Key}`);
 
-    // Stream the file to the client
-    const nodeStream = createReadStream(outputPath);
-    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+    // Step 5: Clean up /tmp immediately — everything is on R2 now
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
 
-    const cleanup = () => {
-      fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    };
-
-    // Clean up when stream ends, errors, or client disconnects
-    nodeStream.on("close", cleanup);
-    nodeStream.on("error", cleanup);
-    // Safety net: always clean up after 10 minutes regardless
-    setTimeout(cleanup, 10 * 60 * 1000);
-
-    return new Response(webStream, {
-      headers: {
-        "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Content-Length": String(stat.size),
-      },
-    });
+    // Redirect client to R2 CDN URL
+    return NextResponse.redirect(r2Url);
   } catch (e) {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     console.error("Download combine error:", e);
