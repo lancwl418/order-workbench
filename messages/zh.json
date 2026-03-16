@@ -369,7 +369,13 @@
     "fetchTrackingNo": "获取",
     "trackingNoUpdated": "追踪号已更新",
     "trackingNoFetched": "已获取追踪号",
-    "notAssignedYet": "尚未分配"
+    "notAssignedYet": "尚未分配",
+    "syncToShopify": "同步到Shopify",
+    "syncedToShopify": "已同步到Shopify",
+    "shopifySync": "Shopify同步",
+    "synced": "已同步",
+    "syncFailed": "同步失败",
+    "notSynced": "未同步"
   },
   "csQueue": {
     "title": "客服队列",

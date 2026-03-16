@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTrackDetails, getTrackingNumber } from "@/lib/eccangtms/client";
 import { ECCANG_TRAVEL_STATUS } from "@/lib/eccangtms/types";
+import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
 import { z } from "zod";
 
 const trackSchema = z.object({
@@ -33,6 +34,11 @@ export async function POST(req: NextRequest) {
 
   const shipment = await prisma.shipment.findFirst({
     where: { orderId, providerName: "eccangtms" },
+    include: {
+      order: {
+        select: { shopifyOrderId: true, shopifyOrderNumber: true },
+      },
+    },
   });
 
   if (!shipment) {
@@ -44,6 +50,7 @@ export async function POST(req: NextRequest) {
 
   const orderNo = shipment.externalShipmentId;
   let serverNo = shipment.trackingNumber;
+  const hadServerNo = !!serverNo;
 
   try {
     // Step 1: If serverNo is missing, fetch it via getTrackingNumber(orderNo)
@@ -71,6 +78,53 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.warn("getTrackingNumber error:", err);
+      }
+    }
+
+    // Step 1.5: If we just obtained serverNo, push fulfillment to Shopify
+    if (serverNo && !hadServerNo && shipment.syncStatus !== "SYNCED" && shipment.order.shopifyOrderId) {
+      try {
+        const carrier = shipment.carrier || "Other";
+        const fulfillment = await pushFulfillmentToShopify({
+          shopifyOrderId: shipment.order.shopifyOrderId,
+          trackingNumber: serverNo,
+          carrier,
+        });
+        await prisma.shipment.update({
+          where: { id: shipment.id },
+          data: {
+            shopifyFulfillmentId: fulfillment.fulfillmentId,
+            syncStatus: "SYNCED",
+            labelStatus: "SYNCED_TO_SHOPIFY",
+            status: "shipped",
+            shippedAt: new Date(),
+          },
+        });
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            labelStatus: "SYNCED_TO_SHOPIFY",
+            fulfillmentPushedAt: new Date(),
+          },
+        });
+        await prisma.orderLog.create({
+          data: {
+            orderId,
+            userId: session.user?.id,
+            action: "fulfillment_pushed",
+            toValue: fulfillment.fulfillmentId,
+            message: `Auto-synced to Shopify: ${serverNo} (${carrier})`,
+          },
+        });
+      } catch (syncErr) {
+        console.warn("Auto-sync to Shopify failed:", syncErr);
+        await prisma.shipment.update({
+          where: { id: shipment.id },
+          data: {
+            syncStatus: "FAILED",
+            syncError: syncErr instanceof Error ? syncErr.message : "Unknown error",
+          },
+        });
       }
     }
 

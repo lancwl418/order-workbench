@@ -369,7 +369,13 @@
     "fetchTrackingNo": "Fetch",
     "trackingNoUpdated": "Tracking number updated",
     "trackingNoFetched": "Tracking number fetched",
-    "notAssignedYet": "Not assigned yet"
+    "notAssignedYet": "Not assigned yet",
+    "syncToShopify": "Sync to Shopify",
+    "syncedToShopify": "Synced to Shopify",
+    "shopifySync": "Shopify Sync",
+    "synced": "Synced",
+    "syncFailed": "Sync Failed",
+    "notSynced": "Not Synced"
   },
   "csQueue": {
     "title": "CS Queue",

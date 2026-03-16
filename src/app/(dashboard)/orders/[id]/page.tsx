@@ -182,12 +182,31 @@ export default function OrderDetailPage() {
       if (!res.ok) throw new Error("Failed to update");
       toast.success(tOms("trackingNoUpdated"));
       setEditingServerNo(false);
+      // Auto-sync to Shopify
+      syncToShopify(omsShipment.id);
       mutate();
       mutateShipments();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
       setSavingServerNo(false);
+    }
+  }
+
+  async function syncToShopify(shipmentId: string) {
+    try {
+      const res = await fetch("/api/fulfillment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shipmentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.details || "Sync failed");
+      toast.success(tOms("syncedToShopify"));
+      mutate();
+      mutateShipments();
+    } catch (e) {
+      toast.error(`Shopify sync: ${e instanceof Error ? e.message : "Failed"}`);
     }
   }
 
@@ -480,19 +499,31 @@ export default function OrderDetailPage() {
                   <Truck className="h-4 w-4" />
                   {tOms("omsShipment")}
                 </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={refreshOmsTracking}
-                  disabled={refreshingTracking}
-                >
-                  {refreshingTracking ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3" />
+                <div className="flex items-center gap-2">
+                  {((omsRaw?.serverNo as string) || omsShipment.trackingNumber) && omsShipment.syncStatus !== "SYNCED" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => syncToShopify(omsShipment.id)}
+                    >
+                      <Upload className="h-3 w-3" />
+                      {tOms("syncToShopify")}
+                    </Button>
                   )}
-                  {refreshingTracking ? tOms("refreshing") : tOms("refreshTracking")}
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={refreshOmsTracking}
+                    disabled={refreshingTracking}
+                  >
+                    {refreshingTracking ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    {refreshingTracking ? tOms("refreshing") : tOms("refreshTracking")}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -562,6 +593,18 @@ export default function OrderDetailPage() {
                     {(omsRaw?.totalPrice as number) != null
                       ? `$${Number(omsRaw!.totalPrice).toFixed(2)}`
                       : "-"}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">{tOms("shopifySync")}</span>
+                  <p className="font-medium">
+                    {omsShipment.syncStatus === "SYNCED" ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">{tOms("synced")}</Badge>
+                    ) : omsShipment.syncStatus === "FAILED" ? (
+                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{tOms("syncFailed")}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">{tOms("notSynced")}</Badge>
+                    )}
                   </p>
                 </div>
               </div>
