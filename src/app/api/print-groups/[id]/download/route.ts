@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createReadStream } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { Readable } from "node:stream";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -32,9 +36,10 @@ function orderSeparatorSvg(
  * Fetches all gang sheet PNGs in the group, stitches them vertically
  * into one combined image, and returns it as a PNG download.
  *
- * Memory-optimised: uses compressed PNG buffers in composite (not raw RGBA)
- * and streams the output, so libvips can process large images (~380MP+)
- * without holding everything in memory at once.
+ * Memory-optimised: downloads images to temp files one at a time,
+ * uses file paths in composite (libvips loads from disk on demand),
+ * and writes output to a temp file before streaming.
+ * This keeps memory well under 512MB even for very large images.
  */
 export async function GET(
   _req: NextRequest,
@@ -69,31 +74,35 @@ export async function GET(
     return NextResponse.json({ error: "Group has no files" }, { status: 400 });
   }
 
-  try {
-    // Fetch all images in parallel
-    const imageBuffers = await Promise.all(
-      group.items.map(async (item) => {
-        const res = await fetch(item.fileUrl);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
-        }
-        return Buffer.from(await res.arrayBuffer());
-      })
-    );
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
 
-    // Read dimensions from metadata only (no full pixel decode – saves memory)
+  try {
+    // Download images ONE AT A TIME to temp files to minimize memory usage
     const images: {
-      buf: Buffer;
+      filePath: string;
       width: number;
       height: number;
       orderId: string;
       label: string;
     }[] = [];
 
-    for (let i = 0; i < imageBuffers.length; i++) {
-      const buf = imageBuffers[i];
-      const meta = await sharp(buf, { limitInputPixels: false }).metadata();
+    for (let i = 0; i < group.items.length; i++) {
       const item = group.items[i];
+      const tmpPath = path.join(tmpDir, `${i}.png`);
+
+      const res = await fetch(item.fileUrl);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
+      }
+
+      // Write to disk immediately, then free the buffer
+      const buffer = Buffer.from(await res.arrayBuffer());
+      await fs.writeFile(tmpPath, buffer);
+      // buffer will be GC'd after this scope
+
+      // Read metadata from file (no pixel decode)
+      const meta = await sharp(tmpPath, { limitInputPixels: false }).metadata();
+
       const orderNum = item.order.shopifyOrderNumber || "";
       const customer = item.order.customerName || "";
       const label = [orderNum ? `#${orderNum}` : "", customer]
@@ -101,7 +110,7 @@ export async function GET(
         .join("  —  ");
 
       images.push({
-        buf,
+        filePath: tmpPath,
         width: meta.width!,
         height: meta.height!,
         orderId: item.orderId,
@@ -123,10 +132,13 @@ export async function GET(
       images.reduce((sum, img) => sum + img.height, 0) +
       marginCount * ORDER_MARGIN;
 
-    console.log(`Combining ${images.length} images: ${canvasWidth}x${totalHeight}px`);
+    console.log(
+      `Combining ${images.length} images: ${canvasWidth}x${totalHeight}px (${(totalHeight / 300).toFixed(1)}in)`
+    );
 
-    // Build composites using compressed PNG buffers (not raw RGBA).
-    // libvips decodes them on-demand during compositing, using far less memory.
+    // Build composites using FILE PATHS (not buffers).
+    // libvips loads files from disk on demand during compositing,
+    // so memory usage stays proportional to tile size, not total image size.
     const composites: sharp.OverlayOptions[] = [];
     let yOffset = 0;
 
@@ -135,8 +147,14 @@ export async function GET(
       const isNewOrder = i === 0 || img.orderId !== images[i - 1].orderId;
 
       if (isNewOrder) {
+        // Write separator SVG to a temp file too
+        const sepPath = path.join(tmpDir, `sep-${i}.png`);
+        await sharp(orderSeparatorSvg(img.label, canvasWidth, ORDER_MARGIN))
+          .png()
+          .toFile(sepPath);
+
         composites.push({
-          input: orderSeparatorSvg(img.label, canvasWidth, ORDER_MARGIN),
+          input: sepPath,
           top: yOffset,
           left: 0,
         });
@@ -144,7 +162,7 @@ export async function GET(
       }
 
       composites.push({
-        input: img.buf,
+        input: img.filePath,
         limitInputPixels: false,
         top: yOffset,
         left: 0,
@@ -153,8 +171,9 @@ export async function GET(
       yOffset += img.height;
     }
 
-    // Stream the output instead of buffering the full PNG in memory
-    const pipeline = sharp({
+    // Write output to temp file (libvips processes in tiles, not all at once)
+    const outputPath = path.join(tmpDir, "output.png");
+    await sharp({
       create: {
         width: canvasWidth,
         height: totalHeight,
@@ -164,24 +183,34 @@ export async function GET(
       limitInputPixels: false,
     })
       .composite(composites)
-      .png();
+      .png({ compressionLevel: 6 })
+      .toFile(outputPath);
 
     const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
+    const stat = await fs.stat(outputPath);
 
-    // Convert Node.js readable stream to Web ReadableStream
-    const nodeStream = pipeline as unknown as Readable;
+    // Stream the file to the client
+    const nodeStream = createReadStream(outputPath);
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+    // Clean up temp files after stream ends
+    nodeStream.on("close", () => {
+      fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    });
 
     return new Response(webStream, {
       headers: {
         "Content-Type": "image/png",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Transfer-Encoding": "chunked",
+        "Content-Length": String(stat.size),
       },
     });
   } catch (e) {
+    // Clean up on error
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     console.error("Download combine error:", e);
-    const message = e instanceof Error ? e.message : "Failed to generate combined image";
+    const message =
+      e instanceof Error ? e.message : "Failed to generate combined image";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
