@@ -140,19 +140,18 @@ export async function GET(
     );
 
     // Step 3: Single-pass composite — libvips tiles through the output
-    const outputPath = path.join(tmpDir, "output.jpg");
+    const outputPath = path.join(tmpDir, "output.png");
     await sharp({
       limitInputPixels: false,
       create: {
         width: canvasWidth,
         height: totalHeight,
-        channels: 3,
-        background: { r: 255, g: 255, b: 255 },
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
       },
     })
       .composite(compositeInputs)
-      .flatten({ background: { r: 255, g: 255, b: 255 } })
-      .jpeg({ quality: 90 })
+      .png({ compressionLevel: 1 })
       .toFile(outputPath);
 
     // Verify
@@ -161,7 +160,7 @@ export async function GET(
       `Output: ${outputMeta.width}x${outputMeta.height}px, format: ${outputMeta.format}`
     );
 
-    const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.jpg`;
+    const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
     const stat = await fs.stat(outputPath);
 
     console.log(`Output file size: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
@@ -177,7 +176,7 @@ export async function GET(
 
     return new Response(webStream, {
       headers: {
-        "Content-Type": "image/jpeg",
+        "Content-Type": "image/png",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Length": String(stat.size),
       },

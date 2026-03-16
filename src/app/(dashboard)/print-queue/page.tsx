@@ -795,7 +795,7 @@ function PrintGroupCard({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.jpg`;
+      a.download = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
