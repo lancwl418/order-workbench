@@ -74,6 +74,10 @@ export default function OrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [omsPushOpen, setOmsPushOpen] = useState(false);
   const [refreshingTracking, setRefreshingTracking] = useState(false);
+  const [editingServerNo, setEditingServerNo] = useState(false);
+  const [serverNoInput, setServerNoInput] = useState("");
+  const [savingServerNo, setSavingServerNo] = useState(false);
+  const [fetchingServerNo, setFetchingServerNo] = useState(false);
 
   useEffect(() => {
     if (order?.notes) setNotes(order.notes);
@@ -138,6 +142,50 @@ export default function OrderDetailPage() {
       toast.error(e instanceof Error ? e.message : "Failed to refresh tracking");
     } finally {
       setRefreshingTracking(false);
+    }
+  }
+
+  async function fetchServerNo() {
+    setFetchingServerNo(true);
+    try {
+      const res = await fetch(`/api/oms/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order!.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      mutate();
+      // Check if serverNo was found by looking at the shipment in response
+      if (data.shipment?.trackingNumber || data.tracking) {
+        toast.success(tOms("trackingNoFetched"));
+      } else {
+        toast.info(tOms("notAssignedYet"));
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setFetchingServerNo(false);
+    }
+  }
+
+  async function saveServerNo() {
+    if (!serverNoInput.trim() || !omsShipment) return;
+    setSavingServerNo(true);
+    try {
+      const res = await fetch(`/api/shipments/${omsShipment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingNumber: serverNoInput.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      toast.success(tOms("trackingNoUpdated"));
+      setEditingServerNo(false);
+      mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSavingServerNo(false);
     }
   }
 
@@ -453,7 +501,54 @@ export default function OrderDetailPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">{tOms("serverNo")}</span>
-                  <p className="font-mono font-medium">{(omsRaw?.serverNo as string) || omsShipment.trackingNumber || "-"}</p>
+                  {editingServerNo ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Input
+                        value={serverNoInput}
+                        onChange={(e) => setServerNoInput(e.target.value)}
+                        className="h-7 text-xs font-mono"
+                        placeholder="e.g. 9400111..."
+                      />
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveServerNo} disabled={savingServerNo}>
+                        {savingServerNo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingServerNo(false)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-mono font-medium">
+                        {(omsRaw?.serverNo as string) || omsShipment.trackingNumber || (
+                          <span className="text-muted-foreground font-normal">{tOms("notAssignedYet")}</span>
+                        )}
+                      </p>
+                      {!((omsRaw?.serverNo as string) || omsShipment.trackingNumber) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          onClick={fetchServerNo}
+                          disabled={fetchingServerNo}
+                        >
+                          {fetchingServerNo ? <Loader2 className="h-3 w-3 animate-spin" /> : tOms("fetchTrackingNo")}
+                        </Button>
+                      )}
+                      <button
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => {
+                          setServerNoInput((omsRaw?.serverNo as string) || omsShipment.trackingNumber || "");
+                          setEditingServerNo(true);
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{tOms("carrier")}</span>
+                  <p className="font-medium">{(omsRaw?.productName as string) || omsShipment.carrier || "-"}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">{tOms("trackingStatus")}</span>
@@ -467,12 +562,6 @@ export default function OrderDetailPage() {
                       : "-"}
                   </p>
                 </div>
-                {(omsRaw?.productName as string) && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">{tOms("product")}</span>
-                    <p className="font-medium">{omsRaw!.productName as string}</p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>

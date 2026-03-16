@@ -154,9 +154,11 @@ export function OmsPushDialog({
         throw new Error(data.error || "Push failed");
       }
       const data = await res.json();
-      toast.success(
-        `${t("pushSuccess")} | ${data.omsOrder.serverNo} | ${data.omsOrder.productName} | $${data.omsOrder.totalPrice}`
-      );
+      const parts = [t("pushSuccess")];
+      if (data.omsOrder.serverNo) parts.push(data.omsOrder.serverNo);
+      if (data.omsOrder.productName) parts.push(data.omsOrder.productName);
+      if (data.omsOrder.totalPrice != null) parts.push(`$${data.omsOrder.totalPrice}`);
+      toast.success(parts.join(" | "));
       onOpenChange(false);
       onSuccess?.();
     } catch (e) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createOrder } from "@/lib/eccangtms/client";
+import { createOrder, getTrackingNumber } from "@/lib/eccangtms/client";
 import { mapOrderToEccangParams } from "@/lib/eccangtms/mapper";
 import { z } from "zod";
 
@@ -72,7 +72,19 @@ export async function POST(req: NextRequest) {
     const result = await createOrder(params);
 
     // serverNo may be null at creation time — EccangTMS assigns it asynchronously
-    const serverNo = result.serverNo || null;
+    let serverNo = result.serverNo || null;
+
+    // If serverNo is null, try fetching it immediately
+    if (!serverNo && result.orderNo) {
+      try {
+        const trackingNumbers = await getTrackingNumber(result.orderNo);
+        if (trackingNumbers?.length > 0 && trackingNumbers[0].serverNo) {
+          serverNo = trackingNumbers[0].serverNo;
+        }
+      } catch {
+        // ignore — will be fetched later via Refresh Tracking
+      }
+    }
 
     // Create shipment record
     const shipment = await prisma.shipment.create({
@@ -109,12 +121,12 @@ export async function POST(req: NextRequest) {
         orderId,
         userId: session.user?.id,
         action: "oms_order_created",
-        message: `Pushed to OMS: ${result.productName} | Server: ${result.serverNo} | Cost: $${result.totalPrice}`,
+        message: `Pushed to OMS: ${result.productName} | Server: ${serverNo || "pending"} | Cost: $${result.totalPrice}`,
         toValue: result.orderNo,
         metadata: {
           productCode: result.productCode,
           productName: result.productName,
-          serverNo: result.serverNo,
+          serverNo: serverNo,
           orderNo: result.orderNo,
           totalPrice: result.totalPrice,
         },
@@ -126,7 +138,7 @@ export async function POST(req: NextRequest) {
       shipment,
       omsOrder: {
         orderNo: result.orderNo,
-        serverNo: result.serverNo,
+        serverNo: serverNo,
         productName: result.productName,
         totalPrice: result.totalPrice,
         status: result.status,

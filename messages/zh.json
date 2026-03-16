@@ -364,7 +364,12 @@
     "addPreset": "添加预设",
     "presetName": "预设名称",
     "deletePreset": "删除预设",
-    "noPresets": "暂无包裹预设，请添加或手动填写。"
+    "noPresets": "暂无包裹预设，请添加或手动填写。",
+    "carrier": "承运商",
+    "fetchTrackingNo": "获取",
+    "trackingNoUpdated": "追踪号已更新",
+    "trackingNoFetched": "已获取追踪号",
+    "notAssignedYet": "尚未分配"
   },
   "csQueue": {
     "title": "客服队列",

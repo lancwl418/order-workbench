@@ -364,7 +364,12 @@
     "addPreset": "Add Preset",
     "presetName": "Preset Name",
     "deletePreset": "Delete Preset",
-    "noPresets": "No package presets. Add one or use manual input."
+    "noPresets": "No package presets. Add one or use manual input.",
+    "carrier": "Carrier",
+    "fetchTrackingNo": "Fetch",
+    "trackingNoUpdated": "Tracking number updated",
+    "trackingNoFetched": "Tracking number fetched",
+    "notAssignedYet": "Not assigned yet"
   },
   "csQueue": {
     "title": "CS Queue",
