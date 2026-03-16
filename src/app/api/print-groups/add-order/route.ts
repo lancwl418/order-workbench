@@ -141,11 +141,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (!group) {
-    // Generate name: "Group #N"
-    const count = await prisma.printGroup.count();
+    // Generate name: "Group #N" — resets to 1 each day
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCount = await prisma.printGroup.count({
+      where: { createdAt: { gte: todayStart } },
+    });
     group = await prisma.printGroup.create({
       data: {
-        name: `Group #${count + 1}`,
+        name: `Group #${todayCount + 1}`,
         status: "BUILDING",
         totalHeight: 0,
       },

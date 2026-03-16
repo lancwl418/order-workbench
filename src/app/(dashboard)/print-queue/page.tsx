@@ -364,11 +364,18 @@ export default function PrintQueuePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{tPQ("title")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {tPQ("description")}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">{tPQ("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {tPQ("description")}
+          </p>
+        </div>
+        <Link href="/print-queue/history">
+          <Button variant="outline" size="sm">
+            {tPQ("history")}
+          </Button>
+        </Link>
       </div>
 
       {/* Section A: Group Builder */}

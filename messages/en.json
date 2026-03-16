@@ -252,7 +252,11 @@
       "status": "Status"
     },
     "removeFromQueue": "Remove from queue",
-    "removeFromGroup": "Remove from group"
+    "removeFromGroup": "Remove from group",
+    "history": "History",
+    "printHistory": "Print History",
+    "printHistoryDescription": "View all past print groups",
+    "noHistory": "No print history yet."
   },
   "exceptions": {
     "title": "Shipping Exceptions",

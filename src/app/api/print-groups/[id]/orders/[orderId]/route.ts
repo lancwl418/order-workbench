@@ -40,17 +40,6 @@ export async function DELETE(
     );
   }
 
-  // Recalculate total height
-  const remaining = await prisma.printGroupItem.aggregate({
-    where: { printGroupId: id },
-    _sum: { heightInches: true },
-  });
-
-  await prisma.printGroup.update({
-    where: { id },
-    data: { totalHeight: remaining._sum.heightInches || 0 },
-  });
-
   // Set print status back to IN_QUEUE so it stays in the print queue
   await prisma.order.update({
     where: { id: orderId },
@@ -66,6 +55,27 @@ export async function DELETE(
       toValue: "IN_QUEUE",
       message: `Removed from print group: ${group.name}`,
     },
+  });
+
+  // Check if group is now empty — auto-delete if so
+  const remainingCount = await prisma.printGroupItem.count({
+    where: { printGroupId: id },
+  });
+
+  if (remainingCount === 0) {
+    await prisma.printGroup.delete({ where: { id } });
+    return NextResponse.json({ deleted: true });
+  }
+
+  // Recalculate total height
+  const remaining = await prisma.printGroupItem.aggregate({
+    where: { printGroupId: id },
+    _sum: { heightInches: true },
+  });
+
+  await prisma.printGroup.update({
+    where: { id },
+    data: { totalHeight: remaining._sum.heightInches || 0 },
   });
 
   // Return updated group
