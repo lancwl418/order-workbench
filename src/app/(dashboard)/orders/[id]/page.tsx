@@ -15,6 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/utils";
@@ -78,6 +86,23 @@ export default function OrderDetailPage() {
   const [serverNoInput, setServerNoInput] = useState("");
   const [savingServerNo, setSavingServerNo] = useState(false);
   const [fetchingServerNo, setFetchingServerNo] = useState(false);
+
+  // Shipment tracking editing
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+  const [shipTrackingInput, setShipTrackingInput] = useState("");
+  const [shipCarrierInput, setShipCarrierInput] = useState("");
+  const [savingShipment, setSavingShipment] = useState(false);
+  // New tracking (when no shipments exist)
+  const [addingTracking, setAddingTracking] = useState(false);
+  const [newTrackingNumber, setNewTrackingNumber] = useState("");
+  const [newCarrier, setNewCarrier] = useState("");
+  const [savingNewTracking, setSavingNewTracking] = useState(false);
+
+  // Delivery method editing (double confirm)
+  const [editDeliveryOpen, setEditDeliveryOpen] = useState(false);
+  const [deliveryMethodInput, setDeliveryMethodInput] = useState("");
+  const [confirmDeliveryOpen, setConfirmDeliveryOpen] = useState(false);
+  const [savingDeliveryMethod, setSavingDeliveryMethod] = useState(false);
 
   useEffect(() => {
     if (order?.notes) setNotes(order.notes);
@@ -210,6 +235,77 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function saveShipmentTracking(shipmentId: string) {
+    setSavingShipment(true);
+    try {
+      const res = await fetch(`/api/shipments/${shipmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingNumber: shipTrackingInput.trim() || undefined,
+          carrier: shipCarrierInput.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      toast.success("Tracking updated");
+      setEditingShipmentId(null);
+      mutate();
+      mutateShipments();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSavingShipment(false);
+    }
+  }
+
+  async function createNewTracking() {
+    if (!newTrackingNumber.trim()) return;
+    setSavingNewTracking(true);
+    try {
+      const res = await fetch("/api/shipments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order!.id,
+          trackingNumber: newTrackingNumber.trim(),
+          carrier: newCarrier.trim() || undefined,
+          sourceType: "MANUAL",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create shipment");
+      toast.success("Tracking added");
+      setAddingTracking(false);
+      setNewTrackingNumber("");
+      setNewCarrier("");
+      mutate();
+      mutateShipments();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSavingNewTracking(false);
+    }
+  }
+
+  async function saveDeliveryMethod() {
+    setSavingDeliveryMethod(true);
+    try {
+      const res = await fetch(`/api/orders/${order!.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingMethod: deliveryMethodInput.trim() || null }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      toast.success("Delivery method updated");
+      setConfirmDeliveryOpen(false);
+      setEditDeliveryOpen(false);
+      mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSavingDeliveryMethod(false);
+    }
+  }
+
   const omsShipment = shipments?.find((s) => s.providerName === "eccangtms");
   const omsRaw = omsShipment?.providerRawJson as Record<string, unknown> | null;
 
@@ -306,20 +402,31 @@ export default function OrderDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground">{t("deliveryMethod")}</span>
-                <p className="font-medium">
-                  {order.shippingMethod ? (
-                    <Badge
-                      variant="outline"
-                      className={`text-xs border-0 ${
-                        order.shippingMethod.toLowerCase().includes("express")
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {order.shippingMethod}
-                    </Badge>
-                  ) : "-"}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">
+                    {order.shippingMethod ? (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs border-0 ${
+                          order.shippingMethod.toLowerCase().includes("express")
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {order.shippingMethod}
+                      </Badge>
+                    ) : "-"}
+                  </p>
+                  <button
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setDeliveryMethodInput(order.shippingMethod || "");
+                      setEditDeliveryOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
               <div>
                 <span className="text-muted-foreground">{t("priority")}</span>
@@ -466,46 +573,150 @@ export default function OrderDetailPage() {
         />
 
         {/* Shipments */}
-        {shipments && shipments.length > 0 && (
-          <Card className="md:col-span-2">
-            <CardHeader>
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                {t("shipments")} ({shipments.length})
+                {t("shipments")} ({shipments?.length || 0})
               </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {shipments.map((shipment) => (
-                  <div
-                    key={shipment.id}
-                    className="flex items-center justify-between p-3 rounded-md border"
-                  >
-                    <div>
-                      <p className="font-mono text-sm">
-                        {shipment.trackingNumber || t("noTrackingShort")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {shipment.carrier || t("unknownCarrier")} &middot;{" "}
-                        {shipment.sourceType}
-                      </p>
+              {!addingTracking && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAddingTracking(true)}
+                >
+                  + {t("addTracking")}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {shipments?.map((shipment) => (
+                <div
+                  key={shipment.id}
+                  className="p-3 rounded-md border"
+                >
+                  {editingShipmentId === shipment.id ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={shipTrackingInput}
+                          onChange={(e) => setShipTrackingInput(e.target.value)}
+                          placeholder={t("trackingNumber")}
+                          className="h-8 text-sm font-mono flex-1"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={shipCarrierInput}
+                          onChange={(e) => setShipCarrierInput(e.target.value)}
+                          placeholder={t("carrier")}
+                          className="h-8 text-sm flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => saveShipmentTracking(shipment.id)}
+                          disabled={savingShipment}
+                        >
+                          {savingShipment ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setEditingShipmentId(null)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      {shipment.status && (
-                        <StatusBadge status={shipment.status} />
-                      )}
-                      {shipment.syncStatus && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {t("sync")}: {shipment.syncStatus}
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-mono text-sm">
+                          {shipment.trackingNumber || t("noTrackingShort")}
                         </p>
-                      )}
+                        <p className="text-sm text-muted-foreground">
+                          {shipment.carrier || t("unknownCarrier")} &middot;{" "}
+                          {shipment.sourceType}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          {shipment.status && (
+                            <StatusBadge status={shipment.status} />
+                          )}
+                          {shipment.syncStatus && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t("sync")}: {shipment.syncStatus}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => {
+                            setShipTrackingInput(shipment.trackingNumber || "");
+                            setShipCarrierInput(shipment.carrier || "");
+                            setEditingShipmentId(shipment.id);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Add new tracking */}
+              {addingTracking && (
+                <div className="p-3 rounded-md border border-dashed space-y-2">
+                  <Input
+                    value={newTrackingNumber}
+                    onChange={(e) => setNewTrackingNumber(e.target.value)}
+                    placeholder={t("trackingNumber")}
+                    className="h-8 text-sm font-mono"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newCarrier}
+                      onChange={(e) => setNewCarrier(e.target.value)}
+                      placeholder={t("carrier")}
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={createNewTracking}
+                      disabled={savingNewTracking || !newTrackingNumber.trim()}
+                    >
+                      {savingNewTracking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                      {t("save")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingTracking(false);
+                        setNewTrackingNumber("");
+                        setNewCarrier("");
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </div>
+              )}
+
+              {(!shipments || shipments.length === 0) && !addingTracking && (
+                <p className="text-sm text-muted-foreground">{t("noShipments")}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* OMS Shipment */}
         {omsShipment && (
@@ -669,6 +880,76 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Delivery Method — Step 1 */}
+      <Dialog open={editDeliveryOpen} onOpenChange={(open) => {
+        if (!open) setEditDeliveryOpen(false);
+      }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("editDeliveryMethod")}</DialogTitle>
+            <DialogDescription>
+              {t("currentValue")}: {order.shippingMethod || "-"}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={deliveryMethodInput}
+            onChange={(e) => setDeliveryMethodInput(e.target.value)}
+            placeholder={t("deliveryMethod")}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDeliveryOpen(false)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditDeliveryOpen(false);
+                setConfirmDeliveryOpen(true);
+              }}
+              disabled={deliveryMethodInput === (order.shippingMethod || "")}
+            >
+              {t("change")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Delivery Method — Step 2 (Confirm) */}
+      <Dialog open={confirmDeliveryOpen} onOpenChange={(open) => {
+        if (!open) {
+          setConfirmDeliveryOpen(false);
+        }
+      }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("confirmChange")}</DialogTitle>
+            <DialogDescription>
+              {t("deliveryMethodConfirmMsg", {
+                from: order.shippingMethod || "-",
+                to: deliveryMethodInput || "-",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setConfirmDeliveryOpen(false);
+              setEditDeliveryOpen(true);
+            }}>
+              {tCommon("back")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={saveDeliveryMethod}
+              disabled={savingDeliveryMethod}
+            >
+              {savingDeliveryMethod ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {t("confirmChange")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

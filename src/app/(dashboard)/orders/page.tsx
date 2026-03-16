@@ -24,8 +24,8 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { MentionInput } from "@/components/cs/mention-input";
 import { toast } from "sonner";
 import { CS_ISSUE_TYPES } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
@@ -106,6 +106,7 @@ export default function OrdersPage() {
   const [csFlagOrderId, setCsFlagOrderId] = useState<string | null>(null);
   const [csFlagIssueType, setCsFlagIssueType] = useState<string>("");
   const [csFlagComment, setCsFlagComment] = useState("");
+  const [csFlagMentions, setCsFlagMentions] = useState<string[]>([]);
   const [csFlagSubmitting, setCsFlagSubmitting] = useState(false);
 
   // OMS Push dialog state
@@ -205,6 +206,7 @@ export default function OrdersPage() {
             body: JSON.stringify({
               content: csFlagComment.trim(),
               attachments: [],
+              mentions: csFlagMentions,
             }),
           }
         );
@@ -213,13 +215,14 @@ export default function OrdersPage() {
 
       toast.success("Flagged as CS order");
       setCsFlagOrderId(null);
+      setCsFlagMentions([]);
       refresh();
     } catch {
       toast.error("Failed to flag CS order");
     } finally {
       setCsFlagSubmitting(false);
     }
-  }, [csFlagOrderId, csFlagIssueType, csFlagComment, refresh]);
+  }, [csFlagOrderId, csFlagIssueType, csFlagComment, csFlagMentions, refresh]);
 
   // Build print status label map for columns
   const printLabels: Record<string, string> = {};
@@ -429,18 +432,15 @@ export default function OrdersPage() {
             </div>
             <div className="space-y-2">
               <Label>{tCS("flagDialog.comment")}</Label>
-              <Textarea
+              <MentionInput
                 value={csFlagComment}
-                onChange={(e) => setCsFlagComment(e.target.value)}
+                onChange={setCsFlagComment}
+                mentions={csFlagMentions}
+                onMentionsChange={setCsFlagMentions}
                 placeholder={tCS("flagDialog.commentPlaceholder")}
                 rows={3}
                 className="text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    handleCsFlagSubmit();
-                  }
-                }}
+                onSubmit={handleCsFlagSubmit}
               />
             </div>
           </div>

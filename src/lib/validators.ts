@@ -71,6 +71,7 @@ export const orderUpdateSchema = z.object({
   csRequiredAction: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
+  shippingMethod: z.string().nullable().optional(),
 });
 
 export const bulkUpdateSchema = z.object({

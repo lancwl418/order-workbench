@@ -175,6 +175,19 @@ export async function PATCH(
       toValue: updateData.notes || "",
     });
   }
+  if (
+    updateData.shippingMethod !== undefined &&
+    updateData.shippingMethod !== existing.shippingMethod
+  ) {
+    logEntries.push({
+      orderId: id,
+      userId: session.user?.id,
+      action: "delivery_method_change",
+      fromValue: existing.shippingMethod || "",
+      toValue: updateData.shippingMethod || "",
+      message: `Delivery method changed from "${existing.shippingMethod || "-"}" to "${updateData.shippingMethod || "-"}"`,
+    });
+  }
 
   if (logEntries.length > 0) {
     await prisma.orderLog.createMany({ data: logEntries });

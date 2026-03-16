@@ -219,7 +219,17 @@
     "hoursSincePaid": "h since paid",
     "noTrackingShort": "no tracking",
     "unknownCarrier": "Unknown carrier",
-    "sync": "Sync"
+    "sync": "Sync",
+    "addTracking": "Add Tracking",
+    "trackingNumber": "Tracking Number",
+    "carrier": "Carrier",
+    "save": "Save",
+    "editDeliveryMethod": "Edit Delivery Method",
+    "currentValue": "Current",
+    "change": "Change",
+    "confirmChange": "Confirm Change",
+    "deliveryMethodConfirmMsg": "Change delivery method from \"{from}\" to \"{to}\"?",
+    "back": "Back"
   },
   "printQueue": {
     "title": "Print Queue",

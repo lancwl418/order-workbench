@@ -219,7 +219,17 @@
     "hoursSincePaid": "小时自付款",
     "noTrackingShort": "无追踪号",
     "unknownCarrier": "未知承运商",
-    "sync": "同步"
+    "sync": "同步",
+    "addTracking": "添加追踪号",
+    "trackingNumber": "追踪号",
+    "carrier": "承运商",
+    "save": "保存",
+    "editDeliveryMethod": "修改配送方式",
+    "currentValue": "当前",
+    "change": "修改",
+    "confirmChange": "确认修改",
+    "deliveryMethodConfirmMsg": "确定将配送方式从 \"{from}\" 改为 \"{to}\" 吗？",
+    "back": "返回"
   },
   "printQueue": {
     "title": "打印队列",
