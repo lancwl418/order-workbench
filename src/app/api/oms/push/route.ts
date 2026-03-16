@@ -71,12 +71,15 @@ export async function POST(req: NextRequest) {
     const params = mapOrderToEccangParams(order, productCode, packageInfo);
     const result = await createOrder(params);
 
+    // serverNo may be null at creation time — EccangTMS assigns it asynchronously
+    const serverNo = result.serverNo || null;
+
     // Create shipment record
     const shipment = await prisma.shipment.create({
       data: {
         orderId,
         sourceType: "THIRD_PARTY",
-        trackingNumber: result.serverNo,
+        trackingNumber: serverNo,
         carrier: result.productName || productCode,
         service: result.productCode,
         shippingCost: result.totalPrice,
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        trackingNumber: result.serverNo,
+        ...(serverNo ? { trackingNumber: serverNo } : {}),
         carrier: result.productName || productCode,
         shippingRoute: "THIRD_PARTY",
         labelStatus: "CREATED",

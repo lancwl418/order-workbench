@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getTrackDetails } from "@/lib/eccangtms/client";
+import { getTrackDetails, getTrackingNumber } from "@/lib/eccangtms/client";
 import { ECCANG_TRAVEL_STATUS } from "@/lib/eccangtms/types";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ const trackSchema = z.object({
 /**
  * POST /api/oms/track
  * Pull tracking details from EccangTMS for an order's OMS shipment.
+ * If serverNo (trackingNumber) is not yet assigned, fetch it via getTrackingNumber.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -34,24 +35,64 @@ export async function POST(req: NextRequest) {
     where: { orderId, providerName: "eccangtms" },
   });
 
-  if (!shipment || !shipment.trackingNumber) {
+  if (!shipment) {
     return NextResponse.json(
       { error: "No OMS shipment found for this order" },
       { status: 404 }
     );
   }
 
+  const orderNo = shipment.externalShipmentId;
+  let serverNo = shipment.trackingNumber;
+
   try {
+    // Step 1: If serverNo is missing, fetch it via getTrackingNumber(orderNo)
+    if (!serverNo && orderNo) {
+      try {
+        const trackingNumbers = await getTrackingNumber(orderNo);
+        if (trackingNumbers && trackingNumbers.length > 0) {
+          serverNo = trackingNumbers[0].serverNo;
+          // Save serverNo to shipment and order
+          await prisma.shipment.update({
+            where: { id: shipment.id },
+            data: { trackingNumber: serverNo },
+          });
+          await prisma.order.update({
+            where: { id: orderId },
+            data: { trackingNumber: serverNo },
+          });
+          // Also update providerRawJson
+          const rawJson = (shipment.providerRawJson as Record<string, unknown>) || {};
+          rawJson.serverNo = serverNo;
+          await prisma.shipment.update({
+            where: { id: shipment.id },
+            data: { providerRawJson: JSON.parse(JSON.stringify(rawJson)) },
+          });
+        }
+      } catch (err) {
+        console.warn("getTrackingNumber error:", err);
+      }
+    }
+
+    // Step 2: If we still don't have serverNo, return early
+    if (!serverNo) {
+      return NextResponse.json({
+        success: true,
+        message: "No tracking number assigned yet",
+        shipment: { ...shipment, trackingNumber: serverNo },
+      });
+    }
+
+    // Step 3: Get tracking details
     let details;
     try {
-      details = await getTrackDetails([shipment.trackingNumber]);
+      details = await getTrackDetails([serverNo]);
     } catch (apiErr) {
-      // EccangTMS may return error when tracking not ready yet — treat as empty
       console.warn("getTrackDetails API error (may not be ready yet):", apiErr);
       return NextResponse.json({
         success: true,
         message: "No tracking info available yet",
-        shipment,
+        shipment: { ...shipment, trackingNumber: serverNo },
       });
     }
 
@@ -59,7 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "No tracking info available yet",
-        shipment,
+        shipment: { ...shipment, trackingNumber: serverNo },
       });
     }
 
@@ -74,6 +115,7 @@ export async function POST(req: NextRequest) {
         status: mappedStatus,
         providerRawJson: JSON.parse(JSON.stringify({
           ...(shipment.providerRawJson as Record<string, unknown> || {}),
+          serverNo,
           lastTrack: detail,
         })),
         ...(mappedStatus === "delivered"
