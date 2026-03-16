@@ -130,7 +130,8 @@
       "items": "Items",
       "orderStatus": "Order Status",
       "tracking": "Tracking",
-      "printStatus": "Print Status"
+      "printStatus": "Print Status",
+      "deliveryMethod": "Delivery"
     },
     "filters": {
       "search": "Search orders...",
@@ -200,6 +201,7 @@
     "shippingRoute": "Shipping Route",
     "labelStatus": "Label Status",
     "priority": "Priority",
+    "deliveryMethod": "Delivery Method",
     "lineItems": "Line Items",
     "printFiles": "Print Files",
     "printReadyFile": "Print Ready File",

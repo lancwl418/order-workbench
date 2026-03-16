@@ -30,7 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag } from "lucide-react";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap } from "lucide-react";
 
 export function createColumns(opts: {
   onStatusChange: (orderId: string, newStatus: string) => Promise<void>;
@@ -48,6 +48,7 @@ export function createColumns(opts: {
     orderStatus: string;
     tracking: string;
     printStatus: string;
+    deliveryMethod: string;
     createLabel: string;
     comingSoon: string;
     noPrint: string;
@@ -175,6 +176,28 @@ export function createColumns(opts: {
       ),
     },
     {
+      accessorKey: "shippingMethod",
+      header: t.deliveryMethod,
+      cell: ({ row }) => {
+        const method = row.original.shippingMethod;
+        if (!method) return <span className="text-sm text-muted-foreground">-</span>;
+        const isExpress = method.toLowerCase().includes("express");
+        return (
+          <Badge
+            variant="outline"
+            className={`text-xs border-0 ${
+              isExpress
+                ? "bg-orange-100 text-orange-700"
+                : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {isExpress && <Zap className="h-3 w-3 mr-0.5" />}
+            {method}
+          </Badge>
+        );
+      },
+    },
+    {
       accessorKey: "internalStatus",
       header: t.orderStatus,
       cell: ({ row }) => {
@@ -223,6 +246,7 @@ export function createColumns(opts: {
         if (!tracking) {
           const shopifyOrderId = row.original.shopifyOrderId;
           const domain = opts.shopifyStoreDomain;
+          const isExpress = row.original.shippingMethod?.toLowerCase().includes("express");
 
           return (
             <Popover>
@@ -251,14 +275,16 @@ export function createColumns(opts: {
                   <ExternalLink className="h-3.5 w-3.5" />
                   Shopify
                 </button>
-                <button
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                  onClick={() => opts.onOmsPush?.(row.original.id)}
-                  disabled={!opts.onOmsPush}
-                >
-                  <Tag className="h-3.5 w-3.5" />
-                  OMS
-                </button>
+                {!isExpress && (
+                  <button
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                    onClick={() => opts.onOmsPush?.(row.original.id)}
+                    disabled={!opts.onOmsPush}
+                  >
+                    <Tag className="h-3.5 w-3.5" />
+                    OMS
+                  </button>
+                )}
               </PopoverContent>
             </Popover>
           );

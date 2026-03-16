@@ -305,6 +305,23 @@ export default function OrderDetailPage() {
                 </p>
               </div>
               <div>
+                <span className="text-muted-foreground">{t("deliveryMethod")}</span>
+                <p className="font-medium">
+                  {order.shippingMethod ? (
+                    <Badge
+                      variant="outline"
+                      className={`text-xs border-0 ${
+                        order.shippingMethod.toLowerCase().includes("express")
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {order.shippingMethod}
+                    </Badge>
+                  ) : "-"}
+                </p>
+              </div>
+              <div>
                 <span className="text-muted-foreground">{t("priority")}</span>
                 <p className="font-medium">{order.priority}</p>
               </div>
@@ -373,8 +390,8 @@ export default function OrderDetailPage() {
               </Button>
             </div>
 
-            {/* OMS Push */}
-            {!omsShipment && (
+            {/* OMS Push — hidden for Express orders */}
+            {!omsShipment && !order.shippingMethod?.toLowerCase().includes("express") && (
               <div>
                 <Button
                   size="sm"

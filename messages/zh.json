@@ -130,7 +130,8 @@
       "items": "商品",
       "orderStatus": "订单状态",
       "tracking": "物流",
-      "printStatus": "打印状态"
+      "printStatus": "打印状态",
+      "deliveryMethod": "配送"
     },
     "filters": {
       "search": "搜索订单...",
@@ -200,6 +201,7 @@
     "shippingRoute": "配送路线",
     "labelStatus": "面单状态",
     "priority": "优先级",
+    "deliveryMethod": "配送方式",
     "lineItems": "商品明细",
     "printFiles": "打印文件",
     "printReadyFile": "打印就绪文件",

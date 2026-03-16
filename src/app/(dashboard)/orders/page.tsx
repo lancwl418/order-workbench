@@ -245,6 +245,7 @@ export default function OrdersPage() {
           orderStatus: tOrders("columns.orderStatus"),
           tracking: tOrders("columns.tracking"),
           printStatus: tOrders("columns.printStatus"),
+          deliveryMethod: tOrders("columns.deliveryMethod"),
           createLabel: tOrders("createLabel"),
           comingSoon: tOrders("comingSoon"),
           noPrint: tOrders("noPrint"),
