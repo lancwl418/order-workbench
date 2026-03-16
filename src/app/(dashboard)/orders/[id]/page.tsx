@@ -136,6 +136,22 @@ export default function OrderDetailPage() {
             </Badge>
           </div>
         )}
+        {order.shopifyOrderId && process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={() =>
+              window.open(
+                `https://${process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN}/admin/orders/${order.shopifyOrderId}`,
+                "_blank"
+              )
+            }
+          >
+            <ExternalLink className="h-3.5 w-3.5 mr-1" />
+            Shopify
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
