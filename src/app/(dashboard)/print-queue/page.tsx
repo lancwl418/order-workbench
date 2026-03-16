@@ -785,7 +785,12 @@ function PrintGroupCard({
     setDownloading(true);
     try {
       const res = await fetch(`/api/print-groups/${group.id}/download`);
-      if (!res.ok) throw new Error("Failed to generate combined image");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        let errMsg = "Failed to generate combined image";
+        try { errMsg = JSON.parse(errText).error || errMsg; } catch { /* use default */ }
+        throw new Error(errMsg);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
