@@ -9,7 +9,7 @@ import {
 import { getPngDimensions } from "@/lib/drip/png-dimensions";
 import { z } from "zod";
 
-const MAX_GROUP_HEIGHT = 360; // inches
+const MAX_GROUP_HEIGHT = 3897; // inches
 
 const addOrderSchema = z.object({
   orderId: z.string(),

@@ -42,7 +42,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-const MAX_HEIGHT = 360;
+const MAX_HEIGHT = 3897;
 
 export default function PrintQueuePage() {
   const isMobile = useIsMobile();
