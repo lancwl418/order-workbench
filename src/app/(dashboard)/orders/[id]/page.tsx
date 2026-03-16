@@ -19,11 +19,12 @@ import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import { MentionInput } from "@/components/cs/mention-input";
+import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 
 type LogEntry = {
   id: string;
@@ -42,6 +43,9 @@ type ShipmentEntry = {
   syncStatus: string | null;
   shippedAt: string | null;
   createdAt: string;
+  providerName: string | null;
+  externalShipmentId: string | null;
+  providerRawJson: Record<string, unknown> | null;
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -54,6 +58,7 @@ export default function OrderDetailPage() {
   const tPrint = useTranslations("printStatus");
   const tException = useTranslations("exception");
   const tCommon = useTranslations("common");
+  const tOms = useTranslations("oms");
 
   const { data: order, mutate } = useSWR<OrderWithRelations>(
     `/api/orders/${params.id}`,
@@ -67,6 +72,8 @@ export default function OrderDetailPage() {
 
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [omsPushOpen, setOmsPushOpen] = useState(false);
+  const [refreshingTracking, setRefreshingTracking] = useState(false);
 
   useEffect(() => {
     if (order?.notes) setNotes(order.notes);
@@ -110,6 +117,27 @@ export default function OrderDetailPage() {
     }
     setSaving(false);
   }
+
+  async function refreshOmsTracking() {
+    setRefreshingTracking(true);
+    try {
+      const res = await fetch(`/api/oms/track`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order!.id }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(tOms("trackingUpdated"));
+      mutate();
+    } catch {
+      toast.error("Failed to refresh tracking");
+    } finally {
+      setRefreshingTracking(false);
+    }
+  }
+
+  const omsShipment = shipments?.find((s) => s.providerName === "eccangtms");
+  const omsData = omsShipment?.providerRawJson as { serverNo?: string; shippingCost?: number; productName?: string } | null;
 
   return (
     <div className="max-w-5xl">
@@ -271,6 +299,21 @@ export default function OrderDetailPage() {
               </Button>
             </div>
 
+            {/* OMS Push */}
+            {!omsShipment && (
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setOmsPushOpen(true)}
+                >
+                  <Truck className="h-3.5 w-3.5 mr-1" />
+                  {tOms("pushToOms")}
+                </Button>
+              </div>
+            )}
+
             {/* CS Comments */}
             <CsCommentsSection orderId={order.id} />
           </CardContent>
@@ -372,6 +415,72 @@ export default function OrderDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* OMS Shipment */}
+        {omsShipment && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  {tOms("omsShipment")}
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={refreshOmsTracking}
+                  disabled={refreshingTracking}
+                >
+                  {refreshingTracking ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  {refreshingTracking ? tOms("refreshing") : tOms("refreshTracking")}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">{tOms("orderNumber")}</span>
+                  <p className="font-mono font-medium">{omsShipment.externalShipmentId || "-"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{tOms("serverNo")}</span>
+                  <p className="font-mono font-medium">{omsData?.serverNo || omsShipment.trackingNumber || "-"}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{tOms("trackingStatus")}</span>
+                  <p>{omsShipment.status ? <StatusBadge status={omsShipment.status} /> : tOms("noTrackingYet")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{tOms("shippingCost")}</span>
+                  <p className="font-medium">
+                    {omsData?.shippingCost != null ? `$${omsData.shippingCost.toFixed(2)}` : "-"}
+                  </p>
+                </div>
+                {omsData?.productName && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">{tOms("product")}</span>
+                    <p className="font-medium">{omsData.productName}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* OMS Push Dialog */}
+        <OmsPushDialog
+          orderId={order.id}
+          open={omsPushOpen}
+          onOpenChange={setOmsPushOpen}
+          onSuccess={() => {
+            setOmsPushOpen(false);
+            mutate();
+          }}
+        />
 
         {/* Activity Log */}
         <Card>

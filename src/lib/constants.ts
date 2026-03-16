@@ -64,6 +64,14 @@ export const STATUS_LABELS: Record<string, string> = {
   CREATED: "Created",
   SYNCED_TO_SHOPIFY: "Synced",
   SYNC_FAILED: "Sync Failed",
+  // EccangTMS OMS statuses
+  no_tracking: "No Tracking",
+  label_created: "Label Created",
+  collected: "Collected",
+  long_transit: "Transit Too Long",
+  exception: "Exception",
+  returned: "Returned",
+  delivery_failed: "Delivery Failed",
   // Shopify shipment transit statuses
   label_purchased: "Label Purchased",
   label_printed: "Label Printed",
@@ -96,6 +104,14 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   CREATED: { bg: "bg-green-100", text: "text-green-700" },
   SYNCED_TO_SHOPIFY: { bg: "bg-emerald-100", text: "text-emerald-700" },
   SYNC_FAILED: { bg: "bg-red-100", text: "text-red-700" },
+  // EccangTMS OMS statuses
+  no_tracking: { bg: "bg-gray-100", text: "text-gray-500" },
+  label_created: { bg: "bg-gray-100", text: "text-gray-600" },
+  collected: { bg: "bg-blue-100", text: "text-blue-700" },
+  long_transit: { bg: "bg-amber-100", text: "text-amber-700" },
+  exception: { bg: "bg-orange-100", text: "text-orange-700" },
+  returned: { bg: "bg-purple-100", text: "text-purple-700" },
+  delivery_failed: { bg: "bg-red-100", text: "text-red-700" },
   // Shopify shipment transit statuses
   label_purchased: { bg: "bg-gray-100", text: "text-gray-600" },
   label_printed: { bg: "bg-gray-100", text: "text-gray-600" },

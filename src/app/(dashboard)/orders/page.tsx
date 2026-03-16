@@ -42,6 +42,7 @@ import {
   Headset,
 } from "lucide-react";
 import Link from "next/link";
+import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 
 type StatusCounts = Record<string, number>;
 
@@ -106,6 +107,9 @@ export default function OrdersPage() {
   const [csFlagIssueType, setCsFlagIssueType] = useState<string>("");
   const [csFlagComment, setCsFlagComment] = useState("");
   const [csFlagSubmitting, setCsFlagSubmitting] = useState(false);
+
+  // OMS Push dialog state
+  const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
 
   const handleStatusChange = useCallback(
     async (orderId: string, newStatus: string) => {
@@ -229,6 +233,7 @@ export default function OrdersPage() {
         onStatusChange: handleStatusChange,
         onPrintStatusChange: handlePrintStatusChange,
         onCsToggle: handleCsToggle,
+        onOmsPush: (orderId) => setOmsPushOrderId(orderId),
         loadingId: statusLoading,
         shopifyStoreDomain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN,
         t: {
@@ -370,6 +375,21 @@ export default function OrdersPage() {
         }
         isLoading={isLoading}
       />
+
+      {/* OMS Push Dialog */}
+      {omsPushOrderId && (
+        <OmsPushDialog
+          orderId={omsPushOrderId}
+          open={!!omsPushOrderId}
+          onOpenChange={(open) => {
+            if (!open) setOmsPushOrderId(null);
+          }}
+          onSuccess={() => {
+            setOmsPushOrderId(null);
+            refresh();
+          }}
+        />
+      )}
 
       {/* CS Flag Dialog */}
       <Dialog

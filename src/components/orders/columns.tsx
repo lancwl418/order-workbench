@@ -36,6 +36,7 @@ export function createColumns(opts: {
   onStatusChange: (orderId: string, newStatus: string) => Promise<void>;
   onPrintStatusChange?: (orderId: string, newPrintStatus: string) => Promise<void>;
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
+  onOmsPush?: (orderId: string) => void;
   loadingId: string | null;
   shopifyStoreDomain?: string;
   t: {
@@ -250,22 +251,14 @@ export function createColumns(opts: {
                   <ExternalLink className="h-3.5 w-3.5" />
                   Shopify
                 </button>
-                <TooltipProvider delay={0}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground/50 cursor-not-allowed"
-                          disabled
-                        >
-                          <Tag className="h-3.5 w-3.5" />
-                          OMS
-                        </button>
-                      }
-                    />
-                    <TooltipContent side="right">{t.comingSoon}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <button
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => opts.onOmsPush?.(row.original.id)}
+                  disabled={!opts.onOmsPush}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  OMS
+                </button>
               </PopoverContent>
             </Popover>
           );

@@ -399,6 +399,20 @@ model CsComment {
   @@map("cs_comments")
 }
 
+model PackagePreset {
+  id        String   @id @default(cuid())
+  name      String
+  weightLbs Float    @map("weight_lbs")
+  lengthIn  Float    @map("length_in")
+  widthIn   Float    @map("width_in")
+  heightIn  Float    @map("height_in")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("package_presets")
+}
+
 model Notification {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")     // recipient
