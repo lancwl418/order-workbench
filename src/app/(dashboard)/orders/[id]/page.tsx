@@ -142,7 +142,7 @@ export default function OrderDetailPage() {
   }
 
   const omsShipment = shipments?.find((s) => s.providerName === "eccangtms");
-  const omsData = omsShipment?.providerRawJson as { serverNo?: string; shippingCost?: number; productName?: string } | null;
+  const omsRaw = omsShipment?.providerRawJson as Record<string, unknown> | null;
 
   return (
     <div className="max-w-5xl">
@@ -453,7 +453,7 @@ export default function OrderDetailPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">{tOms("serverNo")}</span>
-                  <p className="font-mono font-medium">{omsData?.serverNo || omsShipment.trackingNumber || "-"}</p>
+                  <p className="font-mono font-medium">{(omsRaw?.serverNo as string) || omsShipment.trackingNumber || "-"}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">{tOms("trackingStatus")}</span>
@@ -462,13 +462,15 @@ export default function OrderDetailPage() {
                 <div>
                   <span className="text-muted-foreground">{tOms("shippingCost")}</span>
                   <p className="font-medium">
-                    {omsData?.shippingCost != null ? `$${omsData.shippingCost.toFixed(2)}` : "-"}
+                    {(omsRaw?.totalPrice as number) != null
+                      ? `$${Number(omsRaw!.totalPrice).toFixed(2)}`
+                      : "-"}
                   </p>
                 </div>
-                {omsData?.productName && (
+                {(omsRaw?.productName as string) && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground">{tOms("product")}</span>
-                    <p className="font-medium">{omsData.productName}</p>
+                    <p className="font-medium">{omsRaw!.productName as string}</p>
                   </div>
                 )}
               </div>
