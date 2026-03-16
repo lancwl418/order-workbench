@@ -42,7 +42,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const details = await getTrackDetails([shipment.trackingNumber]);
+    let details;
+    try {
+      details = await getTrackDetails([shipment.trackingNumber]);
+    } catch (apiErr) {
+      // EccangTMS may return error when tracking not ready yet — treat as empty
+      console.warn("getTrackDetails API error (may not be ready yet):", apiErr);
+      return NextResponse.json({
+        success: true,
+        message: "No tracking info available yet",
+        shipment,
+      });
+    }
 
     if (!details || details.length === 0) {
       return NextResponse.json({

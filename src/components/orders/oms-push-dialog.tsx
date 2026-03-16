@@ -155,7 +155,7 @@ export function OmsPushDialog({
       }
       const data = await res.json();
       toast.success(
-        `${t("pushSuccess")} | ${data.omsOrder.productName} | $${data.omsOrder.totalPrice}`
+        `${t("pushSuccess")} | ${data.omsOrder.serverNo} | ${data.omsOrder.productName} | $${data.omsOrder.totalPrice}`
       );
       onOpenChange(false);
       onSuccess?.();

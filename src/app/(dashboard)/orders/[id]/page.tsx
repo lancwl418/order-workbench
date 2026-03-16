@@ -126,11 +126,16 @@ export default function OrderDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId: order!.id }),
       });
-      if (!res.ok) throw new Error("Failed");
-      toast.success(tOms("trackingUpdated"));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      if (data.message) {
+        toast.info(tOms("noTrackingYet"));
+      } else {
+        toast.success(tOms("trackingUpdated"));
+      }
       mutate();
-    } catch {
-      toast.error("Failed to refresh tracking");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to refresh tracking");
     } finally {
       setRefreshingTracking(false);
     }
