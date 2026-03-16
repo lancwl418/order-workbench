@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
 
   const orderNo = shipment.externalShipmentId;
   let serverNo = shipment.trackingNumber;
-  const hadServerNo = !!serverNo;
 
   try {
     // Step 1: If serverNo is missing, fetch it via getTrackingNumber(orderNo)
@@ -81,8 +80,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Step 1.5: If we just obtained serverNo, push fulfillment to Shopify
-    if (serverNo && !hadServerNo && shipment.syncStatus !== "SYNCED" && shipment.order.shopifyOrderId) {
+    // Step 1.5: Push fulfillment to Shopify if we have serverNo but haven't synced yet
+    if (serverNo && shipment.syncStatus !== "SYNCED" && shipment.order.shopifyOrderId) {
       try {
         const carrier = shipment.carrier || "Other";
         const fulfillment = await pushFulfillmentToShopify({
