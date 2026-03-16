@@ -165,14 +165,24 @@ export async function GET(
 
     console.log(`Output file size: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
+    // Delete intermediate files immediately — only output.png is needed now
+    await Promise.all(
+      pieces.map((p) => fs.rm(p.filePath, { force: true }).catch(() => {}))
+    );
+
     // Stream the file to the client
     const nodeStream = createReadStream(outputPath);
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
-    // Clean up temp files after stream ends
-    nodeStream.on("close", () => {
+    const cleanup = () => {
       fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    });
+    };
+
+    // Clean up when stream ends, errors, or client disconnects
+    nodeStream.on("close", cleanup);
+    nodeStream.on("error", cleanup);
+    // Safety net: always clean up after 10 minutes regardless
+    setTimeout(cleanup, 10 * 60 * 1000);
 
     return new Response(webStream, {
       headers: {
