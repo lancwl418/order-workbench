@@ -55,15 +55,8 @@ export async function POST(
     );
   }
 
-  // Check none are already printed
-  if (items.some((i) => i.isPrinted)) {
-    return NextResponse.json(
-      { error: "Cannot replace file on printed items" },
-      { status: 400 }
-    );
-  }
-
   // Update all matching items, preserving original on first replacement
+  // Reset isPrinted so they are re-printed with the new file
   for (const item of items) {
     const originalFields =
       !item.originalDesignFileUrl && item.designFileUrl
@@ -72,7 +65,12 @@ export async function POST(
 
     await prisma.orderItem.update({
       where: { id: item.id },
-      data: { designFileUrl: newUrl, ...originalFields },
+      data: {
+        designFileUrl: newUrl,
+        ...originalFields,
+        isPrinted: false,
+        printedAt: null,
+      },
     });
   }
 
