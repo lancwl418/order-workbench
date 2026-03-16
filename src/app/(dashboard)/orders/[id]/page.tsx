@@ -65,7 +65,7 @@ export default function OrderDetailPage() {
     fetcher
   );
 
-  const { data: shipments } = useSWR<ShipmentEntry[]>(
+  const { data: shipments, mutate: mutateShipments } = useSWR<ShipmentEntry[]>(
     order ? `/api/shipments?orderId=${order.id}` : null,
     fetcher
   );
@@ -138,6 +138,7 @@ export default function OrderDetailPage() {
         toast.success(tOms("trackingUpdated"));
       }
       mutate();
+      mutateShipments();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to refresh tracking");
     } finally {
@@ -156,7 +157,7 @@ export default function OrderDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       mutate();
-      // Check if serverNo was found by looking at the shipment in response
+      mutateShipments();
       if (data.shipment?.trackingNumber || data.tracking) {
         toast.success(tOms("trackingNoFetched"));
       } else {
@@ -182,6 +183,7 @@ export default function OrderDetailPage() {
       toast.success(tOms("trackingNoUpdated"));
       setEditingServerNo(false);
       mutate();
+      mutateShipments();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
