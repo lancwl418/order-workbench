@@ -1,5 +1,8 @@
 import sharp from "sharp";
 
+// Disable sharp/libvips disk cache to prevent /tmp from filling up
+sharp.cache(false);
+
 /**
  * Fetch a remote PNG and read its actual pixel dimensions + DPI.
  * Height in inches is calculated from real DPI metadata, not assumed.

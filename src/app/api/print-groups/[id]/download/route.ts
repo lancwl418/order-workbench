@@ -4,6 +4,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import sharp from "sharp";
 
+// Disable sharp/libvips disk cache to prevent /tmp from filling up.
+// Each cached file can be hundreds of MB for large gang sheets.
+sharp.cache(false);
+// Limit concurrent libvips threads to reduce peak /tmp usage
+sharp.concurrency(1);
+
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
 const ORDER_MARGIN = 90; // separator height in px
 
