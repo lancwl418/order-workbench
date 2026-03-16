@@ -11,6 +11,10 @@ import sharp from "sharp";
 // Allow up to 5 minutes for large image processing
 export const maxDuration = 300;
 
+// Minimize sharp memory: disable cache, single thread
+sharp.cache(false);
+sharp.concurrency(1);
+
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
 const ORDER_MARGIN = 90; // separator height in px
 
@@ -31,15 +35,81 @@ function orderSeparatorSvg(
 }
 
 /**
+ * Vertically join images two at a time using a binary-tree reduction.
+ * At any step, only two images are decoded, keeping peak memory low.
+ * All intermediates are written to disk.
+ */
+async function joinVertically(
+  filePaths: string[],
+  tmpDir: string
+): Promise<string> {
+  if (filePaths.length === 1) return filePaths[0];
+
+  let current = [...filePaths];
+  let round = 0;
+
+  while (current.length > 1) {
+    const next: string[] = [];
+
+    for (let i = 0; i < current.length; i += 2) {
+      if (i + 1 >= current.length) {
+        // Odd one out — carry forward
+        next.push(current[i]);
+        continue;
+      }
+
+      const outPath = path.join(tmpDir, `join-${round}-${i}.png`);
+
+      // Get dimensions of both images
+      const metaA = await sharp(current[i], { limitInputPixels: false }).metadata();
+      const metaB = await sharp(current[i + 1], { limitInputPixels: false }).metadata();
+
+      const width = Math.max(metaA.width!, metaB.width!);
+      const totalH = metaA.height! + metaB.height!;
+
+      // Extend image A downward, then composite B below
+      await sharp(current[i], { limitInputPixels: false })
+        .extend({
+          bottom: metaB.height!,
+          right: Math.max(0, width - metaA.width!),
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .composite([
+          {
+            input: current[i + 1],
+            limitInputPixels: false,
+            top: metaA.height!,
+            left: 0,
+          },
+        ])
+        .png({ compressionLevel: 1 }) // Fast compression for intermediates
+        .toFile(outPath);
+
+      next.push(outPath);
+
+      // Delete intermediates from previous rounds to save disk space
+      if (round > 0) {
+        await fs.unlink(current[i]).catch(() => {});
+        await fs.unlink(current[i + 1]).catch(() => {});
+      }
+    }
+
+    current = next;
+    round++;
+  }
+
+  return current[0];
+}
+
+/**
  * GET /api/print-groups/:id/download
  *
  * Fetches all gang sheet PNGs in the group, stitches them vertically
  * into one combined image, and returns it as a PNG download.
  *
- * Memory-optimised: downloads images to temp files one at a time,
- * uses file paths in composite (libvips loads from disk on demand),
- * and writes output to a temp file before streaming.
- * This keeps memory well under 512MB even for very large images.
+ * Memory-optimised: uses binary-tree join (two images at a time)
+ * with all intermediates on disk. Peak memory is proportional to
+ * the two largest images being joined, not the total combined size.
  */
 export async function GET(
   _req: NextRequest,
@@ -77,117 +147,88 @@ export async function GET(
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
 
   try {
-    // Download images ONE AT A TIME to temp files to minimize memory usage
-    const images: {
-      filePath: string;
-      width: number;
-      height: number;
-      orderId: string;
-      label: string;
-    }[] = [];
+    // Step 1: Download images one at a time and prepare strips
+    // Each "strip" = separator PNG + image PNG, joined vertically
+    const stripPaths: string[] = [];
 
     for (let i = 0; i < group.items.length; i++) {
       const item = group.items[i];
-      const tmpPath = path.join(tmpDir, `${i}.png`);
+      const imgPath = path.join(tmpDir, `img-${i}.png`);
 
+      // Download to disk
       const res = await fetch(item.fileUrl);
       if (!res.ok) {
         throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
       }
-
-      // Write to disk immediately, then free the buffer
       const buffer = Buffer.from(await res.arrayBuffer());
-      await fs.writeFile(tmpPath, buffer);
-      // buffer will be GC'd after this scope
+      await fs.writeFile(imgPath, buffer);
 
-      // Read metadata from file (no pixel decode)
-      const meta = await sharp(tmpPath, { limitInputPixels: false }).metadata();
+      const meta = await sharp(imgPath, { limitInputPixels: false }).metadata();
 
-      const orderNum = item.order.shopifyOrderNumber || "";
-      const customer = item.order.customerName || "";
-      const label = [orderNum ? `#${orderNum}` : "", customer]
-        .filter(Boolean)
-        .join("  —  ");
-
-      images.push({
-        filePath: tmpPath,
-        width: meta.width!,
-        height: meta.height!,
-        orderId: item.orderId,
-        label,
-      });
-    }
-
-    const canvasWidth = Math.min(
-      Math.max(...images.map((img) => img.width)),
-      MAX_WIDTH
-    );
-
-    // Count margins: add separator before each new order (including the first)
-    let marginCount = 1;
-    for (let i = 1; i < images.length; i++) {
-      if (images[i].orderId !== images[i - 1].orderId) marginCount++;
-    }
-    const totalHeight =
-      images.reduce((sum, img) => sum + img.height, 0) +
-      marginCount * ORDER_MARGIN;
-
-    console.log(
-      `Combining ${images.length} images: ${canvasWidth}x${totalHeight}px (${(totalHeight / 300).toFixed(1)}in)`
-    );
-
-    // Build composites using FILE PATHS (not buffers).
-    // libvips loads files from disk on demand during compositing,
-    // so memory usage stays proportional to tile size, not total image size.
-    const composites: sharp.OverlayOptions[] = [];
-    let yOffset = 0;
-
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      const isNewOrder = i === 0 || img.orderId !== images[i - 1].orderId;
+      // Determine if this is the start of a new order
+      const isNewOrder =
+        i === 0 ||
+        item.orderId !== group.items[i - 1].orderId;
 
       if (isNewOrder) {
-        // Write separator SVG to a temp file too
+        const orderNum = item.order.shopifyOrderNumber || "";
+        const customer = item.order.customerName || "";
+        const label = [orderNum ? `#${orderNum}` : "", customer]
+          .filter(Boolean)
+          .join("  —  ");
+
+        // Create separator + image as one strip
+        const canvasWidth = Math.min(meta.width!, MAX_WIDTH);
         const sepPath = path.join(tmpDir, `sep-${i}.png`);
-        await sharp(orderSeparatorSvg(img.label, canvasWidth, ORDER_MARGIN))
+        await sharp(orderSeparatorSvg(label, canvasWidth, ORDER_MARGIN))
           .png()
           .toFile(sepPath);
 
-        composites.push({
-          input: sepPath,
-          top: yOffset,
-          left: 0,
-        });
-        yOffset += ORDER_MARGIN;
+        // Join separator + image into one strip
+        const stripPath = path.join(tmpDir, `strip-${i}.png`);
+        await sharp(sepPath, { limitInputPixels: false })
+          .extend({
+            bottom: meta.height!,
+            right: Math.max(0, canvasWidth - (await sharp(sepPath).metadata()).width!),
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+          })
+          .composite([
+            {
+              input: imgPath,
+              limitInputPixels: false,
+              top: ORDER_MARGIN,
+              left: 0,
+            },
+          ])
+          .png({ compressionLevel: 1 })
+          .toFile(stripPath);
+
+        stripPaths.push(stripPath);
+      } else {
+        // No separator needed, just use the image directly
+        stripPaths.push(imgPath);
       }
-
-      composites.push({
-        input: img.filePath,
-        limitInputPixels: false,
-        top: yOffset,
-        left: 0,
-      });
-
-      yOffset += img.height;
     }
 
-    // Write output to temp file (libvips processes in tiles, not all at once)
+    console.log(`Joining ${stripPaths.length} strips via binary-tree reduction`);
+
+    // Step 2: Binary-tree join — only two images in memory at a time
+    const finalPath = await joinVertically(stripPaths, tmpDir);
+
+    // Step 3: Re-compress final output as optimized PNG
     const outputPath = path.join(tmpDir, "output.png");
-    await sharp({
-      create: {
-        width: canvasWidth,
-        height: totalHeight,
-        channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      },
-      limitInputPixels: false,
-    })
-      .composite(composites)
+    await sharp(finalPath, { limitInputPixels: false })
       .png({ compressionLevel: 6 })
       .toFile(outputPath);
 
+    // Verify the output is valid
+    const outputMeta = await sharp(outputPath, { limitInputPixels: false }).metadata();
+    console.log(`Output: ${outputMeta.width}x${outputMeta.height}px, format: ${outputMeta.format}`);
+
     const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
     const stat = await fs.stat(outputPath);
+
+    console.log(`Output file size: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
     // Stream the file to the client
     const nodeStream = createReadStream(outputPath);
@@ -206,7 +247,6 @@ export async function GET(
       },
     });
   } catch (e) {
-    // Clean up on error
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     console.error("Download combine error:", e);
     const message =
