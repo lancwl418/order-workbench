@@ -109,6 +109,15 @@ export default function OrdersPage() {
   const [csFlagMentions, setCsFlagMentions] = useState<string[]>([]);
   const [csFlagSubmitting, setCsFlagSubmitting] = useState(false);
 
+  // Delivery method confirm dialog state
+  const [deliveryConfirm, setDeliveryConfirm] = useState<{
+    open: boolean;
+    orderId: string | null;
+    from: string | null;
+    to: string | null;
+  }>({ open: false, orderId: null, from: null, to: null });
+  const [deliverySaving, setDeliverySaving] = useState(false);
+
   // OMS Push dialog state
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
 
@@ -224,6 +233,34 @@ export default function OrdersPage() {
     }
   }, [csFlagOrderId, csFlagIssueType, csFlagComment, csFlagMentions, refresh]);
 
+  const openDeliveryConfirm = useCallback(
+    (orderId: string, currentMethod: string | null, newMethod: string) => {
+      setDeliveryConfirm({ open: true, orderId, from: currentMethod, to: newMethod });
+    },
+    []
+  );
+
+  const handleDeliveryMethodSave = useCallback(async () => {
+    const { orderId, to } = deliveryConfirm;
+    if (!orderId || !to) return;
+    setDeliverySaving(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingMethod: to }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Delivery method → ${to}`);
+      setDeliveryConfirm({ open: false, orderId: null, from: null, to: null });
+      refresh();
+    } catch {
+      toast.error("Failed to update delivery method");
+    } finally {
+      setDeliverySaving(false);
+    }
+  }, [deliveryConfirm, refresh]);
+
   // Build print status label map for columns
   const printLabels: Record<string, string> = {};
   for (const s of ["NONE", "READY", "IN_QUEUE", "GROUPED", "DONE"]) {
@@ -236,6 +273,7 @@ export default function OrdersPage() {
         onStatusChange: handleStatusChange,
         onPrintStatusChange: handlePrintStatusChange,
         onCsToggle: handleCsToggle,
+        onDeliveryMethodChange: openDeliveryConfirm,
         onOmsPush: (orderId) => setOmsPushOrderId(orderId),
         loadingId: statusLoading,
         shopifyStoreDomain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN,
@@ -259,7 +297,7 @@ export default function OrdersPage() {
           csFlag: tOrders("csFlag"),
         },
       }),
-    [handleStatusChange, handlePrintStatusChange, handleCsToggle, statusLoading, tOrders, printLabels]
+    [handleStatusChange, handlePrintStatusChange, handleCsToggle, openDeliveryConfirm, statusLoading, tOrders, printLabels]
   );
 
   async function handleSync() {
@@ -461,6 +499,43 @@ export default function OrdersPage() {
               ) : (
                 tCS("flagDialog.submit")
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delivery Method Confirm Dialog */}
+      <Dialog
+        open={deliveryConfirm.open}
+        onOpenChange={(open) => {
+          if (!open) setDeliveryConfirm((d) => ({ ...d, open: false }));
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{tOrders("confirmDeliveryChange")}</DialogTitle>
+            <DialogDescription>
+              {tOrders("deliveryChangeMsg", {
+                from: deliveryConfirm.from || "-",
+                to: deliveryConfirm.to || "-",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeliveryConfirm({ open: false, orderId: null, from: null, to: null })}
+              disabled={deliverySaving}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeliveryMethodSave}
+              disabled={deliverySaving}
+            >
+              {deliverySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {tCommon("confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

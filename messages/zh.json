@@ -154,7 +154,9 @@
     "addToQueue": "加入打印队列",
     "reprintAddToQueue": "重打/加入列表",
     "csRemove": "移除客服标记",
-    "csFlag": "标记为客服订单"
+    "csFlag": "标记为客服订单",
+    "confirmDeliveryChange": "修改配送方式",
+    "deliveryChangeMsg": "确定将配送方式从 \"{from}\" 改为 \"{to}\" 吗？"
   },
   "orderDetail": {
     "orderPrefix": "订单 #",

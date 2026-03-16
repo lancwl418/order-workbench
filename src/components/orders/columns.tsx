@@ -32,10 +32,13 @@ import {
 } from "@/components/ui/popover";
 import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap } from "lucide-react";
 
+const DELIVERY_METHODS = ["standard", "express", "pickup"] as const;
+
 export function createColumns(opts: {
   onStatusChange: (orderId: string, newStatus: string) => Promise<void>;
   onPrintStatusChange?: (orderId: string, newPrintStatus: string) => Promise<void>;
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
+  onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
   onOmsPush?: (orderId: string) => void;
   loadingId: string | null;
   shopifyStoreDomain?: string;
@@ -180,20 +183,54 @@ export function createColumns(opts: {
       header: t.deliveryMethod,
       cell: ({ row }) => {
         const method = row.original.shippingMethod;
-        if (!method) return <span className="text-sm text-muted-foreground">-</span>;
-        const isExpress = method.toLowerCase().includes("express");
+        const id = row.original.id;
+        const loading = opts.loadingId === id;
+
+        const renderBadge = (m: string | null) => {
+          if (!m) return <span className="text-sm text-muted-foreground">-</span>;
+          const isExpress = m.toLowerCase().includes("express");
+          return (
+            <Badge
+              variant="outline"
+              className={`text-xs border-0 ${
+                isExpress
+                  ? "bg-orange-100 text-orange-700"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {isExpress && <Zap className="h-3 w-3 mr-0.5" />}
+              {m}
+            </Badge>
+          );
+        };
+
+        if (!opts.onDeliveryMethodChange) return renderBadge(method);
+
         return (
-          <Badge
-            variant="outline"
-            className={`text-xs border-0 ${
-              isExpress
-                ? "bg-orange-100 text-orange-700"
-                : "bg-gray-100 text-gray-600"
-            }`}
+          <Select
+            value={method || ""}
+            onValueChange={(v) => {
+              if (v && v !== method) {
+                opts.onDeliveryMethodChange!(id, method, v);
+              }
+            }}
+            disabled={loading}
           >
-            {isExpress && <Zap className="h-3 w-3 mr-0.5" />}
-            {method}
-          </Badge>
+            <SelectTrigger className="h-7 w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 [&>svg]:hidden">
+              {loading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                renderBadge(method)
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {DELIVERY_METHODS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {renderBadge(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         );
       },
     },

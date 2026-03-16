@@ -154,7 +154,9 @@
     "addToQueue": "Add to Queue",
     "reprintAddToQueue": "Reprint / Add to Queue",
     "csRemove": "Remove CS flag",
-    "csFlag": "Flag as CS order"
+    "csFlag": "Flag as CS order",
+    "confirmDeliveryChange": "Change Delivery Method",
+    "deliveryChangeMsg": "Change delivery method from \"{from}\" to \"{to}\"?"
   },
   "orderDetail": {
     "orderPrefix": "Order #",
