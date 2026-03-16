@@ -63,18 +63,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!shipment.carrier) {
-      return NextResponse.json(
-        { error: "Shipment has no carrier specified" },
-        { status: 400 }
-      );
-    }
+    const carrier = shipment.carrier || "Other";
 
     // Push fulfillment to Shopify
     const result = await pushFulfillmentToShopify({
       shopifyOrderId: shipment.order.shopifyOrderId,
       trackingNumber: shipment.trackingNumber,
-      carrier: shipment.carrier,
+      carrier,
     });
 
     // Update shipment with Shopify fulfillment info

@@ -116,6 +116,7 @@ export default function LabelsPage() {
       });
 
       if (!shipmentRes.ok) throw new Error("Failed to create shipment");
+      const shipment = await shipmentRes.json();
 
       toast.success(
         `Tracking saved for #${order.shopifyOrderNumber || order.id.slice(0, 8)}`
@@ -125,6 +126,24 @@ export default function LabelsPage() {
         delete next[order.id];
         return next;
       });
+
+      // Auto-push fulfillment to Shopify
+      try {
+        const fulfillRes = await fetch("/api/fulfillment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shipmentId: shipment.id }),
+        });
+        const fulfillData = await fulfillRes.json();
+        if (fulfillRes.ok) {
+          toast.success(`Synced to Shopify`);
+        } else {
+          toast.error(`Shopify sync: ${fulfillData.error || fulfillData.details || "Failed"}`);
+        }
+      } catch {
+        toast.error("Shopify sync failed");
+      }
+
       refresh();
     } catch {
       toast.error("Failed to save tracking number");
@@ -136,22 +155,33 @@ export default function LabelsPage() {
   async function handleSyncToShopify(order: OrderListItem) {
     setSyncingOrder(order.id);
     try {
-      const res = await fetch(`/api/orders/${order.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          labelStatus: "SYNCED_TO_SHOPIFY",
-        }),
-      });
+      // Find the shipment for this order to push fulfillment
+      const shipmentsRes = await fetch(`/api/shipments?orderId=${order.id}`);
+      const shipments = await shipmentsRes.json();
+      const shipment = shipments?.find(
+        (s: { trackingNumber: string | null }) => s.trackingNumber
+      );
 
-      if (!res.ok) throw new Error("Failed to sync");
+      if (!shipment) {
+        toast.error("No shipment with tracking number found");
+        return;
+      }
+
+      const res = await fetch("/api/fulfillment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shipmentId: shipment.id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || data.details || "Failed to sync");
 
       toast.success(
         `Order #${order.shopifyOrderNumber || order.id.slice(0, 8)} synced to Shopify`
       );
       refresh();
-    } catch {
-      toast.error("Failed to sync to Shopify");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to sync to Shopify");
     } finally {
       setSyncingOrder(null);
     }
