@@ -210,7 +210,7 @@ export async function GET(
     const chunks = splitIntoChunks(pieces);
     console.log(`Split into ${chunks.length} chunk(s)`);
 
-    const baseName = group.name.replace(/[^a-zA-Z0-9#]/g, "-");
+    const baseName = group.name.replace(/[^a-zA-Z0-9]/g, "-");
 
     if (chunks.length === 1) {
       // Single chunk — generate one file
