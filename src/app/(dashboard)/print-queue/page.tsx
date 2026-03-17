@@ -41,6 +41,7 @@ import {
   Undo2,
   AlertTriangle,
   Link2,
+  RefreshCw,
 } from "lucide-react";
 
 const MAX_HEIGHT = 3897;
@@ -943,6 +944,20 @@ function PrintGroupCard({
     }
   }
 
+  async function handleRecombine() {
+    try {
+      await fetch(`/api/print-groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: group.name }),
+      });
+      refresh();
+      setTimeout(handleCombineStart, 500);
+    } catch {
+      toast.error("Failed to start re-combine");
+    }
+  }
+
   // Phase text from in-memory detail or fallback to generic
   const phase = phaseDetail?.phase || (isProcessing ? "downloading" : null);
 
@@ -1017,7 +1032,7 @@ function PrintGroupCard({
                     {tPQ("downloadCombined")}
                   </Button>
                 )}
-                {group.combinedFileUrl && (
+                {group.combinedFileUrl && !isProcessing && (
                   <>
                     <Button
                       size="sm"
@@ -1036,6 +1051,15 @@ function PrintGroupCard({
                     >
                       <Link2 className="h-3 w-3" />
                       {tPQ("copyLink")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleRecombine}
+                      title={tPQ("recombine")}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      {tPQ("recombine")}
                     </Button>
                   </>
                 )}
