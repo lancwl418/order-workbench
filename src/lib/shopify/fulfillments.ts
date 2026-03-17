@@ -4,8 +4,9 @@ import { createShopifyRestClient } from "./client";
  * Push a fulfillment (tracking number + carrier) back to Shopify
  * via the REST Admin API.
  *
- * This creates a new fulfillment on the Shopify order, which will
- * mark the order as fulfilled and notify the customer.
+ * If open fulfillment orders exist, creates a new fulfillment.
+ * If the order is already fulfilled, updates tracking on the
+ * existing fulfillment instead.
  *
  * @param shopifyOrderId - The Shopify order ID (numeric string)
  * @param trackingNumber - The tracking number to send
@@ -48,13 +49,33 @@ export async function pushFulfillmentToShopify(params: {
       (fo) => fo.status === "open" || fo.status === "in_progress"
     );
 
-  if (openFulfillmentOrders.length === 0) {
-    throw new Error(
-      `No open fulfillment orders found for Shopify order ${params.shopifyOrderId}`
-    );
+  if (openFulfillmentOrders.length > 0) {
+    // Create a new fulfillment for open orders
+    return createFulfillment(client, openFulfillmentOrders, params);
   }
 
-  // Build line_items_by_fulfillment_order for the fulfillment request
+  // No open fulfillment orders — order may already be fulfilled.
+  // Try to update tracking on an existing fulfillment instead.
+  console.log(
+    `No open fulfillment orders for Shopify order ${params.shopifyOrderId}, checking existing fulfillments...`
+  );
+
+  return updateExistingFulfillmentTracking(client, params);
+}
+
+async function createFulfillment(
+  client: ReturnType<typeof createShopifyRestClient>,
+  openFulfillmentOrders: Array<{
+    id: number;
+    line_items: Array<{ id: number; fulfillable_quantity: number }>;
+  }>,
+  params: {
+    trackingNumber: string;
+    carrier: string;
+    trackingUrl?: string;
+    notify?: boolean;
+  }
+) {
   const lineItemsByFulfillmentOrder = openFulfillmentOrders.map((fo) => ({
     fulfillment_order_id: fo.id,
     fulfillment_order_line_items: fo.line_items
@@ -65,7 +86,6 @@ export async function pushFulfillmentToShopify(params: {
       })),
   }));
 
-  // Create the fulfillment
   const fulfillmentResponse = await client.post({
     path: "fulfillments",
     data: {
@@ -82,14 +102,74 @@ export async function pushFulfillmentToShopify(params: {
   });
 
   const fulfillmentBody = fulfillmentResponse.body as {
-    fulfillment: {
-      id: number;
-      status: string;
-    };
+    fulfillment: { id: number; status: string };
   };
 
   return {
     fulfillmentId: String(fulfillmentBody.fulfillment.id),
     status: fulfillmentBody.fulfillment.status,
+  };
+}
+
+async function updateExistingFulfillmentTracking(
+  client: ReturnType<typeof createShopifyRestClient>,
+  params: {
+    shopifyOrderId: string;
+    trackingNumber: string;
+    carrier: string;
+    trackingUrl?: string;
+    notify?: boolean;
+  }
+) {
+  // Get existing fulfillments for this order
+  const fulfillmentsResponse = await client.get({
+    path: `orders/${params.shopifyOrderId}/fulfillments`,
+  });
+
+  const fulfillmentsBody = fulfillmentsResponse.body as {
+    fulfillments: Array<{
+      id: number;
+      status: string;
+      tracking_number: string | null;
+    }>;
+  };
+
+  if (fulfillmentsBody.fulfillments.length === 0) {
+    throw new Error(
+      `No fulfillments found for Shopify order ${params.shopifyOrderId}. The order may not have any fulfillment orders.`
+    );
+  }
+
+  // Prefer a fulfillment without tracking, otherwise use the first one
+  const target =
+    fulfillmentsBody.fulfillments.find((f) => !f.tracking_number) ||
+    fulfillmentsBody.fulfillments[0];
+
+  console.log(
+    `Updating tracking on existing fulfillment ${target.id} (status: ${target.status})`
+  );
+
+  // Update tracking info on the existing fulfillment
+  const updateResponse = await client.post({
+    path: `fulfillments/${target.id}/update_tracking`,
+    data: {
+      fulfillment: {
+        tracking_info: {
+          number: params.trackingNumber,
+          company: params.carrier,
+          url: params.trackingUrl || undefined,
+        },
+        notify_customer: params.notify !== false,
+      },
+    },
+  });
+
+  const updateBody = updateResponse.body as {
+    fulfillment: { id: number; status: string };
+  };
+
+  return {
+    fulfillmentId: String(updateBody.fulfillment.id),
+    status: updateBody.fulfillment.status,
   };
 }
