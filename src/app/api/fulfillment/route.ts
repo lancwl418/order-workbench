@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const carrier = shipment.carrier || "Other";
+    const carrier = "USPS";
 
     // Push fulfillment to Shopify
     const result = await pushFulfillmentToShopify({

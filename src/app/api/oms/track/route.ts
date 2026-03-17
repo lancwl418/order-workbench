@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     // Step 1.5: Push fulfillment to Shopify if we have serverNo but haven't synced yet
     if (serverNo && shipment.syncStatus !== "SYNCED" && shipment.order.shopifyOrderId) {
       try {
-        const carrier = shipment.carrier || "Other";
+        const carrier = "USPS";
         const fulfillment = await pushFulfillmentToShopify({
           shopifyOrderId: shipment.order.shopifyOrderId,
           trackingNumber: serverNo,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { shipmentUpdateSchema } from "@/lib/validators";
+import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
 
 export async function GET(
   _req: NextRequest,
@@ -81,13 +82,51 @@ export async function PATCH(
     });
 
     // Also update the denormalized tracking on the order
-    await prisma.order.update({
+    const order = await prisma.order.update({
       where: { id: existing.orderId },
       data: {
         trackingNumber: parsed.data.trackingNumber,
         carrier: parsed.data.carrier || existing.carrier,
       },
     });
+
+    // Auto-sync to Shopify if order has a Shopify ID and not already synced
+    if (order.shopifyOrderId && shipment.syncStatus !== "SYNCED") {
+      try {
+        const result = await pushFulfillmentToShopify({
+          shopifyOrderId: order.shopifyOrderId,
+          trackingNumber: parsed.data.trackingNumber,
+          carrier: "USPS",
+        });
+
+        await prisma.shipment.update({
+          where: { id },
+          data: {
+            shopifyFulfillmentId: result.fulfillmentId,
+            syncStatus: "SYNCED",
+            labelStatus: "SYNCED_TO_SHOPIFY",
+            status: "shipped",
+            shippedAt: new Date(),
+          },
+        });
+
+        await prisma.order.update({
+          where: { id: existing.orderId },
+          data: {
+            labelStatus: "SYNCED_TO_SHOPIFY",
+            fulfillmentPushedAt: new Date(),
+          },
+        });
+
+        console.log(`Auto-synced fulfillment to Shopify for order ${order.shopifyOrderNumber}`);
+      } catch (e) {
+        console.error(`Auto-sync to Shopify failed for shipment ${id}:`, e);
+        await prisma.shipment.update({
+          where: { id },
+          data: { syncStatus: "FAILED", syncError: e instanceof Error ? e.message : "Auto-sync failed" },
+        });
+      }
+    }
   }
 
   return NextResponse.json(shipment);
