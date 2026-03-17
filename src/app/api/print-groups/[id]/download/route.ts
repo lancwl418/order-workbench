@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createReadStream } from "node:fs";
+import archiver from "archiver";
+import { createReadStream, createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -147,16 +148,7 @@ export async function GET(
 
   // If already combined and uploaded, redirect to cached URL
   if (group.combinedFileUrl) {
-    // Could be a single URL or JSON array of URLs
-    try {
-      const urls = JSON.parse(group.combinedFileUrl) as string[];
-      if (Array.isArray(urls)) {
-        return NextResponse.json({ urls, filename: group.name });
-      }
-    } catch {
-      // Single URL string
-      return NextResponse.redirect(group.combinedFileUrl);
-    }
+    return NextResponse.redirect(group.combinedFileUrl);
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
@@ -233,11 +225,11 @@ export async function GET(
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
       return NextResponse.redirect(r2Url);
     } else {
-      // Multiple chunks — generate each, upload, return URLs
-      const urls: string[] = [];
+      // Multiple chunks — generate each PNG, then ZIP them together
+      const chunkPaths: string[] = [];
 
       for (let c = 0; c < chunks.length; c++) {
-        const chunkPath = path.join(tmpDir, `chunk-${c}.png`);
+        const chunkPath = path.join(tmpDir, `${baseName}-part${c + 1}.png`);
         const chunkHeight = chunks[c].reduce((sum, p) => sum + p.height, 0);
         console.log(`Generating chunk ${c + 1}/${chunks.length}: ${canvasWidth}x${chunkHeight}px`);
 
@@ -245,23 +237,37 @@ export async function GET(
 
         const stat = await fs.stat(chunkPath);
         console.log(`Chunk ${c + 1}: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
-
-        const r2Key = `combined/${Date.now()}-${baseName}-part${c + 1}.png`;
-        const uploadStream = createReadStream(chunkPath);
-        const r2Url = await streamUploadToR2(uploadStream, r2Key, "image/png", stat.size);
-        urls.push(r2Url);
-
-        // Delete chunk immediately to free disk
-        await fs.unlink(chunkPath).catch(() => {});
+        chunkPaths.push(chunkPath);
       }
+
+      // Create ZIP archive
+      const zipPath = path.join(tmpDir, `${baseName}.zip`);
+      await new Promise<void>((resolve, reject) => {
+        const output = createWriteStream(zipPath);
+        const archive = archiver("zip", { zlib: { level: 1 } });
+        output.on("close", resolve);
+        archive.on("error", reject);
+        archive.pipe(output);
+        for (const cp of chunkPaths) {
+          archive.file(cp, { name: path.basename(cp) });
+        }
+        archive.finalize();
+      });
+
+      const zipStat = await fs.stat(zipPath);
+      console.log(`ZIP: ${(zipStat.size / 1024 / 1024).toFixed(1)}MB`);
+
+      const r2Key = `combined/${Date.now()}-${baseName}.zip`;
+      const uploadStream = createReadStream(zipPath);
+      const r2Url = await streamUploadToR2(uploadStream, r2Key, "application/zip", zipStat.size);
 
       await prisma.printGroup.update({
         where: { id },
-        data: { combinedFileUrl: JSON.stringify(urls) },
+        data: { combinedFileUrl: r2Url },
       });
 
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      return NextResponse.json({ urls, filename: baseName });
+      return NextResponse.redirect(r2Url);
     }
   } catch (e) {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});

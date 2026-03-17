@@ -250,6 +250,8 @@
     "combining": "Combining...",
     "copyLink": "Copy Link",
     "linkCopied": "Download link copied",
+    "renameGroup": "Rename",
+    "groupRenamed": "Group renamed",
     "building": "Building",
     "ready": "Ready",
     "printed": "Printed",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
@@ -439,6 +439,69 @@ export default function PrintQueuePage() {
   );
 }
 
+/* ─── Inline Group Name Editor ──────────────────────────────────── */
+
+function GroupNameEditor({ group }: { group: PrintGroupWithItems }) {
+  const tPQ = useTranslations("printQueue");
+  const { refresh } = usePrintGroups();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(group.name);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim() || name === group.name) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/print-groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(tPQ("groupRenamed"));
+      setEditing(false);
+      refresh();
+    } catch {
+      toast.error("Failed to rename");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <Input
+          className="h-6 w-[140px] text-sm"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setEditing(false); setName(group.name); }
+          }}
+          autoFocus
+        />
+        <button onClick={save} disabled={saving} className="text-green-600 hover:text-green-700">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+        </button>
+        <button onClick={() => { setEditing(false); setName(group.name); }} className="text-muted-foreground hover:text-foreground">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button className="font-medium hover:underline flex items-center gap-1" onClick={() => { setName(group.name); setEditing(true); }}>
+      {group.name}
+      <Pencil className="h-3 w-3 text-muted-foreground" />
+    </button>
+  );
+}
+
 /* ─── Group Builder Card ────────────────────────────────────────── */
 
 function GroupBuilderCard({
@@ -490,7 +553,7 @@ function GroupBuilderCard({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Layers className="h-5 w-5" />
-            {group.name}
+            <GroupNameEditor group={group} />
             <Badge variant="outline" className="ml-2">
               {tPQ("building")}
             </Badge>
@@ -781,25 +844,10 @@ function PrintGroupCard({
   const isReady = group.status === "READY";
 
   const [downloading, setDownloading] = useState(false);
-
-  function openCachedUrls() {
-    if (!group.combinedFileUrl) return;
-    try {
-      const urls = JSON.parse(group.combinedFileUrl) as string[];
-      if (Array.isArray(urls)) {
-        urls.forEach((u) => window.open(u, "_blank"));
-        return;
-      }
-    } catch {
-      // single URL string
-    }
-    window.open(group.combinedFileUrl, "_blank");
-  }
-
   async function handleDownloadAll() {
-    // If we already have cached URL(s), open them directly
+    // If we already have a cached URL, open it directly
     if (group.combinedFileUrl) {
-      openCachedUrls();
+      window.open(group.combinedFileUrl, "_blank");
       return;
     }
 
@@ -812,26 +860,15 @@ function PrintGroupCard({
         try { errMsg = JSON.parse(errText).error || errMsg; } catch { /* use default */ }
         throw new Error(errMsg);
       }
-
-      const contentType = res.headers.get("content-type") || "";
-
-      if (contentType.includes("application/json")) {
-        // Multiple chunks — response is { urls, filename }
-        const data = await res.json();
-        if (data.urls && Array.isArray(data.urls)) {
-          data.urls.forEach((u: string) => window.open(u, "_blank"));
-          toast.success(`${data.urls.length} files ready`);
-        }
-      } else {
-        // Single file — redirected to R2, download the blob
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${group.name.replace(/[^a-zA-Z0-9]/g, "-")}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
+      // Redirected to R2 — download the blob
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const ext = blob.type === "application/zip" ? "zip" : "png";
+      a.download = `${group.name.replace(/[^a-zA-Z0-9]/g, "-")}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch {
       toast.error("Failed to download combined image");
     } finally {
@@ -854,7 +891,7 @@ function PrintGroupCard({
                 <ChevronDown className="h-4 w-4" />
               )}
             </button>
-            <span className="font-medium">{group.name}</span>
+            <GroupNameEditor group={group} />
             <Badge
               variant="default"
               className="bg-green-100 text-green-700"
@@ -902,12 +939,7 @@ function PrintGroupCard({
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      let text = group.combinedFileUrl!;
-                      try {
-                        const urls = JSON.parse(text);
-                        if (Array.isArray(urls)) text = urls.join("\n");
-                      } catch { /* single URL */ }
-                      navigator.clipboard.writeText(text);
+                      navigator.clipboard.writeText(group.combinedFileUrl!);
                       toast.success(tPQ("linkCopied"));
                     }}
                   >
@@ -1075,7 +1107,7 @@ function PrintedGroupCard({ group }: { group: PrintGroupWithItems }) {
                 <ChevronDown className="h-4 w-4" />
               )}
             </button>
-            <span className="font-medium">{group.name}</span>
+            <GroupNameEditor group={group} />
             <Badge variant="secondary">{tPQ("printed")}</Badge>
             <span className="text-sm text-muted-foreground">
               {orderMap.size} {orderMap.size !== 1 ? tPQ("orders_count") : tPQ("order")} &middot;{" "}

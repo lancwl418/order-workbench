@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const updateGroupSchema = z.object({
-  status: z.enum(["PRINTED"]),
+  status: z.enum(["PRINTED"]).optional(),
+  name: z.string().min(1).max(100).optional(),
 });
 
 export async function PATCH(
@@ -38,6 +39,22 @@ export async function PATCH(
 
   if (!group) {
     return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  }
+
+  // Handle name-only update (any status)
+  if (parsed.data.name && !parsed.data.status) {
+    const updated = await prisma.printGroup.update({
+      where: { id },
+      data: { name: parsed.data.name, combinedFileUrl: null },
+    });
+    return NextResponse.json(updated);
+  }
+
+  if (parsed.data.status !== "PRINTED") {
+    return NextResponse.json(
+      { error: "Invalid update" },
+      { status: 400 }
+    );
   }
 
   if (group.status !== "READY") {
