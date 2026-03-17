@@ -42,9 +42,228 @@ import {
   AlertTriangle,
   Link2,
   RefreshCw,
+  Trash2,
+  Upload,
 } from "lucide-react";
 
 const MAX_HEIGHT = 3897;
+
+/* ─── Print File Cell (for In Queue table) ────────────────────── */
+
+function PrintFileCellActions({
+  order,
+  onUpdated,
+}: {
+  order: OrderListItem;
+  onUpdated: () => void;
+}) {
+  const tPQ = useTranslations("printQueue");
+  const tCommon = useTranslations("common");
+
+  const [editingUrl, setEditingUrl] = useState<string | null>(null);
+  const [newUrl, setNewUrl] = useState("");
+  const [replacing, setReplacing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ url: string; itemIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Group items by unique designFileUrl
+  const fileGroups = useMemo(() => {
+    const map = new Map<string, { url: string; title: string; itemIds: string[] }>();
+    for (const item of order.orderItems) {
+      if (!item.designFileUrl) continue;
+      const existing = map.get(item.designFileUrl);
+      if (existing) {
+        existing.itemIds.push(item.id);
+      } else {
+        map.set(item.designFileUrl, {
+          url: item.designFileUrl,
+          title: item.variantTitle || item.title,
+          itemIds: [item.id],
+        });
+      }
+    }
+    return [...map.values()];
+  }, [order.orderItems]);
+
+  if (fileGroups.length === 0) {
+    return <span className="text-xs text-muted-foreground">-</span>;
+  }
+
+  async function handleReplace(sourceUrl: string, replaceUrl: string) {
+    setReplacing(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/replace-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl, newUrl: replaceUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed");
+      }
+      toast.success(tPQ("fileReplaced"));
+      setEditingUrl(null);
+      setNewUrl("");
+      onUpdated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Replace failed");
+    } finally {
+      setReplacing(false);
+    }
+  }
+
+  async function handleUpload(sourceUrl: string, file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { url } = await uploadRes.json();
+      await handleReplace(sourceUrl, url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDeleteConfirmed() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      for (const itemId of deleteTarget.itemIds) {
+        const res = await fetch(`/api/order-items/${itemId}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed");
+        }
+      }
+      toast.success(tPQ("fileDeleted"));
+      setDeleteTarget(null);
+      onUpdated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // Extract short filename from URL
+  function shortName(url: string) {
+    try {
+      const parts = url.split("/");
+      const name = decodeURIComponent(parts[parts.length - 1]);
+      return name.length > 30 ? name.slice(0, 27) + "..." : name;
+    } catch {
+      return "file";
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      {fileGroups.map((fg) => (
+        <div key={fg.url} className="space-y-1">
+          <div className="flex items-center gap-1">
+            <a
+              href={fg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline truncate max-w-[140px]"
+              title={fg.url}
+            >
+              {shortName(fg.url)}
+            </a>
+            <button
+              onClick={() => {
+                setEditingUrl(editingUrl === fg.url ? null : fg.url);
+                setNewUrl("");
+              }}
+              className="text-muted-foreground hover:text-foreground shrink-0"
+              title={tPQ("replaceFile")}
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => setDeleteTarget(fg)}
+              className="text-muted-foreground hover:text-destructive shrink-0"
+              title={tPQ("deleteFile")}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+          {editingUrl === fg.url && (
+            <div className="space-y-1 pl-1">
+              <div className="flex items-center gap-1">
+                <Input
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  placeholder={tPQ("pasteNewUrl")}
+                  className="text-xs h-6 w-40"
+                  autoFocus
+                />
+                <Button
+                  size="xs"
+                  onClick={() => handleReplace(fg.url, newUrl.trim())}
+                  disabled={replacing || uploading || !newUrl.trim()}
+                >
+                  {replacing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                </Button>
+                <Button size="xs" variant="ghost" onClick={() => setEditingUrl(null)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload(fg.url, f);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={replacing || uploading}
+                >
+                  {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                  {tPQ("uploadFile")}
+                </Button>
+                <span className="text-[10px] text-muted-foreground">{tPQ("orPasteUrl")}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tPQ("confirmDeleteFile")}</DialogTitle>
+            <DialogDescription>{tPQ("confirmDeleteFileDesc")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              {tCommon("cancel")}
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirmed} disabled={deleting}>
+              {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              {tCommon("delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function PrintQueuePage() {
   const isMobile = useIsMobile();
@@ -271,26 +490,9 @@ export default function PrintQueuePage() {
       {
         id: "printFiles",
         header: tPQ("columns.printFiles"),
-        cell: ({ row }) => {
-          const urls = row.original.orderItems
-            .filter((item) => item.designFileUrl)
-            .map((item) => ({
-              url: item.designFileUrl!,
-              title: item.variantTitle || item.title,
-            }));
-          const unique = urls.filter(
-            (u, i, arr) => arr.findIndex((a) => a.url === u.url) === i
-          );
-          if (unique.length === 0)
-            return (
-              <span className="text-xs text-muted-foreground">-</span>
-            );
-          return (
-            <span className="text-sm text-muted-foreground">
-              {unique.length} {unique.length > 1 ? tPQ("files") : tPQ("file")}
-            </span>
-          );
-        },
+        cell: ({ row }) => (
+          <PrintFileCellActions order={row.original} onUpdated={refreshAll} />
+        ),
       },
       {
         accessorKey: "shopifyCreatedAt",
@@ -349,7 +551,7 @@ export default function PrintQueuePage() {
         },
       },
     ],
-    [actionLoading, handleAddToGroup, handleDismiss, tPQ]
+    [actionLoading, handleAddToGroup, handleDismiss, refreshAll, tPQ]
   );
 
   const columnVisibility = useMemo(
