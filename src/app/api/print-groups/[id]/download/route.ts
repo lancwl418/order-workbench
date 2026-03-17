@@ -17,7 +17,7 @@ sharp.concurrency(1);
 
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
 const ORDER_MARGIN = 90; // separator height in px
-const MAX_CHUNK_HEIGHT = 40000; // max ~133 inches per chunk
+const MAX_CHUNK_HEIGHT = 108000; // max 360 inches per chunk
 
 function orderSeparatorSvg(
   text: string,
