@@ -570,7 +570,7 @@ export default function OrderDetailPage() {
         <PrintFilesSection
           orderId={order.id}
           orderItems={order.orderItems}
-          canReplace={["OPEN", "REVIEW"].includes(order.internalStatus) || ["NONE", "READY", "IN_QUEUE"].includes(order.printStatus)}
+          canReplace={order.printStatus !== "DONE"}
           onUpdated={mutate}
         />
 
