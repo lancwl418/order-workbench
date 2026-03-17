@@ -946,15 +946,25 @@ function PrintGroupCard({
 
   async function handleRecombine() {
     try {
+      // Clear cached URL first
       await fetch(`/api/print-groups/${group.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: group.name }),
       });
+      // Directly trigger new combine (skip handleCombineStart which checks stale props)
+      const res = await fetch(`/api/print-groups/${group.id}/download`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status !== 409) {
+          throw new Error(data.error || "Failed to start combine");
+        }
+      }
       refresh();
-      setTimeout(handleCombineStart, 500);
-    } catch {
-      toast.error("Failed to start re-combine");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start re-combine");
     }
   }
 
