@@ -205,3 +205,101 @@ export async function PATCH(
 
   return NextResponse.json(updated);
 }
+
+/**
+ * DELETE /api/order-items/:itemId
+ * Clears the designFileUrl (and originalDesignFileUrl) from the item.
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ itemId: string }> }
+) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { itemId } = await params;
+
+  const item = await prisma.orderItem.findUnique({
+    where: { id: itemId },
+    include: { order: { select: { id: true, shopifyOrderNumber: true } } },
+  });
+
+  if (!item) {
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  }
+
+  if (!item.designFileUrl) {
+    return NextResponse.json({ error: "Item has no print file" }, { status: 400 });
+  }
+
+  const oldUrl = item.designFileUrl;
+
+  // Clear file references
+  await prisma.orderItem.update({
+    where: { id: itemId },
+    data: {
+      designFileUrl: null,
+      originalDesignFileUrl: null,
+      isPrinted: false,
+      printedAt: null,
+    },
+  });
+
+  // Log
+  await prisma.orderLog.create({
+    data: {
+      orderId: item.orderId,
+      userId: session.user?.id,
+      action: "file_deleted",
+      fromValue: oldUrl,
+      toValue: "",
+      message: `Print file deleted from item "${item.title}"`,
+    },
+  });
+
+  // Cascade to BUILDING print group
+  const buildingGroupItem = await prisma.printGroupItem.findFirst({
+    where: {
+      orderId: item.orderId,
+      printGroup: { status: "BUILDING" },
+    },
+    include: { printGroup: true },
+  });
+
+  if (buildingGroupItem) {
+    const groupId = buildingGroupItem.printGroupId;
+
+    // Remove this order's items from the group and recalculate
+    const groupItems = await prisma.printGroupItem.findMany({
+      where: { printGroupId: groupId, orderId: item.orderId },
+    });
+    const removedHeight = groupItems.reduce((sum, i) => sum + i.heightInches, 0);
+
+    await prisma.printGroupItem.deleteMany({
+      where: { printGroupId: groupId, orderId: item.orderId },
+    });
+
+    const group = await prisma.printGroup.findUnique({ where: { id: groupId } });
+    if (group) {
+      await prisma.printGroup.update({
+        where: { id: groupId },
+        data: { totalHeight: Math.max(0, group.totalHeight - removedHeight) },
+      });
+    }
+  }
+
+  // If all items in the order now have no file, set printStatus to NONE
+  const remainingFiles = await prisma.orderItem.count({
+    where: { orderId: item.orderId, designFileUrl: { not: null } },
+  });
+  if (remainingFiles === 0) {
+    await prisma.order.update({
+      where: { id: item.orderId },
+      data: { printStatus: "NONE" },
+    });
+  }
+
+  return NextResponse.json({ success: true });
+}

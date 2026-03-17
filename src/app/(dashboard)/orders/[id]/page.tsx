@@ -27,7 +27,7 @@ import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw } from "lucide-react";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
@@ -1046,6 +1046,8 @@ function PrintFilesSection({
   const [replacing, setReplacing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingNew, setUploadingNew] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmFile, setDeleteConfirmFile] = useState<PrintFileWithSource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const newFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1147,6 +1149,28 @@ function PrintFilesSection({
   async function handleRevert(file: PrintFileWithSource) {
     if (!file.originalSourceUrl) return;
     await doReplace(file, file.originalSourceUrl);
+  }
+
+  async function handleDeleteConfirmed() {
+    if (!deleteConfirmFile) return;
+    setDeleting(true);
+    try {
+      for (const itemId of deleteConfirmFile.orderItemIds) {
+        const res = await fetch(`/api/order-items/${itemId}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Failed to delete");
+        }
+      }
+      toast.success(t("fileDeleted"));
+      setDeleteConfirmFile(null);
+      onUpdated();
+      loadPrintFiles();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete file");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -1255,6 +1279,15 @@ function PrintFilesSection({
                         <Undo2 className="h-3.5 w-3.5" />
                       </button>
                     )}
+                    {canReplace && file.version === "current" && (
+                      <button
+                        onClick={() => setDeleteConfirmFile(file)}
+                        className="text-muted-foreground hover:text-destructive"
+                        title={t("deletePrintFile")}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <a
                       href={file.url}
                       target="_blank"
@@ -1329,8 +1362,53 @@ function PrintFilesSection({
                 )}
               </div>
             ))}
+            {canReplace && orderItems.length > 0 && (
+              <div className="mt-3">
+                <input
+                  ref={newFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleUploadNew}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => newFileInputRef.current?.click()}
+                  disabled={uploadingNew}
+                >
+                  {uploadingNew ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="h-3 w-3" />
+                  )}
+                  {uploadingNew ? tCommon("uploading") : t("uploadPrintFile")}
+                </Button>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Delete confirmation dialog */}
+        <Dialog open={!!deleteConfirmFile} onOpenChange={(open) => !open && setDeleteConfirmFile(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("confirmDeleteFile")}</DialogTitle>
+              <DialogDescription>
+                {t("confirmDeleteFileDesc", { filename: deleteConfirmFile?.filename || "" })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setDeleteConfirmFile(null)} disabled={deleting}>
+                {tCommon("cancel")}
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteConfirmed} disabled={deleting}>
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                {tCommon("delete")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
