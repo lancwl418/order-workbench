@@ -88,26 +88,29 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  // Internal order statuses
   OPEN: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  REVIEW: { bg: "bg-purple-100", text: "text-purple-700" },
-  LABEL_CREATED: { bg: "bg-orange-100", text: "text-orange-700" },
-  SHIPPED: { bg: "bg-blue-100", text: "text-blue-700" },
-  DELIVERED: { bg: "bg-emerald-100", text: "text-emerald-700" },
+  REVIEW: { bg: "bg-amber-100", text: "text-amber-700" },         // same as CS flag
+  LABEL_CREATED: { bg: "bg-blue-100", text: "text-blue-700" },    // same as confirmed
+  SHIPPED: { bg: "bg-sky-100", text: "text-sky-700" },            // same as in_transit
+  DELIVERED: { bg: "bg-emerald-100", text: "text-emerald-700" },  // same as delivered
   DELAYED: { bg: "bg-red-100", text: "text-red-700" },
-  CANCELLED: { bg: "bg-gray-200", text: "text-gray-500" },
-  DISMISSED: { bg: "bg-gray-200", text: "text-gray-400" },
+  CANCELLED: { bg: "bg-gray-100", text: "text-gray-400" },        // faded
+  DISMISSED: { bg: "bg-gray-100", text: "text-gray-400" },        // faded
+  // Shipping route
   NOT_ASSIGNED: { bg: "bg-gray-100", text: "text-gray-500" },
   THIRD_PARTY: { bg: "bg-orange-100", text: "text-orange-700" },
   SHOPIFY: { bg: "bg-green-100", text: "text-green-700" },
+  // Label statuses
   NOT_CREATED: { bg: "bg-gray-100", text: "text-gray-500" },
   PENDING: { bg: "bg-blue-100", text: "text-blue-700" },
-  CREATED: { bg: "bg-green-100", text: "text-green-700" },
+  CREATED: { bg: "bg-blue-100", text: "text-blue-700" },          // same as confirmed
   SYNCED_TO_SHOPIFY: { bg: "bg-emerald-100", text: "text-emerald-700" },
   SYNC_FAILED: { bg: "bg-red-100", text: "text-red-700" },
   // EccangTMS OMS statuses
   no_tracking: { bg: "bg-gray-100", text: "text-gray-500" },
-  label_created: { bg: "bg-gray-100", text: "text-gray-600" },
-  collected: { bg: "bg-blue-100", text: "text-blue-700" },
+  label_created: { bg: "bg-blue-100", text: "text-blue-700" },    // same as confirmed
+  collected: { bg: "bg-sky-100", text: "text-sky-700" },           // same as in_transit
   long_transit: { bg: "bg-amber-100", text: "text-amber-700" },
   exception: { bg: "bg-orange-100", text: "text-orange-700" },
   returned: { bg: "bg-purple-100", text: "text-purple-700" },
@@ -120,11 +123,11 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   out_for_delivery: { bg: "bg-orange-100", text: "text-orange-700" },
   attempted_delivery: { bg: "bg-amber-100", text: "text-amber-700" },
   ready_for_pickup: { bg: "bg-teal-100", text: "text-teal-700" },
-  delivered: { bg: "bg-green-100", text: "text-green-700" },
+  delivered: { bg: "bg-emerald-100", text: "text-emerald-700" },   // same as DELIVERED
   failure: { bg: "bg-red-100", text: "text-red-700" },
-  success: { bg: "bg-green-100", text: "text-green-700" },
+  success: { bg: "bg-emerald-100", text: "text-emerald-700" },
   pending: { bg: "bg-slate-100", text: "text-slate-600" },
-  shipped: { bg: "bg-sky-100", text: "text-sky-700" },
+  shipped: { bg: "bg-sky-100", text: "text-sky-700" },            // same as in_transit
 };
 
 export const DELAY_COLORS = {
