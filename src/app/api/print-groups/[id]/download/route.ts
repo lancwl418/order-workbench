@@ -239,9 +239,12 @@ async function runCombineJob(
 ) {
   const totalImages = group.items.length;
 
+  // Use persistent disk if available (COMBINE_TMP_DIR=/data/tmp), fallback to OS /tmp
+  const tmpBase = process.env.COMBINE_TMP_DIR || os.tmpdir();
+  await fs.mkdir(tmpBase, { recursive: true }).catch(() => {});
+
   // Clean up stale combine dirs from previous crashed jobs
   try {
-    const tmpBase = os.tmpdir();
     const entries = await fs.readdir(tmpBase);
     for (const entry of entries) {
       if (entry.startsWith("combine-")) {
@@ -256,7 +259,7 @@ async function runCombineJob(
     }
   } catch { /* ignore cleanup errors */ }
 
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
+  const tmpDir = await fs.mkdtemp(path.join(tmpBase, "combine-"));
   let lastDbUpdate = 0; // track last DB update to batch writes
 
   try {
