@@ -34,7 +34,7 @@ function orderSeparatorSvg(
   const lineY = height * 0.3;
   const textY = height * 0.85;
   const svg = `<svg width="${canvasWidth}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${canvasWidth}" height="${height}" fill="white"/>
+    <rect width="${canvasWidth}" height="${height}" fill="none"/>
     <line x1="0" y1="${lineY}" x2="${canvasWidth}" y2="${lineY}" stroke="black" stroke-width="3" stroke-dasharray="20,12"/>
     <text x="20" y="${textY}" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="black">${text}</text>
   </svg>`;
@@ -42,6 +42,13 @@ function orderSeparatorSvg(
 }
 
 type Piece = { filePath: string; width: number; height: number };
+
+/** Delete source files for a list of pieces (best-effort). */
+async function cleanupFiles(pieces: Piece[]): Promise<void> {
+  for (const p of pieces) {
+    await fs.unlink(p.filePath).catch(() => {});
+  }
+}
 
 /**
  * Generate a single combined PNG from a list of pieces.
@@ -70,7 +77,7 @@ async function generateChunkPng(
       width: canvasWidth,
       height: totalHeight,
       channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
     .composite(compositeInputs)
@@ -231,6 +238,24 @@ async function runCombineJob(
   }
 ) {
   const totalImages = group.items.length;
+
+  // Clean up stale combine dirs from previous crashed jobs
+  try {
+    const tmpBase = os.tmpdir();
+    const entries = await fs.readdir(tmpBase);
+    for (const entry of entries) {
+      if (entry.startsWith("combine-")) {
+        const full = path.join(tmpBase, entry);
+        const stat = await fs.stat(full).catch(() => null);
+        // Remove dirs older than 10 minutes
+        if (stat?.isDirectory() && Date.now() - stat.mtimeMs > 10 * 60 * 1000) {
+          await fs.rm(full, { recursive: true, force: true }).catch(() => {});
+          console.log(`Cleaned stale tmp dir: ${entry}`);
+        }
+      }
+    }
+  } catch { /* ignore cleanup errors */ }
+
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
   let lastDbUpdate = 0; // track last DB update to batch writes
 
@@ -319,6 +344,9 @@ async function runCombineJob(
 
       await generateChunkPng(chunks[0], outputPath, canvasWidth);
 
+      // Free source images immediately — only keep the output
+      await cleanupFiles(chunks[0]);
+
       const stat = await fs.stat(outputPath);
       console.log(`Output: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
@@ -361,6 +389,9 @@ async function runCombineJob(
 
         await generateChunkPng(chunks[c], chunkPath, canvasWidth);
 
+        // Free source images for this chunk immediately
+        await cleanupFiles(chunks[c]);
+
         const stat = await fs.stat(chunkPath);
         console.log(`Chunk ${c + 1}: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
         chunkPaths.push(chunkPath);
@@ -381,6 +412,11 @@ async function runCombineJob(
         }
         archive.finalize();
       });
+
+      // Free chunk PNGs now that they're in the ZIP
+      for (const cp of chunkPaths) {
+        await fs.unlink(cp).catch(() => {});
+      }
 
       const zipStat = await fs.stat(zipPath);
       console.log(`ZIP: ${(zipStat.size / 1024 / 1024).toFixed(1)}MB`);
