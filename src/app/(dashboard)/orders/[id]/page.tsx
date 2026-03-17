@@ -464,7 +464,9 @@ export default function OrderDetailPage() {
                 onValueChange={(v) => v && updateStatus(v)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {tStatus.has(order.internalStatus) ? tStatus(order.internalStatus) : order.internalStatus}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {INTERNAL_STATUSES.map((s) => (
