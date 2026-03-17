@@ -255,6 +255,7 @@
     "release": "Release",
     "downloadCombined": "Download Combined",
     "combining": "Combining...",
+    "cancelCombine": "Cancel",
     "copyLink": "Copy Link",
     "linkCopied": "Download link copied",
     "renameGroup": "Rename",

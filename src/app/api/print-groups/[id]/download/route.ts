@@ -11,6 +11,7 @@ import {
   setDownloadProgress,
   getDownloadProgress,
   clearDownloadProgress,
+  setAbortController,
 } from "@/lib/download-progress";
 import sharp from "sharp";
 
@@ -47,6 +48,13 @@ type Piece = { filePath: string; width: number; height: number };
 async function cleanupFiles(pieces: Piece[]): Promise<void> {
   for (const p of pieces) {
     await fs.unlink(p.filePath).catch(() => {});
+  }
+}
+
+/** Check abort signal and throw if cancelled. */
+function checkAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new DOMException("Combine cancelled", "AbortError");
   }
 }
 
@@ -211,8 +219,12 @@ export async function POST(
     currentImage: 0,
   });
 
+  // Create AbortController for cancellation support
+  const abortController = new AbortController();
+  setAbortController(id, abortController);
+
   // Fire-and-forget: run the actual combine work in a detached promise
-  runCombineJob(id, group).catch((e) => {
+  runCombineJob(id, group, abortController.signal).catch((e) => {
     console.error(`Background combine failed for group ${id}:`, e);
   });
 
@@ -235,7 +247,8 @@ async function runCombineJob(
         customerName: string | null;
       };
     }>;
-  }
+  },
+  signal: AbortSignal
 ) {
   const totalImages = group.items.length;
 
@@ -263,15 +276,19 @@ async function runCombineJob(
   let lastDbUpdate = 0; // track last DB update to batch writes
 
   try {
+    checkAborted(signal);
+
     // Step 1: Download all images and collect metadata
     const pieces: Piece[] = [];
 
     for (let i = 0; i < group.items.length; i++) {
+      checkAborted(signal);
+
       const item = group.items[i];
       const imgPath = path.join(tmpDir, `img-${i}.png`);
 
       // Download to disk
-      const res = await fetch(item.fileUrl);
+      const res = await fetch(item.fileUrl, { signal });
       if (!res.ok) {
         throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
       }
@@ -330,6 +347,7 @@ async function runCombineJob(
     const chunks = splitIntoChunks(pieces);
     console.log(`Split into ${chunks.length} chunk(s)`);
 
+    checkAborted(signal);
     await updateDbProgress(groupId, 60, "generating");
 
     const baseName = group.name.replace(/[^a-zA-Z0-9]/g, "-");
@@ -346,6 +364,7 @@ async function runCombineJob(
       });
 
       await generateChunkPng(chunks[0], outputPath, canvasWidth);
+      checkAborted(signal);
 
       // Free source images immediately — only keep the output
       await cleanupFiles(chunks[0]);
@@ -354,6 +373,7 @@ async function runCombineJob(
       console.log(`Output: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
       await updateDbProgress(groupId, 90, "uploading");
+      checkAborted(signal);
 
       const r2Key = `combined/${Date.now()}-${baseName}.png`;
       const uploadStream = createReadStream(outputPath);
@@ -374,6 +394,8 @@ async function runCombineJob(
       const chunkPaths: string[] = [];
 
       for (let c = 0; c < chunks.length; c++) {
+        checkAborted(signal);
+
         const chunkPath = path.join(tmpDir, `${baseName}-part${c + 1}.png`);
         const chunkHeight = chunks[c].reduce((sum, p) => sum + p.height, 0);
         console.log(`Generating chunk ${c + 1}/${chunks.length}: ${canvasWidth}x${chunkHeight}px`);
@@ -400,6 +422,8 @@ async function runCombineJob(
         chunkPaths.push(chunkPath);
       }
 
+      checkAborted(signal);
+
       // Create ZIP
       await updateDbProgress(groupId, 86, "zipping");
 
@@ -415,6 +439,8 @@ async function runCombineJob(
         }
         archive.finalize();
       });
+
+      checkAborted(signal);
 
       // Free chunk PNGs now that they're in the ZIP
       for (const cp of chunkPaths) {
@@ -448,6 +474,14 @@ async function runCombineJob(
   } catch (e) {
     clearDownloadProgress(groupId);
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+
+    const isCancelled = e instanceof DOMException && e.name === "AbortError";
+
+    if (isCancelled) {
+      console.log(`Combine cancelled for group ${groupId}`);
+      // DB is already reset by the cancel endpoint
+      return;
+    }
 
     const message = e instanceof Error ? e.message : "Failed to generate combined image";
     console.error(`Background combine error for group ${groupId}:`, message);

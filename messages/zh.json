@@ -255,6 +255,7 @@
     "release": "释放",
     "downloadCombined": "下载合并图",
     "combining": "合并中...",
+    "cancelCombine": "取消",
     "copyLink": "复制链接",
     "linkCopied": "下载链接已复制",
     "renameGroup": "重命名",

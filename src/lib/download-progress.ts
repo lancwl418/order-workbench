@@ -10,6 +10,7 @@ export type DownloadProgress = {
 };
 
 const progressMap = new Map<string, DownloadProgress>();
+const abortMap = new Map<string, AbortController>();
 
 export function setDownloadProgress(
   groupId: string,
@@ -26,4 +27,23 @@ export function getDownloadProgress(
 
 export function clearDownloadProgress(groupId: string): void {
   progressMap.delete(groupId);
+  abortMap.delete(groupId);
+}
+
+export function setAbortController(
+  groupId: string,
+  controller: AbortController
+): void {
+  abortMap.set(groupId, controller);
+}
+
+export function abortCombine(groupId: string): boolean {
+  const controller = abortMap.get(groupId);
+  if (controller) {
+    controller.abort();
+    abortMap.delete(groupId);
+    progressMap.delete(groupId);
+    return true;
+  }
+  return false;
 }

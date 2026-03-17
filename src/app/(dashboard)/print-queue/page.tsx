@@ -932,6 +932,17 @@ function PrintGroupCard({
     setTimeout(handleCombineStart, 500);
   }
 
+  async function handleCancelCombine() {
+    try {
+      await fetch(`/api/print-groups/${group.id}/cancel-combine`, {
+        method: "POST",
+      });
+      refresh();
+    } catch {
+      toast.error("Failed to cancel");
+    }
+  }
+
   // Phase text from in-memory detail or fallback to generic
   const phase = phaseDetail?.phase || (isProcessing ? "downloading" : null);
 
@@ -981,10 +992,21 @@ function PrintGroupCard({
                   {tPQ("release")}
                 </Button>
                 {isProcessing ? (
-                  <Button size="sm" variant="outline" disabled>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {tPQ("combining")}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" disabled>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {tPQ("combining")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={handleCancelCombine}
+                      title={tPQ("cancelCombine")}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 ) : (
                   <Button
                     size="sm"
