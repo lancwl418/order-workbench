@@ -22,16 +22,16 @@ export const maxDuration = 300;
 sharp.cache(false);
 sharp.concurrency(1);
 
-const OUTPUT_DPI = 75;
-const MAX_WIDTH = 1650; // 22 inches at 75 DPI
-const ORDER_MARGIN = 23; // separator height in px (scaled for 75 DPI)
-const MAX_CHUNK_HEIGHT = 20000; // chunk limit at 75 DPI
+const OUTPUT_DPI = 300;
+const MAX_WIDTH = 6600; // 22 inches at 300 DPI
+const ORDER_MARGIN = 90; // separator height in px
+const MAX_CHUNK_HEIGHT = 80000; // ~10m per chunk at common DPIs
 
 function orderSeparatorSvg(
   text: string,
   canvasWidth: number,
   height: number,
-  fontSize = 12
+  fontSize = 48
 ): Buffer {
   const lineY = height * 0.3;
   const textY = height * 0.85;
@@ -295,22 +295,9 @@ async function runCombineJob(
         throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
       }
       const buffer = Buffer.from(await res.arrayBuffer());
-      const rawPath = path.join(tmpDir, `raw-${i}.png`);
-      await fs.writeFile(rawPath, buffer);
+      await fs.writeFile(imgPath, buffer);
 
-      const meta = await sharp(rawPath, { limitInputPixels: false }).metadata();
-      const srcDpi = meta.density || 300;
-      const scale = OUTPUT_DPI / srcDpi;
-      const newWidth = Math.round(meta.width! * scale);
-      const newHeight = Math.round(meta.height! * scale);
-
-      // Resize to 75 DPI
-      await sharp(rawPath, { limitInputPixels: false })
-        .resize(newWidth, newHeight)
-        .withMetadata({ density: OUTPUT_DPI })
-        .png()
-        .toFile(imgPath);
-      await fs.unlink(rawPath).catch(() => {});
+      const meta = await sharp(imgPath, { limitInputPixels: false }).metadata();
 
       // If this is the start of a new order, add a separator
       const isNewOrder =
@@ -323,16 +310,16 @@ async function runCombineJob(
           .filter(Boolean)
           .join("  —  ");
 
-        const sepWidth = Math.min(newWidth, MAX_WIDTH);
+        const canvasWidth = Math.min(meta.width!, MAX_WIDTH);
         const sepPath = path.join(tmpDir, `sep-${i}.png`);
-        await sharp(orderSeparatorSvg(label, sepWidth, ORDER_MARGIN))
+        await sharp(orderSeparatorSvg(label, canvasWidth, ORDER_MARGIN))
           .png()
           .toFile(sepPath);
 
-        pieces.push({ filePath: sepPath, width: sepWidth, height: ORDER_MARGIN });
+        pieces.push({ filePath: sepPath, width: canvasWidth, height: ORDER_MARGIN });
       }
 
-      pieces.push({ filePath: imgPath, width: newWidth, height: newHeight });
+      pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height! });
 
       const progress = Math.round(((i + 1) / totalImages) * 60);
 
