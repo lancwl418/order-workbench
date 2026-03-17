@@ -7,6 +7,11 @@ import path from "node:path";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { streamUploadToR2 } from "@/lib/r2";
+import {
+  setDownloadProgress,
+  getDownloadProgress,
+  clearDownloadProgress,
+} from "@/lib/download-progress";
 import sharp from "sharp";
 
 // Allow up to 5 minutes for large image processing
@@ -146,10 +151,27 @@ export async function GET(
     return NextResponse.json({ error: "Group has no files" }, { status: 400 });
   }
 
-  // If already combined and uploaded, redirect to cached URL
+  // If already combined and uploaded, return cached URL
   if (group.combinedFileUrl) {
-    return NextResponse.redirect(group.combinedFileUrl);
+    return NextResponse.json({ url: group.combinedFileUrl });
   }
+
+  // Prevent concurrent downloads for the same group
+  if (getDownloadProgress(id)) {
+    return NextResponse.json(
+      { error: "Download already in progress" },
+      { status: 409 }
+    );
+  }
+
+  const totalImages = group.items.length;
+
+  setDownloadProgress(id, {
+    progress: 0,
+    phase: "downloading",
+    totalImages,
+    currentImage: 0,
+  });
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
 
@@ -192,6 +214,13 @@ export async function GET(
       }
 
       pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height! });
+
+      setDownloadProgress(id, {
+        progress: Math.round(((i + 1) / totalImages) * 60),
+        phase: "downloading",
+        totalImages,
+        currentImage: i + 1,
+      });
     }
 
     const canvasWidth = Math.max(...pieces.map((p) => p.width));
@@ -202,17 +231,41 @@ export async function GET(
     const chunks = splitIntoChunks(pieces);
     console.log(`Split into ${chunks.length} chunk(s)`);
 
+    setDownloadProgress(id, {
+      progress: 60,
+      phase: "generating",
+      totalImages,
+      currentImage: totalImages,
+      totalChunks: chunks.length,
+      currentChunk: 0,
+    });
+
     const baseName = group.name.replace(/[^a-zA-Z0-9]/g, "-");
 
     if (chunks.length === 1) {
       // Single chunk — generate one file
       const outputPath = path.join(tmpDir, "output.png");
+
+      setDownloadProgress(id, {
+        progress: 65,
+        phase: "generating",
+        totalChunks: 1,
+        currentChunk: 1,
+      });
+
       await generateChunkPng(chunks[0], outputPath, canvasWidth);
 
       const stat = await fs.stat(outputPath);
       console.log(`Output: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
       // Upload to R2
+      setDownloadProgress(id, {
+        progress: 90,
+        phase: "uploading",
+        totalChunks: 1,
+        currentChunk: 1,
+      });
+
       const r2Key = `combined/${Date.now()}-${baseName}.png`;
       const uploadStream = createReadStream(outputPath);
       const r2Url = await streamUploadToR2(uploadStream, r2Key, "image/png", stat.size);
@@ -223,7 +276,8 @@ export async function GET(
       });
 
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      return NextResponse.redirect(r2Url);
+      clearDownloadProgress(id);
+      return NextResponse.json({ url: r2Url });
     } else {
       // Multiple chunks — generate each PNG, then ZIP them together
       const chunkPaths: string[] = [];
@@ -233,6 +287,13 @@ export async function GET(
         const chunkHeight = chunks[c].reduce((sum, p) => sum + p.height, 0);
         console.log(`Generating chunk ${c + 1}/${chunks.length}: ${canvasWidth}x${chunkHeight}px`);
 
+        setDownloadProgress(id, {
+          progress: 60 + Math.round(((c + 1) / chunks.length) * 25),
+          phase: "generating",
+          totalChunks: chunks.length,
+          currentChunk: c + 1,
+        });
+
         await generateChunkPng(chunks[c], chunkPath, canvasWidth);
 
         const stat = await fs.stat(chunkPath);
@@ -241,6 +302,13 @@ export async function GET(
       }
 
       // Create ZIP archive
+      setDownloadProgress(id, {
+        progress: 86,
+        phase: "zipping",
+        totalChunks: chunks.length,
+        currentChunk: chunks.length,
+      });
+
       const zipPath = path.join(tmpDir, `${baseName}.zip`);
       await new Promise<void>((resolve, reject) => {
         const output = createWriteStream(zipPath);
@@ -257,6 +325,14 @@ export async function GET(
       const zipStat = await fs.stat(zipPath);
       console.log(`ZIP: ${(zipStat.size / 1024 / 1024).toFixed(1)}MB`);
 
+      // Upload to R2
+      setDownloadProgress(id, {
+        progress: 90,
+        phase: "uploading",
+        totalChunks: chunks.length,
+        currentChunk: chunks.length,
+      });
+
       const r2Key = `combined/${Date.now()}-${baseName}.zip`;
       const uploadStream = createReadStream(zipPath);
       const r2Url = await streamUploadToR2(uploadStream, r2Key, "application/zip", zipStat.size);
@@ -267,9 +343,11 @@ export async function GET(
       });
 
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      return NextResponse.redirect(r2Url);
+      clearDownloadProgress(id);
+      return NextResponse.json({ url: r2Url });
     }
   } catch (e) {
+    clearDownloadProgress(id);
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     console.error("Download combine error:", e);
     const message =

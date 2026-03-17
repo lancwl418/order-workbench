@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
@@ -815,6 +815,7 @@ function PrintGroupCard({
 }) {
   const tPQ = useTranslations("printQueue");
   const tCommon = useTranslations("common");
+  const { refresh } = usePrintGroups();
 
   const [expanded, setExpanded] = useState(true);
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
@@ -844,6 +845,22 @@ function PrintGroupCard({
   const isReady = group.status === "READY";
 
   const [downloading, setDownloading] = useState(false);
+  const [dlProgress, setDlProgress] = useState<{
+    progress: number;
+    phase: string;
+    totalImages?: number;
+    currentImage?: number;
+    totalChunks?: number;
+    currentChunk?: number;
+  } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   async function handleDownloadAll() {
     // If we already have a cached URL, open it directly
     if (group.combinedFileUrl) {
@@ -852,27 +869,39 @@ function PrintGroupCard({
     }
 
     setDownloading(true);
+    setDlProgress({ progress: 0, phase: "downloading" });
+
+    // Poll progress in parallel
+    pollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/print-groups/${group.id}/download-progress`);
+        if (r.ok) {
+          const data = await r.json();
+          if (data.progress >= 0) setDlProgress(data);
+        }
+      } catch { /* ignore */ }
+    }, 1000);
+
     try {
       const res = await fetch(`/api/print-groups/${group.id}/download`);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         let errMsg = "Failed to generate combined image";
         try { errMsg = JSON.parse(errText).error || errMsg; } catch { /* use default */ }
         throw new Error(errMsg);
       }
-      // Redirected to R2 — download the blob
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const ext = blob.type === "application/zip" ? "zip" : "png";
-      a.download = `${group.name.replace(/[^a-zA-Z0-9]/g, "-")}.${ext}`;
-      a.click();
-      URL.revokeObjectURL(url);
+
+      const { url } = await res.json();
+      window.open(url, "_blank");
+      refresh();
     } catch {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       toast.error("Failed to download combined image");
     } finally {
       setDownloading(false);
+      setDlProgress(null);
     }
   }
 
@@ -963,6 +992,32 @@ function PrintGroupCard({
             )}
           </div>
         </div>
+
+        {downloading && dlProgress && (
+          <div className="mt-3 space-y-1">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                style={{ width: `${dlProgress.progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dlProgress.phase === "downloading" &&
+                tPQ("progressDownloading", {
+                  current: dlProgress.currentImage ?? 0,
+                  total: dlProgress.totalImages ?? 0,
+                })}
+              {dlProgress.phase === "generating" &&
+                tPQ("progressGenerating", {
+                  current: dlProgress.currentChunk ?? 0,
+                  total: dlProgress.totalChunks ?? 0,
+                })}
+              {dlProgress.phase === "zipping" && tPQ("progressZipping")}
+              {dlProgress.phase === "uploading" && tPQ("progressUploading")}
+              {" — "}{dlProgress.progress}%
+            </p>
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-3 pl-7 space-y-3">
