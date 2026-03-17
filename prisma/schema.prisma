@@ -352,9 +352,13 @@ model PrintGroup {
   name            String
   status          PrintGroupStatus @default(BUILDING)
   totalHeight     Float            @default(0) @map("total_height")
-  combinedFileUrl String?          @map("combined_file_url")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  combinedFileUrl   String?          @map("combined_file_url")
+  downloadStatus    String?          @map("download_status")
+  downloadProgress  Int              @default(0) @map("download_progress")
+  downloadError     String?          @map("download_error")
+  downloadStartedAt DateTime?        @map("download_started_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   items PrintGroupItem[]
 

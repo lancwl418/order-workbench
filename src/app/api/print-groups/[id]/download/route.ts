@@ -45,7 +45,6 @@ type Piece = { filePath: string; width: number; height: number };
 
 /**
  * Generate a single combined PNG from a list of pieces.
- * All pieces must fit within memory constraints.
  */
 async function generateChunkPng(
   pieces: Piece[],
@@ -81,7 +80,6 @@ async function generateChunkPng(
 
 /**
  * Split pieces into chunks that don't exceed MAX_CHUNK_HEIGHT.
- * Tries to split at order boundaries (separator pieces).
  */
 function splitIntoChunks(pieces: Piece[]): Piece[][] {
   const chunks: Piece[][] = [];
@@ -91,8 +89,6 @@ function splitIntoChunks(pieces: Piece[]): Piece[][] {
   for (let i = 0; i < pieces.length; i++) {
     const piece = pieces[i];
 
-    // If adding this piece exceeds max height and chunk isn't empty,
-    // start a new chunk
     if (currentHeight + piece.height > MAX_CHUNK_HEIGHT && currentChunk.length > 0) {
       chunks.push(currentChunk);
       currentChunk = [];
@@ -111,14 +107,31 @@ function splitIntoChunks(pieces: Piece[]): Piece[][] {
 }
 
 /**
- * GET /api/print-groups/:id/download
- *
- * Fetches all gang sheet PNGs in the group, stitches them vertically
- * into combined image(s), uploads to R2, and returns the download URL(s).
- *
- * For large groups, splits into multiple chunks to stay within memory.
+ * Helper to update DB progress (batched — only writes when change is significant)
  */
-export async function GET(
+async function updateDbProgress(
+  groupId: string,
+  progress: number,
+  phase: string
+) {
+  await prisma.printGroup.update({
+    where: { id: groupId },
+    data: { downloadProgress: progress },
+  });
+  // Also update in-memory for real-time polling
+  setDownloadProgress(groupId, {
+    progress,
+    phase: phase as "downloading" | "generating" | "zipping" | "uploading",
+  });
+}
+
+/**
+ * POST /api/print-groups/:id/download
+ *
+ * Starts a background combine job. Returns immediately.
+ * Progress is tracked in DB (downloadProgress, downloadStatus) and in-memory.
+ */
+export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -151,12 +164,20 @@ export async function GET(
     return NextResponse.json({ error: "Group has no files" }, { status: 400 });
   }
 
-  // If already combined and uploaded, return cached URL
+  // If already combined, return cached URL
   if (group.combinedFileUrl) {
     return NextResponse.json({ url: group.combinedFileUrl });
   }
 
-  // Prevent concurrent downloads for the same group
+  // Concurrency guard: check DB status
+  if (group.downloadStatus === "PROCESSING") {
+    return NextResponse.json(
+      { error: "Download already in progress" },
+      { status: 409 }
+    );
+  }
+
+  // Also check in-memory progress
   if (getDownloadProgress(id)) {
     return NextResponse.json(
       { error: "Download already in progress" },
@@ -164,8 +185,18 @@ export async function GET(
     );
   }
 
-  const totalImages = group.items.length;
+  // Mark as PROCESSING in DB and return immediately
+  await prisma.printGroup.update({
+    where: { id },
+    data: {
+      downloadStatus: "PROCESSING",
+      downloadProgress: 0,
+      downloadError: null,
+      downloadStartedAt: new Date(),
+    },
+  });
 
+  const totalImages = group.items.length;
   setDownloadProgress(id, {
     progress: 0,
     phase: "downloading",
@@ -173,7 +204,35 @@ export async function GET(
     currentImage: 0,
   });
 
+  // Fire-and-forget: run the actual combine work in a detached promise
+  runCombineJob(id, group).catch((e) => {
+    console.error(`Background combine failed for group ${id}:`, e);
+  });
+
+  return NextResponse.json({ status: "started" });
+}
+
+/**
+ * Background combine job — runs detached from the HTTP request.
+ */
+async function runCombineJob(
+  groupId: string,
+  group: {
+    name: string;
+    items: Array<{
+      orderId: string;
+      fileUrl: string;
+      filename: string;
+      order: {
+        shopifyOrderNumber: string | null;
+        customerName: string | null;
+      };
+    }>;
+  }
+) {
+  const totalImages = group.items.length;
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
+  let lastDbUpdate = 0; // track last DB update to batch writes
 
   try {
     // Step 1: Download all images and collect metadata
@@ -215,12 +274,24 @@ export async function GET(
 
       pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height! });
 
-      setDownloadProgress(id, {
-        progress: Math.round(((i + 1) / totalImages) * 60),
+      const progress = Math.round(((i + 1) / totalImages) * 60);
+
+      // Update in-memory progress always
+      setDownloadProgress(groupId, {
+        progress,
         phase: "downloading",
         totalImages,
         currentImage: i + 1,
       });
+
+      // Update DB every 2 images or on last image
+      if (i - lastDbUpdate >= 2 || i === group.items.length - 1) {
+        await prisma.printGroup.update({
+          where: { id: groupId },
+          data: { downloadProgress: progress },
+        });
+        lastDbUpdate = i;
+      }
     }
 
     const canvasWidth = Math.max(...pieces.map((p) => p.width));
@@ -231,22 +302,15 @@ export async function GET(
     const chunks = splitIntoChunks(pieces);
     console.log(`Split into ${chunks.length} chunk(s)`);
 
-    setDownloadProgress(id, {
-      progress: 60,
-      phase: "generating",
-      totalImages,
-      currentImage: totalImages,
-      totalChunks: chunks.length,
-      currentChunk: 0,
-    });
+    await updateDbProgress(groupId, 60, "generating");
 
     const baseName = group.name.replace(/[^a-zA-Z0-9]/g, "-");
 
     if (chunks.length === 1) {
-      // Single chunk — generate one file
+      // Single chunk
       const outputPath = path.join(tmpDir, "output.png");
 
-      setDownloadProgress(id, {
+      setDownloadProgress(groupId, {
         progress: 65,
         phase: "generating",
         totalChunks: 1,
@@ -258,28 +322,24 @@ export async function GET(
       const stat = await fs.stat(outputPath);
       console.log(`Output: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
 
-      // Upload to R2
-      setDownloadProgress(id, {
-        progress: 90,
-        phase: "uploading",
-        totalChunks: 1,
-        currentChunk: 1,
-      });
+      await updateDbProgress(groupId, 90, "uploading");
 
       const r2Key = `combined/${Date.now()}-${baseName}.png`;
       const uploadStream = createReadStream(outputPath);
       const r2Url = await streamUploadToR2(uploadStream, r2Key, "image/png", stat.size);
 
+      // Mark complete
       await prisma.printGroup.update({
-        where: { id },
-        data: { combinedFileUrl: r2Url },
+        where: { id: groupId },
+        data: {
+          combinedFileUrl: r2Url,
+          downloadStatus: null,
+          downloadProgress: 0,
+          downloadError: null,
+        },
       });
-
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      clearDownloadProgress(id);
-      return NextResponse.json({ url: r2Url });
     } else {
-      // Multiple chunks — generate each PNG, then ZIP them together
+      // Multiple chunks — generate PNGs then ZIP
       const chunkPaths: string[] = [];
 
       for (let c = 0; c < chunks.length; c++) {
@@ -287,11 +347,16 @@ export async function GET(
         const chunkHeight = chunks[c].reduce((sum, p) => sum + p.height, 0);
         console.log(`Generating chunk ${c + 1}/${chunks.length}: ${canvasWidth}x${chunkHeight}px`);
 
-        setDownloadProgress(id, {
-          progress: 60 + Math.round(((c + 1) / chunks.length) * 25),
+        const progress = 60 + Math.round(((c + 1) / chunks.length) * 25);
+        setDownloadProgress(groupId, {
+          progress,
           phase: "generating",
           totalChunks: chunks.length,
           currentChunk: c + 1,
+        });
+        await prisma.printGroup.update({
+          where: { id: groupId },
+          data: { downloadProgress: progress },
         });
 
         await generateChunkPng(chunks[c], chunkPath, canvasWidth);
@@ -301,13 +366,8 @@ export async function GET(
         chunkPaths.push(chunkPath);
       }
 
-      // Create ZIP archive
-      setDownloadProgress(id, {
-        progress: 86,
-        phase: "zipping",
-        totalChunks: chunks.length,
-        currentChunk: chunks.length,
-      });
+      // Create ZIP
+      await updateDbProgress(groupId, 86, "zipping");
 
       const zipPath = path.join(tmpDir, `${baseName}.zip`);
       await new Promise<void>((resolve, reject) => {
@@ -325,33 +385,42 @@ export async function GET(
       const zipStat = await fs.stat(zipPath);
       console.log(`ZIP: ${(zipStat.size / 1024 / 1024).toFixed(1)}MB`);
 
-      // Upload to R2
-      setDownloadProgress(id, {
-        progress: 90,
-        phase: "uploading",
-        totalChunks: chunks.length,
-        currentChunk: chunks.length,
-      });
+      await updateDbProgress(groupId, 90, "uploading");
 
       const r2Key = `combined/${Date.now()}-${baseName}.zip`;
       const uploadStream = createReadStream(zipPath);
       const r2Url = await streamUploadToR2(uploadStream, r2Key, "application/zip", zipStat.size);
 
+      // Mark complete
       await prisma.printGroup.update({
-        where: { id },
-        data: { combinedFileUrl: r2Url },
+        where: { id: groupId },
+        data: {
+          combinedFileUrl: r2Url,
+          downloadStatus: null,
+          downloadProgress: 0,
+          downloadError: null,
+        },
       });
-
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      clearDownloadProgress(id);
-      return NextResponse.json({ url: r2Url });
     }
-  } catch (e) {
-    clearDownloadProgress(id);
+
+    clearDownloadProgress(groupId);
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    console.error("Download combine error:", e);
-    const message =
-      e instanceof Error ? e.message : "Failed to generate combined image";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.log(`Background combine completed for group ${groupId}`);
+  } catch (e) {
+    clearDownloadProgress(groupId);
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+
+    const message = e instanceof Error ? e.message : "Failed to generate combined image";
+    console.error(`Background combine error for group ${groupId}:`, message);
+
+    // Mark as failed in DB
+    await prisma.printGroup.update({
+      where: { id: groupId },
+      data: {
+        downloadStatus: "FAILED",
+        downloadProgress: 0,
+        downloadError: message,
+      },
+    });
   }
 }

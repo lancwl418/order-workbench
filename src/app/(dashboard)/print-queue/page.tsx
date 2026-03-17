@@ -820,6 +820,60 @@ function PrintGroupCard({
   const [expanded, setExpanded] = useState(true);
   const [confirmPrintOpen, setConfirmPrintOpen] = useState(false);
 
+  // In-memory phase detail for smoother progress while on page
+  const [phaseDetail, setPhaseDetail] = useState<{
+    phase: string;
+    totalImages?: number;
+    currentImage?: number;
+    totalChunks?: number;
+    currentChunk?: number;
+  } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isProcessing = group.downloadStatus === "PROCESSING";
+  const isFailed = group.downloadStatus === "FAILED";
+
+  // Poll in-memory progress for smoother phase detail while processing
+  useEffect(() => {
+    if (isProcessing) {
+      pollRef.current = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/print-groups/${group.id}/download-progress`);
+          if (r.ok) {
+            const data = await r.json();
+            if (data.progress >= 0) {
+              setPhaseDetail({
+                phase: data.phase,
+                totalImages: data.totalImages,
+                currentImage: data.currentImage,
+                totalChunks: data.totalChunks,
+                currentChunk: data.currentChunk,
+              });
+            }
+          }
+        } catch { /* ignore */ }
+      }, 2000);
+    } else {
+      setPhaseDetail(null);
+    }
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [isProcessing, group.id]);
+
+  // ETA calculation
+  const etaText = useMemo(() => {
+    if (!isProcessing || !group.downloadStartedAt || group.downloadProgress <= 0) return null;
+    const elapsed = (Date.now() - new Date(group.downloadStartedAt).getTime()) / 1000;
+    const rate = group.downloadProgress / elapsed;
+    if (rate <= 0) return null;
+    const remainingSec = Math.round((100 - group.downloadProgress) / rate);
+    if (remainingSec >= 60) {
+      return tPQ("estimatedTime", { time: tPQ("minuteShort", { count: Math.ceil(remainingSec / 60) }) });
+    }
+    return tPQ("estimatedTime", { time: tPQ("secondShort", { count: remainingSec }) });
+  }, [isProcessing, group.downloadStartedAt, group.downloadProgress, tPQ]);
+
   // Group items by order for summary
   const orderMap = new Map<
     string,
@@ -844,66 +898,42 @@ function PrintGroupCard({
 
   const isReady = group.status === "READY";
 
-  const [downloading, setDownloading] = useState(false);
-  const [dlProgress, setDlProgress] = useState<{
-    progress: number;
-    phase: string;
-    totalImages?: number;
-    currentImage?: number;
-    totalChunks?: number;
-    currentChunk?: number;
-  } | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  async function handleDownloadAll() {
+  async function handleCombineStart() {
     // If we already have a cached URL, open it directly
     if (group.combinedFileUrl) {
       window.open(group.combinedFileUrl, "_blank");
       return;
     }
 
-    setDownloading(true);
-    setDlProgress({ progress: 0, phase: "downloading" });
-
-    // Poll progress in parallel
-    pollRef.current = setInterval(async () => {
-      try {
-        const r = await fetch(`/api/print-groups/${group.id}/download-progress`);
-        if (r.ok) {
-          const data = await r.json();
-          if (data.progress >= 0) setDlProgress(data);
-        }
-      } catch { /* ignore */ }
-    }, 1000);
-
     try {
-      const res = await fetch(`/api/print-groups/${group.id}/download`);
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-
+      const res = await fetch(`/api/print-groups/${group.id}/download`, {
+        method: "POST",
+      });
       if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        let errMsg = "Failed to generate combined image";
-        try { errMsg = JSON.parse(errText).error || errMsg; } catch { /* use default */ }
-        throw new Error(errMsg);
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 409) return; // already in progress
+        throw new Error(data.error || "Failed to start combine");
       }
-
-      const { url } = await res.json();
-      window.open(url, "_blank");
       refresh();
-    } catch {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-      toast.error("Failed to download combined image");
-    } finally {
-      setDownloading(false);
-      setDlProgress(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start combine");
     }
   }
+
+  async function handleRetry() {
+    // Clear the failed status first
+    await fetch(`/api/print-groups/${group.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: group.name }),
+    });
+    refresh();
+    // Then trigger a new combine after a short delay
+    setTimeout(handleCombineStart, 500);
+  }
+
+  // Phase text from in-memory detail or fallback to generic
+  const phase = phaseDetail?.phase || (isProcessing ? "downloading" : null);
 
   return (
     <Card>
@@ -940,7 +970,7 @@ function PrintGroupCard({
                   size="sm"
                   variant="ghost"
                   onClick={() => onReleaseGroup(group.id)}
-                  disabled={actionLoading === `release-${group.id}`}
+                  disabled={actionLoading === `release-${group.id}` || isProcessing}
                   title={tPQ("release")}
                 >
                   {actionLoading === `release-${group.id}` ? (
@@ -950,36 +980,47 @@ function PrintGroupCard({
                   )}
                   {tPQ("release")}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDownloadAll}
-                  disabled={downloading}
-                >
-                  {downloading ? (
+                {isProcessing ? (
+                  <Button size="sm" variant="outline" disabled>
                     <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Download className="h-3 w-3" />
-                  )}
-                  {downloading ? tPQ("combining") : tPQ("downloadCombined")}
-                </Button>
-                {group.combinedFileUrl && (
+                    {tPQ("combining")}
+                  </Button>
+                ) : (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(group.combinedFileUrl!);
-                      toast.success(tPQ("linkCopied"));
-                    }}
+                    onClick={handleCombineStart}
                   >
-                    <Link2 className="h-3 w-3" />
-                    {tPQ("copyLink")}
+                    <Download className="h-3 w-3" />
+                    {tPQ("downloadCombined")}
                   </Button>
+                )}
+                {group.combinedFileUrl && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(group.combinedFileUrl!, "_blank")}
+                    >
+                      <Download className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(group.combinedFileUrl!);
+                        toast.success(tPQ("linkCopied"));
+                      }}
+                    >
+                      <Link2 className="h-3 w-3" />
+                      {tPQ("copyLink")}
+                    </Button>
+                  </>
                 )}
                 <Button
                   size="sm"
                   onClick={() => setConfirmPrintOpen(true)}
-                  disabled={actionLoading === `printed-${group.id}`}
+                  disabled={actionLoading === `printed-${group.id}` || isProcessing}
                 >
                   {actionLoading === `printed-${group.id}` ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -993,29 +1034,42 @@ function PrintGroupCard({
           </div>
         </div>
 
-        {downloading && dlProgress && (
+        {/* Background progress bar */}
+        {isProcessing && (
           <div className="mt-3 space-y-1">
             <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
               <div
                 className="h-full rounded-full bg-blue-500 transition-all duration-500"
-                style={{ width: `${dlProgress.progress}%` }}
+                style={{ width: `${group.downloadProgress}%` }}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {dlProgress.phase === "downloading" &&
+              {phase === "downloading" &&
                 tPQ("progressDownloading", {
-                  current: dlProgress.currentImage ?? 0,
-                  total: dlProgress.totalImages ?? 0,
+                  current: phaseDetail?.currentImage ?? 0,
+                  total: phaseDetail?.totalImages ?? group.items.length,
                 })}
-              {dlProgress.phase === "generating" &&
+              {phase === "generating" &&
                 tPQ("progressGenerating", {
-                  current: dlProgress.currentChunk ?? 0,
-                  total: dlProgress.totalChunks ?? 0,
+                  current: phaseDetail?.currentChunk ?? 0,
+                  total: phaseDetail?.totalChunks ?? 0,
                 })}
-              {dlProgress.phase === "zipping" && tPQ("progressZipping")}
-              {dlProgress.phase === "uploading" && tPQ("progressUploading")}
-              {" — "}{dlProgress.progress}%
+              {phase === "zipping" && tPQ("progressZipping")}
+              {phase === "uploading" && tPQ("progressUploading")}
+              {" — "}{group.downloadProgress}%
+              {etaText && <>{" — "}{etaText}</>}
             </p>
+          </div>
+        )}
+
+        {/* Failed state */}
+        {isFailed && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-red-600">
+            <AlertTriangle className="h-4 w-4" />
+            <span>{tPQ("combineFailed")}{group.downloadError ? `: ${group.downloadError}` : ""}</span>
+            <Button size="xs" variant="outline" onClick={handleRetry}>
+              {tPQ("retry")}
+            </Button>
           </div>
         )}
 

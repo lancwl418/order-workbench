@@ -45,7 +45,13 @@ export async function PATCH(
   if (parsed.data.name && !parsed.data.status) {
     const updated = await prisma.printGroup.update({
       where: { id },
-      data: { name: parsed.data.name, combinedFileUrl: null },
+      data: {
+        name: parsed.data.name,
+        combinedFileUrl: null,
+        downloadStatus: null,
+        downloadProgress: 0,
+        downloadError: null,
+      },
     });
     return NextResponse.json(updated);
   }
