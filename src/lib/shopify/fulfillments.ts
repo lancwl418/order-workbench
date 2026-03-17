@@ -43,21 +43,32 @@ export async function pushFulfillmentToShopify(params: {
     }>;
   };
 
-  // Find open fulfillment orders
-  const openFulfillmentOrders =
+  // Log all fulfillment order statuses for debugging
+  const allStatuses = fulfillmentOrdersBody.fulfillment_orders.map(
+    (fo) => `${fo.id}:${fo.status}`
+  );
+  console.log(
+    `Fulfillment orders for Shopify order ${params.shopifyOrderId}: [${allStatuses.join(", ")}]`
+  );
+
+  // Find fulfillable orders — accept open, in_progress, or scheduled
+  const fulfillableOrders =
     fulfillmentOrdersBody.fulfillment_orders.filter(
-      (fo) => fo.status === "open" || fo.status === "in_progress"
+      (fo) =>
+        fo.status === "open" ||
+        fo.status === "in_progress" ||
+        fo.status === "scheduled"
     );
 
-  if (openFulfillmentOrders.length > 0) {
-    // Create a new fulfillment for open orders
-    return createFulfillment(client, openFulfillmentOrders, params);
+  if (fulfillableOrders.length > 0) {
+    // Create a new fulfillment
+    return createFulfillment(client, fulfillableOrders, params);
   }
 
-  // No open fulfillment orders — order may already be fulfilled.
+  // No fulfillable orders — order may already be fulfilled.
   // Try to update tracking on an existing fulfillment instead.
   console.log(
-    `No open fulfillment orders for Shopify order ${params.shopifyOrderId}, checking existing fulfillments...`
+    `No fulfillable orders for Shopify order ${params.shopifyOrderId}, checking existing fulfillments...`
   );
 
   return updateExistingFulfillmentTracking(client, params);
