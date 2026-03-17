@@ -27,24 +27,48 @@ export async function pushFulfillmentToShopify(params: {
   const version = process.env.SHOPIFY_API_VERSION || "2025-01";
   const baseUrl = `https://${store}/admin/api/${version}`;
 
-  // First, get the fulfillment orders for this order to find the
-  // fulfillment_order_id (required by Shopify API)
-  const foRes = await fetch(
-    `${baseUrl}/orders/${params.shopifyOrderId}/fulfillment_orders.json`,
-    { headers: { "X-Shopify-Access-Token": token } }
+  console.log(
+    `[Shopify] Pushing fulfillment for order ${params.shopifyOrderId} using store=${store} version=${version}`
   );
 
-  if (!foRes.ok) {
-    const errText = await foRes.text();
-    console.error(
-      `[Shopify] GET fulfillment_orders failed: status=${foRes.status} body=${errText}`
+  // Step 0: Verify the order exists and log its details
+  const orderRes = await fetch(
+    `${baseUrl}/orders/${params.shopifyOrderId}.json?fields=id,name,fulfillment_status,financial_status,line_items`,
+    { headers: { "X-Shopify-Access-Token": token } }
+  );
+  if (orderRes.ok) {
+    const orderData = await orderRes.json();
+    const o = orderData.order;
+    console.log(
+      `[Shopify] Order verified: id=${o?.id} name=${o?.name} fulfillment_status=${o?.fulfillment_status} financial_status=${o?.financial_status} line_items_count=${o?.line_items?.length}`
     );
-    throw new Error(
-      `Shopify API error ${foRes.status} fetching fulfillment orders for order ${params.shopifyOrderId}`
+  } else {
+    const errText = await orderRes.text();
+    console.error(
+      `[Shopify] GET order failed: status=${orderRes.status} body=${errText.substring(0, 500)}`
     );
   }
 
-  const foData = (await foRes.json()) as {
+  // Step 1: Get the fulfillment orders for this order
+  const foUrl = `${baseUrl}/orders/${params.shopifyOrderId}/fulfillment_orders.json`;
+  console.log(`[Shopify] GET ${foUrl}`);
+  const foRes = await fetch(foUrl, {
+    headers: { "X-Shopify-Access-Token": token },
+  });
+
+  // Log the RAW response body for debugging
+  const foRawText = await foRes.text();
+  console.log(
+    `[Shopify] fulfillment_orders raw response: status=${foRes.status} body=${foRawText.substring(0, 1000)}`
+  );
+
+  if (!foRes.ok) {
+    throw new Error(
+      `Shopify API error ${foRes.status} fetching fulfillment orders for order ${params.shopifyOrderId}: ${foRawText.substring(0, 200)}`
+    );
+  }
+
+  const foData = JSON.parse(foRawText) as {
     fulfillment_orders: Array<{
       id: number;
       status: string;
@@ -56,11 +80,11 @@ export async function pushFulfillmentToShopify(params: {
   };
 
   // Log all fulfillment order statuses for debugging
-  const allStatuses = foData.fulfillment_orders.map(
+  const allStatuses = (foData.fulfillment_orders || []).map(
     (fo) => `${fo.id}:${fo.status}`
   );
   console.log(
-    `[Shopify] GET fulfillment_orders for order ${params.shopifyOrderId}: status=${foRes.status} count=${foData.fulfillment_orders.length} [${allStatuses.join(", ")}]`
+    `[Shopify] Parsed fulfillment_orders: count=${foData.fulfillment_orders?.length ?? "undefined"} keys=${Object.keys(foData).join(",")} [${allStatuses.join(", ")}]`
   );
 
   // Find fulfillable orders — accept open, in_progress, or scheduled
