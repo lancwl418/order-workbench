@@ -40,6 +40,7 @@ import {
   Check,
   Undo2,
   AlertTriangle,
+  Link2,
 } from "lucide-react";
 
 const MAX_HEIGHT = 3897;
@@ -781,7 +782,27 @@ function PrintGroupCard({
 
   const [downloading, setDownloading] = useState(false);
 
+  function openCachedUrls() {
+    if (!group.combinedFileUrl) return;
+    try {
+      const urls = JSON.parse(group.combinedFileUrl) as string[];
+      if (Array.isArray(urls)) {
+        urls.forEach((u) => window.open(u, "_blank"));
+        return;
+      }
+    } catch {
+      // single URL string
+    }
+    window.open(group.combinedFileUrl, "_blank");
+  }
+
   async function handleDownloadAll() {
+    // If we already have cached URL(s), open them directly
+    if (group.combinedFileUrl) {
+      openCachedUrls();
+      return;
+    }
+
     setDownloading(true);
     try {
       const res = await fetch(`/api/print-groups/${group.id}/download`);
@@ -791,13 +812,26 @@ function PrintGroupCard({
         try { errMsg = JSON.parse(errText).error || errMsg; } catch { /* use default */ }
         throw new Error(errMsg);
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+
+      const contentType = res.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        // Multiple chunks — response is { urls, filename }
+        const data = await res.json();
+        if (data.urls && Array.isArray(data.urls)) {
+          data.urls.forEach((u: string) => window.open(u, "_blank"));
+          toast.success(`${data.urls.length} files ready`);
+        }
+      } else {
+        // Single file — redirected to R2, download the blob
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
     } catch {
       toast.error("Failed to download combined image");
     } finally {
@@ -863,6 +897,24 @@ function PrintGroupCard({
                   )}
                   {downloading ? tPQ("combining") : tPQ("downloadCombined")}
                 </Button>
+                {group.combinedFileUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      let text = group.combinedFileUrl!;
+                      try {
+                        const urls = JSON.parse(text);
+                        if (Array.isArray(urls)) text = urls.join("\n");
+                      } catch { /* single URL */ }
+                      navigator.clipboard.writeText(text);
+                      toast.success(tPQ("linkCopied"));
+                    }}
+                  >
+                    <Link2 className="h-3 w-3" />
+                    {tPQ("copyLink")}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={() => setConfirmPrintOpen(true)}

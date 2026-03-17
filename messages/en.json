@@ -248,6 +248,8 @@
     "release": "Release",
     "downloadCombined": "Download Combined",
     "combining": "Combining...",
+    "copyLink": "Copy Link",
+    "linkCopied": "Download link copied",
     "building": "Building",
     "ready": "Ready",
     "printed": "Printed",

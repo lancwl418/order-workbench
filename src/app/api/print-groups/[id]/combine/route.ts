@@ -38,7 +38,7 @@ export async function POST(
 
   await prisma.printGroup.update({
     where: { id },
-    data: { status: "READY" },
+    data: { status: "READY", combinedFileUrl: null },
   });
 
   // Update all orders in the group to GROUPED print status

@@ -17,6 +17,7 @@ sharp.concurrency(1);
 
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
 const ORDER_MARGIN = 90; // separator height in px
+const MAX_CHUNK_HEIGHT = 40000; // max ~133 inches per chunk
 
 function orderSeparatorSvg(
   text: string,
@@ -34,12 +35,82 @@ function orderSeparatorSvg(
   return Buffer.from(svg);
 }
 
+type Piece = { filePath: string; width: number; height: number };
+
+/**
+ * Generate a single combined PNG from a list of pieces.
+ * All pieces must fit within memory constraints.
+ */
+async function generateChunkPng(
+  pieces: Piece[],
+  outputPath: string,
+  canvasWidth: number
+): Promise<void> {
+  let totalHeight = 0;
+  const compositeInputs: sharp.OverlayOptions[] = [];
+
+  for (const piece of pieces) {
+    compositeInputs.push({
+      input: piece.filePath,
+      limitInputPixels: false,
+      top: totalHeight,
+      left: 0,
+    });
+    totalHeight += piece.height;
+  }
+
+  await sharp({
+    limitInputPixels: false,
+    create: {
+      width: canvasWidth,
+      height: totalHeight,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .composite(compositeInputs)
+    .png({ compressionLevel: 1 })
+    .toFile(outputPath);
+}
+
+/**
+ * Split pieces into chunks that don't exceed MAX_CHUNK_HEIGHT.
+ * Tries to split at order boundaries (separator pieces).
+ */
+function splitIntoChunks(pieces: Piece[]): Piece[][] {
+  const chunks: Piece[][] = [];
+  let currentChunk: Piece[] = [];
+  let currentHeight = 0;
+
+  for (let i = 0; i < pieces.length; i++) {
+    const piece = pieces[i];
+
+    // If adding this piece exceeds max height and chunk isn't empty,
+    // start a new chunk
+    if (currentHeight + piece.height > MAX_CHUNK_HEIGHT && currentChunk.length > 0) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      currentHeight = 0;
+    }
+
+    currentChunk.push(piece);
+    currentHeight += piece.height;
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
 /**
  * GET /api/print-groups/:id/download
  *
  * Fetches all gang sheet PNGs in the group, stitches them vertically
- * into one combined image, streams it to R2, cleans up /tmp immediately,
- * and redirects the client to the R2 CDN URL.
+ * into combined image(s), uploads to R2, and returns the download URL(s).
+ *
+ * For large groups, splits into multiple chunks to stay within memory.
  */
 export async function GET(
   _req: NextRequest,
@@ -74,11 +145,25 @@ export async function GET(
     return NextResponse.json({ error: "Group has no files" }, { status: 400 });
   }
 
+  // If already combined and uploaded, redirect to cached URL
+  if (group.combinedFileUrl) {
+    // Could be a single URL or JSON array of URLs
+    try {
+      const urls = JSON.parse(group.combinedFileUrl) as string[];
+      if (Array.isArray(urls)) {
+        return NextResponse.json({ urls, filename: group.name });
+      }
+    } catch {
+      // Single URL string
+      return NextResponse.redirect(group.combinedFileUrl);
+    }
+  }
+
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "combine-"));
 
   try {
     // Step 1: Download all images and collect metadata
-    const pieces: { filePath: string; width: number; height: number }[] = [];
+    const pieces: Piece[] = [];
 
     for (let i = 0; i < group.items.length; i++) {
       const item = group.items[i];
@@ -117,61 +202,67 @@ export async function GET(
       pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height! });
     }
 
-    // Step 2: Calculate canvas dimensions and y-offsets
     const canvasWidth = Math.max(...pieces.map((p) => p.width));
-    let totalHeight = 0;
-    const compositeInputs: sharp.OverlayOptions[] = [];
+    const totalHeight = pieces.reduce((sum, p) => sum + p.height, 0);
+    console.log(`Total: ${pieces.length} pieces, ${canvasWidth}x${totalHeight}px`);
 
-    for (const piece of pieces) {
-      compositeInputs.push({
-        input: piece.filePath,
-        limitInputPixels: false,
-        top: totalHeight,
-        left: 0,
+    // Step 2: Split into chunks if needed
+    const chunks = splitIntoChunks(pieces);
+    console.log(`Split into ${chunks.length} chunk(s)`);
+
+    const baseName = group.name.replace(/[^a-zA-Z0-9#]/g, "-");
+
+    if (chunks.length === 1) {
+      // Single chunk — generate one file
+      const outputPath = path.join(tmpDir, "output.png");
+      await generateChunkPng(chunks[0], outputPath, canvasWidth);
+
+      const stat = await fs.stat(outputPath);
+      console.log(`Output: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
+
+      // Upload to R2
+      const r2Key = `combined/${Date.now()}-${baseName}.png`;
+      const uploadStream = createReadStream(outputPath);
+      const r2Url = await streamUploadToR2(uploadStream, r2Key, "image/png", stat.size);
+
+      await prisma.printGroup.update({
+        where: { id },
+        data: { combinedFileUrl: r2Url },
       });
-      totalHeight += piece.height;
+
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      return NextResponse.redirect(r2Url);
+    } else {
+      // Multiple chunks — generate each, upload, return URLs
+      const urls: string[] = [];
+
+      for (let c = 0; c < chunks.length; c++) {
+        const chunkPath = path.join(tmpDir, `chunk-${c}.png`);
+        const chunkHeight = chunks[c].reduce((sum, p) => sum + p.height, 0);
+        console.log(`Generating chunk ${c + 1}/${chunks.length}: ${canvasWidth}x${chunkHeight}px`);
+
+        await generateChunkPng(chunks[c], chunkPath, canvasWidth);
+
+        const stat = await fs.stat(chunkPath);
+        console.log(`Chunk ${c + 1}: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
+
+        const r2Key = `combined/${Date.now()}-${baseName}-part${c + 1}.png`;
+        const uploadStream = createReadStream(chunkPath);
+        const r2Url = await streamUploadToR2(uploadStream, r2Key, "image/png", stat.size);
+        urls.push(r2Url);
+
+        // Delete chunk immediately to free disk
+        await fs.unlink(chunkPath).catch(() => {});
+      }
+
+      await prisma.printGroup.update({
+        where: { id },
+        data: { combinedFileUrl: JSON.stringify(urls) },
+      });
+
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      return NextResponse.json({ urls, filename: baseName });
     }
-
-    console.log(
-      `Compositing ${pieces.length} pieces → ${canvasWidth}x${totalHeight}px`
-    );
-
-    // Step 3: Single-pass composite — libvips tiles through the output
-    const outputPath = path.join(tmpDir, "output.png");
-    await sharp({
-      limitInputPixels: false,
-      create: {
-        width: canvasWidth,
-        height: totalHeight,
-        channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      },
-    })
-      .composite(compositeInputs)
-      .png({ compressionLevel: 1 })
-      .toFile(outputPath);
-
-    const stat = await fs.stat(outputPath);
-    console.log(`Output file size: ${(stat.size / 1024 / 1024).toFixed(1)}MB`);
-
-    // Step 4: Stream upload to R2 (no full-file memory read)
-    const filename = `${group.name.replace(/[^a-zA-Z0-9#]/g, "-")}.png`;
-    const r2Key = `combined/${Date.now()}-${filename}`;
-    const uploadStream = createReadStream(outputPath);
-
-    const r2Url = await streamUploadToR2(
-      uploadStream,
-      r2Key,
-      "image/png",
-      stat.size
-    );
-    console.log(`Uploaded to R2: ${r2Key}`);
-
-    // Step 5: Clean up /tmp immediately — everything is on R2 now
-    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-
-    // Redirect client to R2 CDN URL
-    return NextResponse.redirect(r2Url);
   } catch (e) {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     console.error("Download combine error:", e);
