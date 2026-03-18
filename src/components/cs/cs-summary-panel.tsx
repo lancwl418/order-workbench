@@ -209,6 +209,7 @@ export function CsSummaryPanel({
 function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
+  const tCommon = useTranslations("common");
   const latestComment = order.csComments[0];
 
   const issueLabel = order.csIssueType
@@ -222,8 +223,10 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
     latestComment?.user?.username ||
     null;
 
+  const hasComments = order.csComments.length > 0;
+
   return (
-    <div className="border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
+    <div className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
       <div className="flex items-center justify-between gap-1">
         <Link
           href={`/orders/${order.id}`}
@@ -263,6 +266,31 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
       {latestComment && (
         <div className="text-[10px] text-muted-foreground/60">
           {timeAgo(latestComment.createdAt)}
+        </div>
+      )}
+
+      {/* Hover popover showing all comments */}
+      {hasComments && (
+        <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72">
+          <div className="rounded-lg border bg-popover p-3 shadow-lg max-h-48 overflow-y-auto space-y-2">
+            {order.csComments.map((c) => {
+              const author =
+                c.user?.displayName || c.user?.username || tCommon("system");
+              return (
+                <div key={c.id} className="space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">{author}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {timeAgo(c.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                    {c.content}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

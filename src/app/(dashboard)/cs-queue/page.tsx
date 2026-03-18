@@ -177,11 +177,11 @@ export default function CSQueuePage() {
           return (
             <button
               onClick={() => setSheetOrder(order)}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
             >
-              <MessageSquare className="h-3.5 w-3.5" />
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
               {note ? (
-                <span className="max-w-[150px] truncate">{note}</span>
+                <span className="max-w-[200px] truncate">{note}</span>
               ) : (
                 <span className="text-xs">{tCS("addNote")}</span>
               )}

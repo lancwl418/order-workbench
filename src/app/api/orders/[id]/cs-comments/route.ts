@@ -58,18 +58,25 @@ export async function POST(
 
   const mentions = parsed.data.mentions || [];
 
-  const comment = await prisma.csComment.create({
-    data: {
-      orderId: id,
-      userId: session.user?.id,
-      content: parsed.data.content,
-      attachments: parsed.data.attachments || [],
-      mentions,
-    },
-    include: {
-      user: { select: { displayName: true, username: true } },
-    },
-  });
+  const [comment] = await prisma.$transaction([
+    prisma.csComment.create({
+      data: {
+        orderId: id,
+        userId: session.user?.id,
+        content: parsed.data.content,
+        attachments: parsed.data.attachments || [],
+        mentions,
+      },
+      include: {
+        user: { select: { displayName: true, username: true } },
+      },
+    }),
+    // Denormalize latest comment into csNote for quick display
+    prisma.order.update({
+      where: { id },
+      data: { csNote: parsed.data.content },
+    }),
+  ]);
 
   // Create notifications for mentioned users
   if (mentions.length > 0) {
