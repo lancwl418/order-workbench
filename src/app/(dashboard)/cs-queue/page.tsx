@@ -30,7 +30,6 @@ import type { OrderListItem } from "@/types";
 import type { CsCommentWithUser } from "@/types";
 import Link from "next/link";
 import {
-  Star,
   Flag,
   Loader2,
   MessageSquare,
@@ -41,25 +40,9 @@ import {
   X,
 } from "lucide-react";
 import { MentionInput } from "@/components/cs/mention-input";
+import { PriorityStars } from "@/components/cs/priority-stars";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-function PriorityStars({ priority }: { priority: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={`h-3.5 w-3.5 ${
-            i < priority
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
 
 export default function CSQueuePage() {
   const isMobile = useIsMobile();

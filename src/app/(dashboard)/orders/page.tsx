@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
+import { CsSummaryPanel } from "@/components/cs/cs-summary-panel";
 
 type StatusCounts = Record<string, number>;
 
@@ -390,6 +391,8 @@ export default function OrdersPage() {
           return <div key={card.key}>{content}</div>;
         })}
       </div>
+
+      <CsSummaryPanel onRefreshCounts={refreshCounts} onRefreshOrders={refresh} />
 
       <OrderFilterBar
         filters={filters}

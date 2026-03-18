@@ -141,8 +141,9 @@ export const CS_ISSUE_TYPES = [
   "background",
   "image_quality",
   "size_issue",
-  "order_details",
-  "customer_details",
+  "shipping_issue",
+  "design_edit",
+  "complaint",
   "others",
 ] as const;
 
@@ -150,8 +151,9 @@ export const CS_ISSUE_TYPE_LABELS: Record<string, string> = {
   background: "Background",
   image_quality: "Image Quality",
   size_issue: "Size Issue",
-  order_details: "Order Details",
-  customer_details: "Customer Details",
+  shipping_issue: "Shipping Issue",
+  design_edit: "Design Edit",
+  complaint: "Complaint",
   others: "Others",
 };
 

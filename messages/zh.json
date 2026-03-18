@@ -92,8 +92,9 @@
     "background": "背景",
     "image_quality": "图片质量",
     "size_issue": "尺寸问题",
-    "order_details": "订单详情",
-    "customer_details": "客户信息",
+    "shipping_issue": "物流问题",
+    "design_edit": "设计修改",
+    "complaint": "投诉",
     "others": "其他"
   },
   "exception": {
@@ -457,6 +458,21 @@
       "csNotes": "客服备注",
       "date": "日期",
       "actions": "操作"
+    },
+    "summaryPanel": {
+      "title": "客服问题概览",
+      "noIssues": "暂无客服问题",
+      "uncategorized": "未分类",
+      "createIssue": "新建客服问题",
+      "orderSearch": "搜索订单...",
+      "selectOrder": "选择订单",
+      "noResults": "未找到订单",
+      "priority": "优先级",
+      "createButton": "创建问题",
+      "creating": "创建中...",
+      "created": "客服问题已创建",
+      "issueCount": "{count} 个问题",
+      "all": "全部"
     }
   }
 }

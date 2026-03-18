@@ -92,8 +92,9 @@
     "background": "Background",
     "image_quality": "Image Quality",
     "size_issue": "Size Issue",
-    "order_details": "Order Details",
-    "customer_details": "Customer Details",
+    "shipping_issue": "Shipping Issue",
+    "design_edit": "Design Edit",
+    "complaint": "Complaint",
     "others": "Others"
   },
   "exception": {
@@ -457,6 +458,21 @@
       "csNotes": "CS Notes",
       "date": "Date",
       "actions": "Actions"
+    },
+    "summaryPanel": {
+      "title": "CS Issues Overview",
+      "noIssues": "No CS issues",
+      "uncategorized": "Uncategorized",
+      "createIssue": "New CS Issue",
+      "orderSearch": "Search for an order...",
+      "selectOrder": "Select an order",
+      "noResults": "No orders found",
+      "priority": "Priority",
+      "createButton": "Create Issue",
+      "creating": "Creating...",
+      "created": "CS issue created",
+      "issueCount": "{count} issues",
+      "all": "All"
     }
   }
 }
