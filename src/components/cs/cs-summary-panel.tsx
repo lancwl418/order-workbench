@@ -271,7 +271,7 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
 
       {/* Hover popover showing all comments */}
       {hasComments && (
-        <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72">
+        <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
           <div className="rounded-lg border bg-popover p-3 shadow-lg max-h-48 overflow-y-auto space-y-2">
             {order.csComments.map((c) => {
               const author =
