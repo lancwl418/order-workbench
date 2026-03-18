@@ -58,6 +58,16 @@ export async function POST(
 
   const mentions = parsed.data.mentions || [];
 
+  // Auto-set csFlag + REVIEW status when comment is added
+  const needsFlag = !order.csFlag;
+  const orderUpdateData: Record<string, unknown> = {
+    csNote: parsed.data.content,
+  };
+  if (needsFlag) {
+    orderUpdateData.csFlag = true;
+    orderUpdateData.internalStatus = "REVIEW";
+  }
+
   const [comment] = await prisma.$transaction([
     prisma.csComment.create({
       data: {
@@ -71,12 +81,26 @@ export async function POST(
         user: { select: { displayName: true, username: true } },
       },
     }),
-    // Denormalize latest comment into csNote for quick display
+    // Denormalize latest comment + auto-flag for CS
     prisma.order.update({
       where: { id },
-      data: { csNote: parsed.data.content },
+      data: orderUpdateData,
     }),
   ]);
+
+  // Log csFlag change
+  if (needsFlag) {
+    await prisma.orderLog.create({
+      data: {
+        orderId: id,
+        userId: session.user?.id,
+        action: "cs_flagged",
+        fromValue: order.internalStatus,
+        toValue: "REVIEW",
+        message: "Auto-flagged by comment",
+      },
+    });
+  }
 
   // Create notifications for mentioned users
   if (mentions.length > 0) {

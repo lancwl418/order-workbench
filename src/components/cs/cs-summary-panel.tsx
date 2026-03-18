@@ -255,7 +255,11 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
           {commentAuthor && (
             <span className="font-medium">{commentAuthor}: </span>
           )}
-          {latestComment.content}
+          {latestComment.content.split(/(@\S+)/g).map((part, i) =>
+            part.startsWith("@") ? (
+              <span key={i} className="font-medium text-primary">{part}</span>
+            ) : (part)
+          )}
         </div>
       ) : order.csNote ? (
         <div className="text-xs text-muted-foreground line-clamp-2">
@@ -285,7 +289,11 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {c.content}
+                    {c.content.split(/(@\S+)/g).map((part, i) =>
+                      part.startsWith("@") ? (
+                        <span key={i} className="font-medium text-primary">{part}</span>
+                      ) : (part)
+                    )}
                   </p>
                 </div>
               );
