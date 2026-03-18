@@ -40,7 +40,9 @@ export function createColumns(opts: {
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
   onOmsPush?: (orderId: string) => void;
+  onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
+  syncingId: string | null;
   shopifyStoreDomain?: string;
   t: {
     orderNumber: string;
@@ -327,6 +329,10 @@ export function createColumns(opts: {
           );
         }
 
+        const isOms = shipment?.providerName === "eccangtms";
+        const syncStatus = shipment?.syncStatus || "NOT_SYNCED";
+        const syncing = opts.syncingId === shipment?.id;
+
         return (
           <div className="space-y-0.5">
             {carrier && (
@@ -348,7 +354,36 @@ export function createColumns(opts: {
                 {tracking}
               </span>
             )}
-            {transitStatus && <StatusBadge status={transitStatus} />}
+            <div className="flex items-center gap-1">
+              {transitStatus && <StatusBadge status={transitStatus} />}
+              {isOms && syncStatus === "SYNCED" && (
+                <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-0 gap-0.5 px-1.5 py-0">
+                  Synced
+                </Badge>
+              )}
+              {isOms && syncStatus === "FAILED" && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-[10px] h-5 text-red-600 border-red-200 hover:bg-red-50"
+                  disabled={syncing}
+                  onClick={() => shipment && opts.onSyncToShopify?.(shipment.id)}
+                >
+                  {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Retry Sync"}
+                </Button>
+              )}
+              {isOms && syncStatus === "NOT_SYNCED" && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="text-[10px] h-5"
+                  disabled={syncing}
+                  onClick={() => shipment && opts.onSyncToShopify?.(shipment.id)}
+                >
+                  {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Sync to Shopify"}
+                </Button>
+              )}
+            </div>
           </div>
         );
       },

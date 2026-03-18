@@ -102,6 +102,7 @@ export default function OrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState<OrderListItem[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [statusLoading, setStatusLoading] = useState<string | null>(null);
+  const [syncingShipmentId, setSyncingShipmentId] = useState<string | null>(null);
 
   // CS Flag dialog state
   const [csFlagOrderId, setCsFlagOrderId] = useState<string | null>(null);
@@ -185,6 +186,30 @@ export default function OrdersPage() {
         refresh();
       } catch {
         toast.error("Failed to update CS flag");
+      }
+    },
+    [refresh]
+  );
+
+  const handleSyncToShopify = useCallback(
+    async (shipmentId: string) => {
+      setSyncingShipmentId(shipmentId);
+      try {
+        const res = await fetch("/api/fulfillment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shipmentId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || data.details || "Sync failed");
+        }
+        toast.success("Synced to Shopify");
+        refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Sync failed");
+      } finally {
+        setSyncingShipmentId(null);
       }
     },
     [refresh]
@@ -276,7 +301,9 @@ export default function OrdersPage() {
         onCsToggle: handleCsToggle,
         onDeliveryMethodChange: openDeliveryConfirm,
         onOmsPush: (orderId) => setOmsPushOrderId(orderId),
+        onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
+        syncingId: syncingShipmentId,
         shopifyStoreDomain: process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN,
         t: {
           orderNumber: tOrders("columns.orderNumber"),
@@ -298,7 +325,7 @@ export default function OrdersPage() {
           csFlag: tOrders("csFlag"),
         },
       }),
-    [handleStatusChange, handlePrintStatusChange, handleCsToggle, openDeliveryConfirm, statusLoading, tOrders, printLabels]
+    [handleStatusChange, handlePrintStatusChange, handleCsToggle, handleSyncToShopify, openDeliveryConfirm, statusLoading, syncingShipmentId, tOrders, printLabels]
   );
 
   async function handleSync() {

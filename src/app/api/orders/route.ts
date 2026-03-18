@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         shipments: {
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { status: true, carrier: true, trackingNumber: true, trackingUrl: true },
+          select: { id: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true, syncStatus: true, providerName: true },
         },
         _count: { select: { shipments: true } },
       },

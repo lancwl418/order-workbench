@@ -26,10 +26,13 @@ export type OrderWithRelations = Order & {
 };
 
 export type ShipmentSummary = {
+  id: string;
   status: string | null;
   carrier: string | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
+  syncStatus: string;
+  providerName: string | null;
 };
 
 export type OrderListItem = Order & {
