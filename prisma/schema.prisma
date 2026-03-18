@@ -147,6 +147,9 @@ model Order {
   csRequiredAction String? @map("cs_required_action")
   csLastContactTime DateTime? @map("cs_last_contact_time")
 
+  // Extra print files (not tied to order items)
+  extraPrintFiles Json? @default("[]") @map("extra_print_files")
+
   // Metadata
   tags      String[] @default([])
   notes     String?  @db.Text

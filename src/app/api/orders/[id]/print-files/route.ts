@@ -38,6 +38,7 @@ export async function GET(
     select: {
       id: true,
       shopifyOrderNumber: true,
+      extraPrintFiles: true,
       orderItems: {
         select: {
           id: true,
@@ -127,6 +128,20 @@ export async function GET(
         });
       }
     }
+  }
+
+  // Append extra print files (not tied to order items)
+  const extras = (order.extraPrintFiles as { url: string; filename: string }[] | null) || [];
+  for (const extra of extras) {
+    files.push({
+      url: extra.url,
+      filename: extra.filename,
+      sourceUrl: extra.url,
+      orderItemIds: [],
+      hasOriginal: false,
+      originalSourceUrl: null,
+      version: "current",
+    });
   }
 
   return NextResponse.json({ files });

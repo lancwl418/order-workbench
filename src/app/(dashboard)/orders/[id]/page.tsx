@@ -1054,11 +1054,6 @@ function PrintFilesSection({
   async function handleUploadNew(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const targetItem = orderItems.find((i) => !i.designFileUrl) || orderItems[0];
-    if (!targetItem) {
-      toast.error("No order item to attach file to");
-      return;
-    }
     setUploadingNew(true);
     try {
       const form = new FormData();
@@ -1069,14 +1064,30 @@ function PrintFilesSection({
         throw new Error(data.error || "Upload failed");
       }
       const { url } = await uploadRes.json();
-      const patchRes = await fetch(`/api/order-items/${targetItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ designFileUrl: url }),
-      });
-      if (!patchRes.ok) {
-        const data = await patchRes.json();
-        throw new Error(data.error || "Failed to set print file");
+
+      // If there's an order item without a file, assign to it
+      const targetItem = orderItems.find((i) => !i.designFileUrl);
+      if (targetItem) {
+        const patchRes = await fetch(`/api/order-items/${targetItem.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ designFileUrl: url }),
+        });
+        if (!patchRes.ok) {
+          const data = await patchRes.json();
+          throw new Error(data.error || "Failed to set print file");
+        }
+      } else {
+        // All items have files — add as extra print file
+        const patchRes = await fetch(`/api/orders/${orderId}/extra-print-files`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, filename: file.name }),
+        });
+        if (!patchRes.ok) {
+          const data = await patchRes.json();
+          throw new Error(data.error || "Failed to add extra print file");
+        }
       }
       toast.success("Print file uploaded");
       onUpdated();
@@ -1155,11 +1166,24 @@ function PrintFilesSection({
     if (!deleteConfirmFile) return;
     setDeleting(true);
     try {
-      for (const itemId of deleteConfirmFile.orderItemIds) {
-        const res = await fetch(`/api/order-items/${itemId}`, { method: "DELETE" });
+      if (deleteConfirmFile.orderItemIds.length === 0) {
+        // Extra print file — delete via order API
+        const res = await fetch(`/api/orders/${orderId}/extra-print-files`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: deleteConfirmFile.sourceUrl }),
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to delete");
+        }
+      } else {
+        for (const itemId of deleteConfirmFile.orderItemIds) {
+          const res = await fetch(`/api/order-items/${itemId}`, { method: "DELETE" });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Failed to delete");
+          }
         }
       }
       toast.success(t("fileDeleted"));
@@ -1255,9 +1279,14 @@ function PrintFilesSection({
                         {t("replaced")}
                       </span>
                     )}
+                    {file.orderItemIds.length === 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 shrink-0">
+                        extra
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">
-                    {canReplace && file.version === "current" && editingIdx !== i && (
+                    {canReplace && file.version === "current" && file.orderItemIds.length > 0 && editingIdx !== i && (
                       <button
                         onClick={() => {
                           setEditingIdx(i);
