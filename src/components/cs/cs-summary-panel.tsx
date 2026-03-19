@@ -211,8 +211,8 @@ export function CsSummaryPanel({
                 </div>
               )}
 
-              {/* Order cards grid — no overflow so hover popovers aren't clipped */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pb-1">
+              {/* Order cards grid — scroll after 3 rows, peek 4th row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pb-1 max-h-[26rem] overflow-y-auto">
                 {filteredOrders.map((order) => (
                   <CsSummaryCard
                     key={order.id}
