@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -364,8 +365,39 @@ function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrd
 
   const hasComments = order.csComments.length > 0;
 
+  // Portal-based hover popover to avoid scroll container clipping
+  const cardRef = useRef<HTMLDivElement>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [popoverVisible, setPopoverVisible] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+
+  const showPopover = useCallback(() => {
+    clearTimeout(hideTimer.current);
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      setPopoverStyle({
+        position: "fixed",
+        top: rect.top - 4,
+        right: window.innerWidth - rect.right,
+        transform: "translateY(-100%)",
+        zIndex: 50,
+        width: "18rem",
+      });
+    }
+    setPopoverVisible(true);
+  }, []);
+
+  const hidePopover = useCallback(() => {
+    hideTimer.current = setTimeout(() => setPopoverVisible(false), 150);
+  }, []);
+
   return (
-    <div className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
+    <div
+      ref={cardRef}
+      className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors"
+      onMouseEnter={hasComments ? showPopover : undefined}
+      onMouseLeave={hasComments ? hidePopover : undefined}
+    >
       {/* Action buttons — top-right, visible on hover */}
       <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 z-10">
         <button
@@ -436,9 +468,13 @@ function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrd
         </div>
       )}
 
-      {/* Hover popover showing all comments */}
-      {hasComments && (
-        <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
+      {/* Hover popover via portal — not clipped by scroll container */}
+      {hasComments && popoverVisible && createPortal(
+        <div
+          style={popoverStyle}
+          onMouseEnter={showPopover}
+          onMouseLeave={hidePopover}
+        >
           <div className="rounded-lg border bg-popover p-3 shadow-lg max-h-48 overflow-y-auto space-y-2">
             {order.csComments.map((c) => {
               const author =
@@ -482,7 +518,8 @@ function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrd
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
