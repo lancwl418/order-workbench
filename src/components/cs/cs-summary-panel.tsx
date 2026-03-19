@@ -242,6 +242,18 @@ function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssu
 
   return (
     <div className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
+      {/* Add issue button — top-right, visible on hover */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onAddIssue();
+        }}
+        className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center h-5 w-5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors z-10"
+        title={tCS("summaryPanel.createIssue")}
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+
       <div className="flex items-center justify-between gap-1">
         <Link
           href={`/orders/${order.id}`}
@@ -289,47 +301,33 @@ function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssu
       )}
 
       {/* Hover popover showing all comments */}
-      <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
-        <div className="rounded-lg border bg-popover shadow-lg">
-          {hasComments && (
-            <div className="p-3 max-h-48 overflow-y-auto space-y-2">
-              {order.csComments.map((c) => {
-                const author =
-                  c.user?.displayName || c.user?.username || tCommon("system");
-                return (
-                  <div key={c.id} className="space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">{author}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {timeAgo(c.createdAt)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {c.content.split(/(@\S+)/g).map((part, i) =>
-                        part.startsWith("@") ? (
-                          <span key={i} className="font-medium text-primary">{part}</span>
-                        ) : (part)
-                      )}
-                    </p>
+      {hasComments && (
+        <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
+          <div className="rounded-lg border bg-popover p-3 shadow-lg max-h-48 overflow-y-auto space-y-2">
+            {order.csComments.map((c) => {
+              const author =
+                c.user?.displayName || c.user?.username || tCommon("system");
+              return (
+                <div key={c.id} className="space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">{author}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {timeAgo(c.createdAt)}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          <div className={`px-3 py-2 ${hasComments ? "border-t" : ""}`}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddIssue();
-              }}
-              className="flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <Plus className="h-3 w-3" />
-              {tCS("summaryPanel.createIssue")}
-            </button>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                    {c.content.split(/(@\S+)/g).map((part, i) =>
+                      part.startsWith("@") ? (
+                        <span key={i} className="font-medium text-primary">{part}</span>
+                      ) : (part)
+                    )}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
