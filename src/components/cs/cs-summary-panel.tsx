@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PriorityStars } from "@/components/cs/priority-stars";
 import { CreateCsIssueDialog } from "@/components/cs/create-cs-issue-dialog";
 import { CS_ISSUE_TYPES } from "@/lib/constants";
-import { Plus, ChevronDown, ChevronUp, Headset } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Headset, ImageIcon, FileText } from "lucide-react";
 import type { CsCommentWithUser } from "@/types";
 import { timeAgo } from "@/lib/utils";
 
@@ -322,6 +322,26 @@ function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssu
                       ) : (part)
                     )}
                   </p>
+                  {c.attachments?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {c.attachments.map((url, i) => {
+                        const filename = url.split("/").pop() || "file";
+                        const isImage = /\.(png|jpe?g|webp)$/i.test(filename);
+                        return (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-blue-600 hover:underline"
+                          >
+                            {isImage ? <ImageIcon className="h-2.5 w-2.5 shrink-0" /> : <FileText className="h-2.5 w-2.5 shrink-0" />}
+                            <span className="max-w-[100px] truncate">{filename.replace(/^\d{10,}-/, "")}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
