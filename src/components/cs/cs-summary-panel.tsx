@@ -17,7 +17,7 @@ import { PriorityStars } from "@/components/cs/priority-stars";
 import { CreateCsIssueDialog } from "@/components/cs/create-cs-issue-dialog";
 import { MentionInput } from "@/components/cs/mention-input";
 import { CS_ISSUE_TYPES } from "@/lib/constants";
-import { Plus, ChevronDown, ChevronUp, Headset, ImageIcon, FileText, MessageSquarePlus, Loader2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Headset, ImageIcon, FileText, MessageSquarePlus, Loader2, CheckCircle2 } from "lucide-react";
 import type { CsCommentWithUser } from "@/types";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
@@ -54,6 +54,24 @@ export function CsSummaryPanel({
   const [collapsed, setCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Resolve handler: unflag CS + revert status
+  async function handleResolve(orderId: string) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csFlag: false }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success("Issue resolved");
+      mutate();
+      onRefreshCounts();
+      onRefreshOrders();
+    } catch {
+      toast.error("Failed to resolve");
+    }
+  }
 
   // Add comment dialog state
   const [commentOrderId, setCommentOrderId] = useState<string | null>(null);
@@ -207,6 +225,7 @@ export function CsSummaryPanel({
                       setCommentText("");
                       setCommentMentions([]);
                     }}
+                    onResolve={() => handleResolve(order.id)}
                   />
                 ))}
               </div>
@@ -326,7 +345,7 @@ export function CsSummaryPanel({
   );
 }
 
-function CsSummaryCard({ order, onAddComment }: { order: CsSummaryOrder; onAddComment: () => void }) {
+function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrder; onAddComment: () => void; onResolve: () => void }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -347,17 +366,29 @@ function CsSummaryCard({ order, onAddComment }: { order: CsSummaryOrder; onAddCo
 
   return (
     <div className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
-      {/* Add comment button — top-right, visible on hover */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onAddComment();
-        }}
-        className="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors z-10"
-      >
-        <MessageSquarePlus className="h-3 w-3" />
-        Comment
-      </button>
+      {/* Action buttons — top-right, visible on hover */}
+      <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 z-10">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onResolve();
+          }}
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-green-700 bg-green-100 hover:bg-green-200 transition-colors"
+        >
+          <CheckCircle2 className="h-3 w-3" />
+          Resolve
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddComment();
+          }}
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+        >
+          <MessageSquarePlus className="h-3 w-3" />
+          Comment
+        </button>
+      </div>
 
       <div className="flex items-center justify-between gap-1">
         <Link
