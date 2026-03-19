@@ -62,6 +62,15 @@ export async function POST(req: NextRequest) {
             }
           : {};
 
+        // Detect fulfilled-without-tracking (pickup) scenario
+        if (
+          orderData.shopifyFulfillStatus === "fulfilled" &&
+          fulfillments.length === 0 &&
+          orderData.internalStatus !== "CANCELLED"
+        ) {
+          orderData.internalStatus = "PICKED_UP";
+        }
+
         // Auto-flag CS orders based on tags
         const isCsOrder = orderData.tags.some(
           (t) => t.toLowerCase() === "customerservice"

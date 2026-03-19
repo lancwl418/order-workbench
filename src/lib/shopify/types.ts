@@ -113,7 +113,7 @@ export interface MappedOrder {
   totalPrice: string; // Decimal as string for Prisma
   currency: string;
   shippingMethod: string | null;
-  internalStatus: "OPEN" | "REVIEW" | "LABEL_CREATED" | "SHIPPED" | "DELIVERED" | "DELAYED" | "CANCELLED" | "DISMISSED";
+  internalStatus: "OPEN" | "REVIEW" | "LABEL_CREATED" | "SHIPPED" | "DELIVERED" | "DELAYED" | "CANCELLED" | "DISMISSED" | "PICKED_UP";
   tags: string[];
   notes: string | null;
 }

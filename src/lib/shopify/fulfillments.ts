@@ -109,6 +109,106 @@ export async function pushFulfillmentToShopify(params: {
   return updateExistingFulfillmentTracking(baseUrl, token, params);
 }
 
+/**
+ * Mark an order as fulfilled in Shopify WITHOUT tracking info.
+ * Used for pickup orders where no shipment/tracking is needed.
+ */
+export async function markOrderFulfilledInShopify(
+  shopifyOrderId: string,
+  notify = false
+): Promise<{ fulfillmentId: string; status: string }> {
+  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const token = process.env.SHOPIFY_ACCESS_TOKEN!;
+  const version = process.env.SHOPIFY_API_VERSION || "2025-01";
+  const baseUrl = `https://${store}/admin/api/${version}`;
+
+  console.log(
+    `[Shopify] Marking order ${shopifyOrderId} as fulfilled (pickup) using store=${store}`
+  );
+
+  // Get fulfillment orders
+  const foUrl = `${baseUrl}/orders/${shopifyOrderId}/fulfillment_orders.json`;
+  const foRes = await fetch(foUrl, {
+    headers: { "X-Shopify-Access-Token": token },
+  });
+
+  if (!foRes.ok) {
+    const errText = await foRes.text();
+    throw new Error(
+      `Shopify API error ${foRes.status} fetching fulfillment orders: ${errText.substring(0, 200)}`
+    );
+  }
+
+  const foData = (await foRes.json()) as {
+    fulfillment_orders: Array<{
+      id: number;
+      status: string;
+      line_items: Array<{ id: number; fulfillable_quantity: number }>;
+    }>;
+  };
+
+  const fulfillableOrders = foData.fulfillment_orders.filter(
+    (fo) =>
+      fo.status === "open" ||
+      fo.status === "in_progress" ||
+      fo.status === "scheduled"
+  );
+
+  if (fulfillableOrders.length === 0) {
+    console.log(
+      `[Shopify] Order ${shopifyOrderId} already fulfilled, no action needed`
+    );
+    return { fulfillmentId: "already_fulfilled", status: "success" };
+  }
+
+  // Create fulfillment without tracking info
+  const lineItemsByFulfillmentOrder = fulfillableOrders.map((fo) => ({
+    fulfillment_order_id: fo.id,
+    fulfillment_order_line_items: fo.line_items
+      .filter((li) => li.fulfillable_quantity > 0)
+      .map((li) => ({ id: li.id, quantity: li.fulfillable_quantity })),
+  }));
+
+  const body = {
+    fulfillment: {
+      line_items_by_fulfillment_order: lineItemsByFulfillmentOrder,
+      notify_customer: notify,
+    },
+  };
+
+  const res = await fetch(`${baseUrl}/fulfillments.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(
+      `[Shopify] POST fulfillments (pickup) failed: status=${res.status} body=${errText}`
+    );
+    throw new Error(
+      `Shopify API error ${res.status} creating pickup fulfillment: ${errText}`
+    );
+  }
+
+  const data = (await res.json()) as {
+    fulfillment: { id: number; status: string };
+  };
+
+  console.log(
+    `[Shopify] Pickup fulfillment created: id=${data.fulfillment.id} status=${data.fulfillment.status}`
+  );
+
+  return {
+    fulfillmentId: String(data.fulfillment.id),
+    status: data.fulfillment.status,
+  };
+}
+
 async function createFulfillment(
   baseUrl: string,
   token: string,

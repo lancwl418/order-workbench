@@ -19,6 +19,7 @@ enum InternalStatus {
   DELAYED
   CANCELLED
   DISMISSED
+  PICKED_UP
 }
 
 enum PrintStatus {

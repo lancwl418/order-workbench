@@ -140,10 +140,19 @@ async function handleOrderUpdated(
   // Only let orders/updated set internalStatus for CANCELLED and OPEN.
   // Fulfillment-derived statuses (LABEL_CREATED, SHIPPED, DELIVERED, DELAYED)
   // are managed by the fulfillment webhook which has accurate tracking data.
+  // Also detect fulfilled-without-tracking (pickup) scenario.
   const safeStatusOverrides = ["CANCELLED", "OPEN"];
-  const statusFields = safeStatusOverrides.includes(orderData.internalStatus)
-    ? { internalStatus: orderData.internalStatus }
-    : {};
+  let derivedStatus: Record<string, string> = {};
+  if (safeStatusOverrides.includes(orderData.internalStatus)) {
+    derivedStatus = { internalStatus: orderData.internalStatus };
+  } else if (
+    orderData.shopifyFulfillStatus === "fulfilled" &&
+    fulfillments.length === 0
+  ) {
+    // Fulfilled in Shopify but no fulfillments with tracking → picked up
+    derivedStatus = { internalStatus: "PICKED_UP" };
+  }
+  const statusFields = derivedStatus;
 
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
@@ -245,11 +254,14 @@ async function handleFulfillmentUpsert(
     newInternalStatus = "LABEL_CREATED";
   } else if (payload.status === "success" && trackingNumber) {
     newInternalStatus = "LABEL_CREATED";
+  } else if (payload.status === "success" && !trackingNumber) {
+    // Fulfilled in Shopify without tracking = picked up in store
+    newInternalStatus = "PICKED_UP";
   }
 
   // Print status → DONE only when actually in transit/delivered/delayed AND order has print files
   // If current printStatus is NONE, it means no print files exist → don't set DONE
-  const printDoneStatuses = ["SHIPPED", "DELIVERED", "DELAYED"];
+  const printDoneStatuses = ["SHIPPED", "DELIVERED", "DELAYED", "PICKED_UP"];
   const shouldMarkPrintDone =
     newInternalStatus &&
     printDoneStatuses.includes(newInternalStatus) &&

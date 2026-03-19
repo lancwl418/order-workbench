@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { orderUpdateSchema } from "@/lib/validators";
 import { onOrderStatusChanged } from "@/lib/exceptions/realtime";
 import { INTERNAL_STATUSES } from "@/lib/constants";
+import { markOrderFulfilledInShopify } from "@/lib/shopify/fulfillments";
 
 export async function GET(
   _req: NextRequest,
@@ -99,7 +100,7 @@ export async function PATCH(
 
   // Auto-sync printStatus based on order status changes
   if (updateData.internalStatus && !updateData.printStatus) {
-    const DONE_TRIGGER = ["SHIPPED", "DELAYED", "DISMISSED", "CANCELLED"];
+    const DONE_TRIGGER = ["SHIPPED", "DELAYED", "DISMISSED", "CANCELLED", "PICKED_UP"];
     const READY_TRIGGER = ["OPEN", "REVIEW", "LABEL_CREATED"];
     if (DONE_TRIGGER.includes(updateData.internalStatus) && existing.printStatus !== "DONE") {
       (updateData as Record<string, unknown>).printStatus = "DONE";
@@ -191,6 +192,36 @@ export async function PATCH(
 
   if (logEntries.length > 0) {
     await prisma.orderLog.createMany({ data: logEntries });
+  }
+
+  // Sync PICKED_UP to Shopify (mark as fulfilled without tracking)
+  if (
+    updateData.internalStatus === "PICKED_UP" &&
+    existing.internalStatus !== "PICKED_UP" &&
+    existing.shopifyOrderId
+  ) {
+    markOrderFulfilledInShopify(existing.shopifyOrderId)
+      .then((result) => {
+        console.log(
+          `[Pickup] Synced to Shopify for order ${id}: fulfillmentId=${result.fulfillmentId}`
+        );
+        return prisma.orderLog.create({
+          data: {
+            orderId: id,
+            userId: session.user?.id,
+            action: "fulfillment_pushed",
+            toValue: result.fulfillmentId,
+            message: `Pickup fulfillment pushed to Shopify (fulfilled without tracking)`,
+            metadata: {
+              shopifyFulfillmentId: result.fulfillmentId,
+              reason: "picked_up",
+            },
+          },
+        });
+      })
+      .catch((err) => {
+        console.error(`[Pickup] Failed to sync to Shopify for order ${id}:`, err);
+      });
   }
 
   // Real-time exception resolution on status change
