@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Package, Truck, Plus, Trash2, Check } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Loader2, Package, Truck, Plus, Trash2, Check, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 interface PackagePreset {
@@ -44,6 +45,18 @@ interface PackageInfo {
   heightIn: number;
 }
 
+interface ShippingAddr {
+  first_name: string;
+  last_name: string;
+  address1: string;
+  address2: string;
+  city: string;
+  province_code: string;
+  zip: string;
+  country_code: string;
+  phone: string;
+}
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function OmsPushDialog({
@@ -65,8 +78,18 @@ export function OmsPushDialog({
     fetcher
   );
 
+  // Fetch order for shipping address
+  const { data: orderData } = useSWR(
+    open && orderId ? `/api/orders/${orderId}` : null,
+    fetcher
+  );
+
   // State
   const [step, setStep] = useState<"package" | "estimate" | "pushing">("package");
+  const [addr, setAddr] = useState<ShippingAddr>({
+    first_name: "", last_name: "", address1: "", address2: "",
+    city: "", province_code: "", zip: "", country_code: "US", phone: "",
+  });
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [pkg, setPkg] = useState<PackageInfo>({ weightLbs: 1, lengthIn: 10, widthIn: 8, heightIn: 2 });
@@ -102,6 +125,24 @@ export function OmsPushDialog({
     }
   }, [open, presets]);
 
+  // Populate address from order data
+  useEffect(() => {
+    if (orderData?.shippingAddress) {
+      const a = orderData.shippingAddress;
+      setAddr({
+        first_name: a.first_name || "",
+        last_name: a.last_name || "",
+        address1: a.address1 || "",
+        address2: a.address2 || "",
+        city: a.city || "",
+        province_code: a.province_code || a.province || "",
+        zip: a.zip || "",
+        country_code: a.country_code || "US",
+        phone: a.phone || "",
+      });
+    }
+  }, [orderData]);
+
   function selectPreset(preset: PackagePreset) {
     setSelectedPreset(preset.id);
     setManualMode(false);
@@ -119,7 +160,7 @@ export function OmsPushDialog({
       const res = await fetch("/api/oms/estimate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, packageInfo: pkg }),
+        body: JSON.stringify({ orderId, packageInfo: pkg, addressOverride: addr }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -147,7 +188,7 @@ export function OmsPushDialog({
       const res = await fetch("/api/oms/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg }),
+        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg, addressOverride: addr }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -399,6 +440,92 @@ export function OmsPushDialog({
               )}
             </div>
 
+            {/* Shipping Address */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-sm font-medium">Shipping Address</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">First Name</Label>
+                  <Input
+                    value={addr.first_name}
+                    onChange={(e) => setAddr({ ...addr, first_name: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Last Name</Label>
+                  <Input
+                    value={addr.last_name}
+                    onChange={(e) => setAddr({ ...addr, last_name: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Address 1</Label>
+                <Input
+                  value={addr.address1}
+                  onChange={(e) => setAddr({ ...addr, address1: e.target.value })}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Address 2</Label>
+                <Input
+                  value={addr.address2}
+                  onChange={(e) => setAddr({ ...addr, address2: e.target.value })}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">City</Label>
+                  <Input
+                    value={addr.city}
+                    onChange={(e) => setAddr({ ...addr, city: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">State</Label>
+                  <Input
+                    value={addr.province_code}
+                    onChange={(e) => setAddr({ ...addr, province_code: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">ZIP</Label>
+                  <Input
+                    value={addr.zip}
+                    onChange={(e) => setAddr({ ...addr, zip: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Country</Label>
+                  <Input
+                    value={addr.country_code}
+                    onChange={(e) => setAddr({ ...addr, country_code: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Phone</Label>
+                  <Input
+                    value={addr.phone}
+                    onChange={(e) => setAddr({ ...addr, phone: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
             <Button
               className="w-full"
               onClick={handleEstimate}
@@ -419,11 +546,20 @@ export function OmsPushDialog({
         {/* Step 2: Estimate Results */}
         {step === "estimate" && (
           <div className="space-y-4">
-            {/* Package summary */}
-            <div className="text-xs text-muted-foreground">
-              {pkg.weightLbs}lb | {pkg.lengthIn}x{pkg.widthIn}x{pkg.heightIn} in
+            {/* Package & address summary */}
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <div>
+                {pkg.weightLbs}lb | {pkg.lengthIn}x{pkg.widthIn}x{pkg.heightIn} in
+              </div>
+              <div>
+                {[addr.first_name, addr.last_name].filter(Boolean).join(" ")}
+                {addr.address1 && `, ${addr.address1}`}
+                {addr.city && `, ${addr.city}`}
+                {addr.province_code && ` ${addr.province_code}`}
+                {addr.zip && ` ${addr.zip}`}
+              </div>
               <button
-                className="ml-2 text-primary underline"
+                className="text-primary underline"
                 onClick={() => setStep("package")}
               >
                 Change

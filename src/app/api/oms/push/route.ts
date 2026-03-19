@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createOrder, getTrackingNumber } from "@/lib/eccangtms/client";
 import { mapOrderToEccangParams } from "@/lib/eccangtms/mapper";
 import { z } from "zod";
+import { addressOverrideSchema } from "@/lib/validators";
 
 const pushSchema = z.object({
   orderId: z.string(),
@@ -14,6 +15,7 @@ const pushSchema = z.object({
     widthIn: z.number().positive(),
     heightIn: z.number().positive(),
   }),
+  addressOverride: addressOverrideSchema.optional(),
 });
 
 /**
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { orderId, productCode, packageInfo } = parsed.data;
+  const { orderId, productCode, packageInfo, addressOverride } = parsed.data;
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -46,11 +48,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  if (!order.shippingAddress) {
+  if (!order.shippingAddress && !addressOverride) {
     return NextResponse.json(
       { error: "Order has no shipping address" },
       { status: 400 }
     );
+  }
+
+  // Apply address override and persist to DB
+  if (addressOverride) {
+    const merged = { ...(order.shippingAddress as Record<string, unknown> || {}), ...addressOverride };
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { shippingAddress: JSON.parse(JSON.stringify(merged)) },
+    });
+    (order as Record<string, unknown>).shippingAddress = merged;
   }
 
   // Check if already pushed to OMS

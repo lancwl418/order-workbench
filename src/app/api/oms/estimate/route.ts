@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateShipping } from "@/lib/eccangtms/client";
 import { mapOrderToEccangParams } from "@/lib/eccangtms/mapper";
 import { z } from "zod";
+import { addressOverrideSchema } from "@/lib/validators";
 
 const estimateSchema = z.object({
   orderId: z.string(),
@@ -13,6 +14,7 @@ const estimateSchema = z.object({
     widthIn: z.number().positive(),
     heightIn: z.number().positive(),
   }),
+  addressOverride: addressOverrideSchema.optional(),
 });
 
 /**
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { orderId, packageInfo } = parsed.data;
+  const { orderId, packageInfo, addressOverride } = parsed.data;
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -46,16 +48,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  if (!order.shippingAddress) {
+  if (!order.shippingAddress && !addressOverride) {
     return NextResponse.json(
       { error: "Order has no shipping address" },
       { status: 400 }
     );
   }
 
+  // Apply address override if provided
+  const orderWithAddress = addressOverride
+    ? { ...order, shippingAddress: { ...(order.shippingAddress as Record<string, unknown> || {}), ...addressOverride } }
+    : order;
+
   try {
     // Use empty productCode to estimate across all products
-    const params = mapOrderToEccangParams(order, "", packageInfo);
+    const params = mapOrderToEccangParams(orderWithAddress as typeof order, "", packageInfo);
     // Remove productCode so API returns all products
     const { productCode: _, ...paramsWithoutProduct } = params;
     const estimates = await calculateShipping(paramsWithoutProduct as typeof params);

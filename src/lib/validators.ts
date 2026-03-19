@@ -147,6 +147,18 @@ export const exceptionQuerySchema = z.object({
   orderId: z.string().optional(),
 });
 
+export const addressOverrideSchema = z.object({
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  address1: z.string().optional(),
+  address2: z.string().optional(),
+  city: z.string().optional(),
+  province_code: z.string().optional(),
+  zip: z.string().optional(),
+  country_code: z.string().optional(),
+  phone: z.string().optional(),
+});
+
 export const exceptionUpdateSchema = z.object({
   status: z.enum(["INVESTIGATING", "RESOLVED"]).optional(),
   owner: z.string().nullable().optional(),
