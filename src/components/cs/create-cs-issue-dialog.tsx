@@ -34,14 +34,22 @@ type OrderResult = {
   customerName: string | null;
 };
 
+type DefaultOrder = {
+  id: string;
+  shopifyOrderNumber: string | null;
+  customerName: string | null;
+};
+
 export function CreateCsIssueDialog({
   open,
   onOpenChange,
   onSuccess,
+  defaultOrder,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  defaultOrder?: DefaultOrder | null;
 }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
@@ -84,7 +92,7 @@ export function CreateCsIssueDialog({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // Reset on close
+  // Reset on close, pre-fill on open with defaultOrder
   useEffect(() => {
     if (!open) {
       setSearchQuery("");
@@ -94,8 +102,10 @@ export function CreateCsIssueDialog({
       setPriority(0);
       setComment("");
       setMentions([]);
+    } else if (defaultOrder) {
+      setSelectedOrder(defaultOrder);
     }
-  }, [open]);
+  }, [open, defaultOrder]);
 
   async function handleSubmit() {
     if (!selectedOrder) return;

@@ -45,6 +45,11 @@ export function CsSummaryPanel({
   const [collapsed, setCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createDefaultOrder, setCreateDefaultOrder] = useState<{
+    id: string;
+    shopifyOrderNumber: string | null;
+    customerName: string | null;
+  } | null>(null);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
@@ -135,7 +140,10 @@ export function CsSummaryPanel({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => {
+                setCreateDefaultOrder(null);
+                setCreateOpen(true);
+              }}
             >
               <Plus className="h-3.5 w-3.5" />
               {tCS("summaryPanel.createIssue")}
@@ -183,6 +191,14 @@ export function CsSummaryPanel({
                   <CsSummaryCard
                     key={order.id}
                     order={order}
+                    onAddIssue={() => {
+                      setCreateDefaultOrder({
+                        id: order.id,
+                        shopifyOrderNumber: order.shopifyOrderNumber,
+                        customerName: order.customerName,
+                      });
+                      setCreateOpen(true);
+                    }}
                   />
                 ))}
               </div>
@@ -194,6 +210,7 @@ export function CsSummaryPanel({
       <CreateCsIssueDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        defaultOrder={createDefaultOrder}
         onSuccess={() => {
           mutate();
           onRefreshCounts();
@@ -204,7 +221,7 @@ export function CsSummaryPanel({
   );
 }
 
-function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
+function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssue: () => void }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -272,33 +289,47 @@ function CsSummaryCard({ order }: { order: CsSummaryOrder }) {
       )}
 
       {/* Hover popover showing all comments */}
-      {hasComments && (
-        <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
-          <div className="rounded-lg border bg-popover p-3 shadow-lg max-h-48 overflow-y-auto space-y-2">
-            {order.csComments.map((c) => {
-              const author =
-                c.user?.displayName || c.user?.username || tCommon("system");
-              return (
-                <div key={c.id} className="space-y-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">{author}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {timeAgo(c.createdAt)}
-                    </span>
+      <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:block w-72">
+        <div className="rounded-lg border bg-popover shadow-lg">
+          {hasComments && (
+            <div className="p-3 max-h-48 overflow-y-auto space-y-2">
+              {order.csComments.map((c) => {
+                const author =
+                  c.user?.displayName || c.user?.username || tCommon("system");
+                return (
+                  <div key={c.id} className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium">{author}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {timeAgo(c.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {c.content.split(/(@\S+)/g).map((part, i) =>
+                        part.startsWith("@") ? (
+                          <span key={i} className="font-medium text-primary">{part}</span>
+                        ) : (part)
+                      )}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                    {c.content.split(/(@\S+)/g).map((part, i) =>
-                      part.startsWith("@") ? (
-                        <span key={i} className="font-medium text-primary">{part}</span>
-                      ) : (part)
-                    )}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
+          <div className={`px-3 py-2 ${hasComments ? "border-t" : ""}`}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddIssue();
+              }}
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Plus className="h-3 w-3" />
+              {tCS("summaryPanel.createIssue")}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
