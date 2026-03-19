@@ -413,8 +413,8 @@ function CsSummaryCard({ order, onAddComment, onResolve, onPriorityChange }: { o
       onMouseEnter={hasComments ? showPopover : undefined}
       onMouseLeave={hasComments ? hidePopover : undefined}
     >
-      {/* Action buttons — top-right, visible on hover */}
-      <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 z-10">
+      {/* Action buttons — bottom-right, visible on hover */}
+      <div className="absolute bottom-1 right-1 hidden group-hover:flex items-center gap-1 z-10">
         <button
           onClick={(e) => {
             e.stopPropagation();
