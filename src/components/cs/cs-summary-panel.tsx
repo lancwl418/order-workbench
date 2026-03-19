@@ -6,12 +6,21 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PriorityStars } from "@/components/cs/priority-stars";
 import { CreateCsIssueDialog } from "@/components/cs/create-cs-issue-dialog";
+import { MentionInput } from "@/components/cs/mention-input";
 import { CS_ISSUE_TYPES } from "@/lib/constants";
-import { Plus, ChevronDown, ChevronUp, Headset, ImageIcon, FileText } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Headset, ImageIcon, FileText, MessageSquarePlus, Loader2 } from "lucide-react";
 import type { CsCommentWithUser } from "@/types";
 import { timeAgo } from "@/lib/utils";
+import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -45,11 +54,13 @@ export function CsSummaryPanel({
   const [collapsed, setCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createDefaultOrder, setCreateDefaultOrder] = useState<{
-    id: string;
-    shopifyOrderNumber: string | null;
-    customerName: string | null;
-  } | null>(null);
+
+  // Add comment dialog state
+  const [commentOrderId, setCommentOrderId] = useState<string | null>(null);
+  const [commentOrderLabel, setCommentOrderLabel] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [commentMentions, setCommentMentions] = useState<string[]>([]);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   // Restore collapsed state from localStorage
   useEffect(() => {
@@ -140,10 +151,7 @@ export function CsSummaryPanel({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                setCreateDefaultOrder(null);
-                setCreateOpen(true);
-              }}
+              onClick={() => setCreateOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               {tCS("summaryPanel.createIssue")}
@@ -191,13 +199,13 @@ export function CsSummaryPanel({
                   <CsSummaryCard
                     key={order.id}
                     order={order}
-                    onAddIssue={() => {
-                      setCreateDefaultOrder({
-                        id: order.id,
-                        shopifyOrderNumber: order.shopifyOrderNumber,
-                        customerName: order.customerName,
-                      });
-                      setCreateOpen(true);
+                    onAddComment={() => {
+                      setCommentOrderId(order.id);
+                      setCommentOrderLabel(
+                        `#${order.shopifyOrderNumber || order.id.slice(0, 8)}`
+                      );
+                      setCommentText("");
+                      setCommentMentions([]);
                     }}
                   />
                 ))}
@@ -210,18 +218,115 @@ export function CsSummaryPanel({
       <CreateCsIssueDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        defaultOrder={createDefaultOrder}
         onSuccess={() => {
           mutate();
           onRefreshCounts();
           onRefreshOrders();
         }}
       />
+
+      {/* Add Comment Dialog */}
+      <Dialog
+        open={!!commentOrderId}
+        onOpenChange={(open) => { if (!open) setCommentOrderId(null); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquarePlus className="h-4 w-4" />
+              Add Comment — {commentOrderLabel}
+            </DialogTitle>
+          </DialogHeader>
+          <MentionInput
+            value={commentText}
+            onChange={setCommentText}
+            mentions={commentMentions}
+            onMentionsChange={setCommentMentions}
+            placeholder="Type a comment... Use @ to mention"
+            rows={3}
+            className="text-sm"
+            onSubmit={async () => {
+              if (!commentText.trim() || !commentOrderId) return;
+              setCommentSubmitting(true);
+              try {
+                const res = await fetch(
+                  `/api/orders/${commentOrderId}/cs-comments`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      content: commentText.trim(),
+                      attachments: [],
+                      mentions: commentMentions,
+                    }),
+                  }
+                );
+                if (!res.ok) throw new Error("Failed");
+                toast.success("Comment added");
+                setCommentOrderId(null);
+                mutate();
+                onRefreshCounts();
+                onRefreshOrders();
+              } catch {
+                toast.error("Failed to add comment");
+              } finally {
+                setCommentSubmitting(false);
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCommentOrderId(null)}
+              disabled={commentSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={commentSubmitting || !commentText.trim()}
+              onClick={async () => {
+                if (!commentText.trim() || !commentOrderId) return;
+                setCommentSubmitting(true);
+                try {
+                  const res = await fetch(
+                    `/api/orders/${commentOrderId}/cs-comments`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        content: commentText.trim(),
+                        attachments: [],
+                        mentions: commentMentions,
+                      }),
+                    }
+                  );
+                  if (!res.ok) throw new Error("Failed");
+                  toast.success("Comment added");
+                  setCommentOrderId(null);
+                  mutate();
+                  onRefreshCounts();
+                  onRefreshOrders();
+                } catch {
+                  toast.error("Failed to add comment");
+                } finally {
+                  setCommentSubmitting(false);
+                }
+              }}
+            >
+              {commentSubmitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Saving</>
+              ) : (
+                "Add Comment"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssue: () => void }) {
+function CsSummaryCard({ order, onAddComment }: { order: CsSummaryOrder; onAddComment: () => void }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -242,16 +347,16 @@ function CsSummaryCard({ order, onAddIssue }: { order: CsSummaryOrder; onAddIssu
 
   return (
     <div className="group relative border rounded-lg p-2.5 space-y-1 hover:bg-muted/50 transition-colors">
-      {/* Add issue button — top-right, visible on hover */}
+      {/* Add comment button — top-right, visible on hover */}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onAddIssue();
+          onAddComment();
         }}
-        className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center h-5 w-5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors z-10"
-        title={tCS("summaryPanel.createIssue")}
+        className="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors z-10"
       >
-        <Plus className="h-3 w-3" />
+        <MessageSquarePlus className="h-3 w-3" />
+        Comment
       </button>
 
       <div className="flex items-center justify-between gap-1">
