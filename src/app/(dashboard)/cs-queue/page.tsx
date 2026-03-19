@@ -40,7 +40,7 @@ import {
   X,
 } from "lucide-react";
 import { MentionInput } from "@/components/cs/mention-input";
-import { PriorityStars } from "@/components/cs/priority-stars";
+import { PrioritySelector } from "@/components/cs/priority-stars";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -101,13 +101,33 @@ export default function CSQueuePage() {
     [refresh]
   );
 
+  const handlePriorityChange = useCallback(
+    async (orderId: string, csPriority: number) => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csPriority }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        refresh();
+      } catch {
+        toast.error("Failed to update priority");
+      }
+    },
+    [refresh]
+  );
+
   const columns: ColumnDef<OrderListItem>[] = useMemo(
     () => [
       {
         accessorKey: "csPriority",
         header: tCS("columns.priority"),
         cell: ({ row }) => (
-          <PriorityStars priority={row.original.csPriority || 0} />
+          <PrioritySelector
+            value={row.original.csPriority || 0}
+            onChange={(v) => handlePriorityChange(row.original.id, v)}
+          />
         ),
       },
       {
@@ -231,7 +251,7 @@ export default function CSQueuePage() {
         },
       },
     ],
-    [resolvingId, handleResolve, handleIssueTypeChange, tCS, tIssue]
+    [resolvingId, handleResolve, handleIssueTypeChange, handlePriorityChange, tCS, tIssue]
   );
 
   const columnVisibility = useMemo(

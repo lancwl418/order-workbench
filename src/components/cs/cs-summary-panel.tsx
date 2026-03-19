@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { PriorityStars } from "@/components/cs/priority-stars";
+import { PrioritySelector } from "@/components/cs/priority-stars";
 import { CreateCsIssueDialog } from "@/components/cs/create-cs-issue-dialog";
 import { MentionInput } from "@/components/cs/mention-input";
 import { CS_ISSUE_TYPES } from "@/lib/constants";
@@ -71,6 +71,20 @@ export function CsSummaryPanel({
       onRefreshOrders();
     } catch {
       toast.error("Failed to resolve");
+    }
+  }
+
+  async function handlePriorityChange(orderId: string, csPriority: number) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csPriority }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      mutate();
+    } catch {
+      toast.error("Failed to update priority");
     }
   }
 
@@ -227,6 +241,7 @@ export function CsSummaryPanel({
                       setCommentMentions([]);
                     }}
                     onResolve={() => handleResolve(order.id)}
+                    onPriorityChange={(v) => handlePriorityChange(order.id, v)}
                   />
                 ))}
               </div>
@@ -346,7 +361,7 @@ export function CsSummaryPanel({
   );
 }
 
-function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrder; onAddComment: () => void; onResolve: () => void }) {
+function CsSummaryCard({ order, onAddComment, onResolve, onPriorityChange }: { order: CsSummaryOrder; onAddComment: () => void; onResolve: () => void; onPriorityChange: (v: number) => void }) {
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -429,9 +444,7 @@ function CsSummaryCard({ order, onAddComment, onResolve }: { order: CsSummaryOrd
         >
           #{order.shopifyOrderNumber || order.id.slice(0, 8)}
         </Link>
-        {order.csPriority > 0 && (
-          <PriorityStars priority={order.csPriority} />
-        )}
+        <PrioritySelector value={order.csPriority} onChange={onPriorityChange} />
       </div>
 
       <div className="flex items-center gap-1.5">
