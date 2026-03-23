@@ -31,7 +31,8 @@
     "shipping": "发货",
     "labels": "面单",
     "exceptions": "异常",
-    "csQueue": "客服队列"
+    "csQueue": "客服队列",
+    "procurement": "采购管理"
   },
   "login": {
     "title": "订单工作台",
@@ -426,6 +427,44 @@
     "synced": "已同步",
     "syncFailed": "同步失败",
     "notSynced": "未同步"
+  },
+  "procurement": {
+    "title": "采购管理",
+    "description": "管理采购单和收货记录",
+    "create": "新建采购单",
+    "createTitle": "创建采购单",
+    "createDescription": "添加新的采购记录",
+    "editTitle": "编辑采购单",
+    "editDescription": "更新采购单信息",
+    "searchPlaceholder": "搜索采购单号或供应商...",
+    "allStatuses": "全部状态",
+    "supplierPlaceholder": "供应商名称",
+    "currency": "币种",
+    "note": "备注",
+    "notePlaceholder": "可选备注...",
+    "uploadFile": "上传文件",
+    "fileUploaded": "文件已上传",
+    "requiredFields": "采购单号、供应商和金额为必填项",
+    "created": "采购单已创建",
+    "updated": "采购单已更新",
+    "deleted": "采购单已删除",
+    "statusUpdated": "状态已更新",
+    "confirmDelete": "删除采购单",
+    "confirmDeleteMessage": "确定要删除采购单 {poNumber} 吗？此操作无法撤销。",
+    "status": {
+      "DRAFT": "草稿",
+      "CONFIRMED": "已确认",
+      "RECEIVED": "已收货",
+      "CANCELLED": "已取消"
+    },
+    "columns": {
+      "poNumber": "采购单号",
+      "supplier": "供应商",
+      "amount": "金额",
+      "purchaseDate": "采购日期",
+      "status": "状态",
+      "attachments": "附件"
+    }
   },
   "csQueue": {
     "title": "客服队列",

@@ -31,7 +31,8 @@
     "shipping": "Shipping",
     "labels": "Labels",
     "exceptions": "Exceptions",
-    "csQueue": "CS Queue"
+    "csQueue": "CS Queue",
+    "procurement": "Procurement"
   },
   "login": {
     "title": "Order Workbench",
@@ -426,6 +427,44 @@
     "synced": "Synced",
     "syncFailed": "Sync Failed",
     "notSynced": "Not Synced"
+  },
+  "procurement": {
+    "title": "Procurement",
+    "description": "Manage purchase orders and receipts",
+    "create": "New PO",
+    "createTitle": "Create Purchase Order",
+    "createDescription": "Add a new purchase order record",
+    "editTitle": "Edit Purchase Order",
+    "editDescription": "Update purchase order details",
+    "searchPlaceholder": "Search PO# or supplier...",
+    "allStatuses": "All Statuses",
+    "supplierPlaceholder": "Supplier name",
+    "currency": "Currency",
+    "note": "Note",
+    "notePlaceholder": "Optional note...",
+    "uploadFile": "Upload File",
+    "fileUploaded": "File uploaded",
+    "requiredFields": "PO number, supplier, and amount are required",
+    "created": "Purchase order created",
+    "updated": "Purchase order updated",
+    "deleted": "Purchase order deleted",
+    "statusUpdated": "Status updated",
+    "confirmDelete": "Delete Purchase Order",
+    "confirmDeleteMessage": "Are you sure you want to delete PO {poNumber}? This cannot be undone.",
+    "status": {
+      "DRAFT": "Draft",
+      "CONFIRMED": "Confirmed",
+      "RECEIVED": "Received",
+      "CANCELLED": "Cancelled"
+    },
+    "columns": {
+      "poNumber": "PO #",
+      "supplier": "Supplier",
+      "amount": "Amount",
+      "purchaseDate": "Purchase Date",
+      "status": "Status",
+      "attachments": "Files"
+    }
   },
   "csQueue": {
     "title": "CS Queue",

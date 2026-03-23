@@ -10,6 +10,7 @@ import type {
   PrintGroupItem,
   CsComment,
   Notification,
+  PurchaseOrder,
 } from "@prisma/client";
 
 export type OrderWithRelations = Order & {
@@ -109,4 +110,4 @@ export type CsCommentWithUser = CsComment & {
 
 export type NotificationItem = Notification;
 
-export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException, PrintGroup, PrintGroupItem, CsComment, Notification };
+export type { Order, OrderItem, Shipment, OrderLog, PrintLog, User, OrderException, PrintGroup, PrintGroupItem, CsComment, Notification, PurchaseOrder };

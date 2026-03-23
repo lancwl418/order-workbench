@@ -11,6 +11,7 @@ import {
   Tag,
   AlertTriangle,
   Headphones,
+  ShoppingCart,
 } from "lucide-react";
 
 const navKeys = [
@@ -20,6 +21,7 @@ const navKeys = [
   { key: "labels", href: "/labels", icon: Tag },
   { key: "exceptions", href: "/exceptions", icon: AlertTriangle },
   { key: "csQueue", href: "/cs-queue", icon: Headphones },
+  { key: "procurement", href: "/procurement", icon: ShoppingCart },
 ] as const;
 
 export function Sidebar() {

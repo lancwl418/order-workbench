@@ -70,6 +70,13 @@ enum PrintGroupStatus {
   PRINTED
 }
 
+enum PurchaseOrderStatus {
+  DRAFT
+  CONFIRMED
+  RECEIVED
+  CANCELLED
+}
+
 // ─── MODELS ──────────────────────────────────────────────────────
 
 model User {
@@ -420,6 +427,25 @@ model PackagePreset {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("package_presets")
+}
+
+model PurchaseOrder {
+  id          String              @id @default(cuid())
+  poNumber    String              @unique @map("po_number")
+  supplier    String
+  amount      Decimal             @db.Decimal(10, 2)
+  currency    String              @default("USD")
+  status      PurchaseOrderStatus @default(DRAFT)
+  purchaseDate DateTime           @map("purchase_date")
+  note        String?             @db.Text
+  attachments String[]            @default([]) // R2 file URLs
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([purchaseDate])
+  @@index([createdAt])
+  @@map("purchase_orders")
 }
 
 model Notification {

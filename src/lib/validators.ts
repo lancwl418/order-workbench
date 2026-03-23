@@ -164,3 +164,35 @@ export const exceptionUpdateSchema = z.object({
   owner: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
 });
+
+// ─── Purchase Orders ──────────────────────────────────────────
+
+export const purchaseOrderQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(25),
+  status: z.enum(["DRAFT", "CONFIRMED", "RECEIVED", "CANCELLED"]).optional(),
+  search: z.string().optional(),
+  sort: z.string().default("createdAt"),
+  dir: z.enum(["asc", "desc"]).default("desc"),
+});
+
+export const purchaseOrderCreateSchema = z.object({
+  poNumber: z.string().min(1),
+  supplier: z.string().min(1),
+  amount: z.coerce.number().min(0),
+  currency: z.string().default("USD"),
+  purchaseDate: z.string(), // ISO date string
+  note: z.string().nullable().optional(),
+  attachments: z.array(z.string()).optional(),
+});
+
+export const purchaseOrderUpdateSchema = z.object({
+  poNumber: z.string().min(1).optional(),
+  supplier: z.string().min(1).optional(),
+  amount: z.coerce.number().min(0).optional(),
+  currency: z.string().optional(),
+  status: z.enum(["DRAFT", "CONFIRMED", "RECEIVED", "CANCELLED"]).optional(),
+  purchaseDate: z.string().optional(),
+  note: z.string().nullable().optional(),
+  attachments: z.array(z.string()).optional(),
+});
