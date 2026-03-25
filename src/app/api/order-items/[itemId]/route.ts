@@ -290,15 +290,22 @@ export async function DELETE(
     }
   }
 
-  // If all items in the order now have no file, set printStatus to NONE
+  // If all items in the order now have no file AND no extra files, set printStatus to NONE
   const remainingFiles = await prisma.orderItem.count({
     where: { orderId: item.orderId, designFileUrl: { not: null } },
   });
   if (remainingFiles === 0) {
-    await prisma.order.update({
+    const order2 = await prisma.order.findUnique({
       where: { id: item.orderId },
-      data: { printStatus: "NONE" },
+      select: { extraPrintFiles: true },
     });
+    const extras = Array.isArray(order2?.extraPrintFiles) ? order2.extraPrintFiles : [];
+    if (extras.length === 0) {
+      await prisma.order.update({
+        where: { id: item.orderId },
+        data: { printStatus: "NONE" },
+      });
+    }
   }
 
   return NextResponse.json({ success: true });

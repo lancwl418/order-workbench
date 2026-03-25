@@ -395,9 +395,10 @@ export function createColumns(opts: {
         const printStatus = row.original.printStatus;
         const id = row.original.id;
         const loading = opts.loadingId === id;
+        const extraFiles = Array.isArray(row.original.extraPrintFiles) ? row.original.extraPrintFiles as unknown[] : [];
         const hasPrintFiles = row.original.orderItems.some(
           (item) => item.designFileUrl
-        );
+        ) || extraFiles.length > 0;
         const canQueue = hasPrintFiles && (printStatus === "NONE" || printStatus === "READY");
 
         const renderBadge = (s: string) => {

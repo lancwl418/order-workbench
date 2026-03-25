@@ -1065,8 +1065,12 @@ function PrintFilesSection({
       }
       const { url } = await uploadRes.json();
 
+      // Fetch fresh order data to avoid stale designFileUrl after delete
+      const freshOrder = await fetch(`/api/orders/${orderId}`).then((r) => r.json());
+      const freshItems: { id: string; designFileUrl: string | null }[] = freshOrder?.orderItems || orderItems;
+
       // If there's an order item without a file, assign to it
-      const targetItem = orderItems.find((i) => !i.designFileUrl);
+      const targetItem = freshItems.find((i) => !i.designFileUrl);
       if (targetItem) {
         const patchRes = await fetch(`/api/order-items/${targetItem.id}`, {
           method: "PATCH",
