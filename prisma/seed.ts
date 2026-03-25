@@ -25,6 +25,7 @@ async function main() {
     { username: "wesley", displayName: "Wesley", role: "user" as const },
     { username: "rock", displayName: "Rock", role: "user" as const },
     { username: "angel", displayName: "Angel", role: "user" as const },
+    { username: "long", displayName: "Long", role: "user" as const },
   ];
 
   for (const u of users) {
