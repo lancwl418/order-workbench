@@ -54,24 +54,19 @@ export default function ExceptionsPage() {
     refreshCounts();
   });
 
-  // Trigger cron scan
+  // Trigger scan
   const [scanning, setScanning] = useState(false);
   async function handleScan() {
     setScanning(true);
     try {
-      const secret = prompt("Enter CRON_SECRET to run scan:");
-      if (!secret) { setScanning(false); return; }
-      const res = await fetch("/api/cron/scan-exceptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${secret}` },
-      });
+      const res = await fetch("/api/exceptions/scan", { method: "POST" });
       if (!res.ok) throw new Error("Scan failed");
       const data = await res.json();
       alert(`Scan complete: ${data.detected} detected, ${data.autoResolved} auto-resolved (${data.durationMs}ms)`);
       refresh();
       refreshCounts();
     } catch {
-      alert("Scan failed. Check CRON_SECRET.");
+      alert("Scan failed.");
     } finally {
       setScanning(false);
     }
