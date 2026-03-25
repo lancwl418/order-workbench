@@ -84,8 +84,17 @@ function PrintFileCellActions({
         });
       }
     }
+    // Include extra print files
+    const extras = Array.isArray(order.extraPrintFiles)
+      ? (order.extraPrintFiles as { url: string; filename: string }[])
+      : [];
+    for (const extra of extras) {
+      if (!map.has(extra.url)) {
+        map.set(extra.url, { url: extra.url, title: extra.filename, itemIds: [] });
+      }
+    }
     return [...map.values()];
-  }, [order.orderItems]);
+  }, [order.orderItems, order.extraPrintFiles]);
 
   if (fileGroups.length === 0) {
     return <span className="text-xs text-muted-foreground">-</span>;

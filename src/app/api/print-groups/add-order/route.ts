@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve print files
+  // Resolve print files from order items
   const urlSet = new Set<string>();
   const urlLabelMap = new Map<string, string>();
   for (const item of order.orderItems) {
@@ -69,6 +69,17 @@ export async function POST(req: NextRequest) {
         item.designFileUrl,
         item.variantTitle || item.title
       );
+    }
+  }
+
+  // Also include extra print files
+  const extras = Array.isArray(order.extraPrintFiles)
+    ? (order.extraPrintFiles as { url: string; filename: string }[])
+    : [];
+  for (const extra of extras) {
+    if (!urlSet.has(extra.url)) {
+      urlSet.add(extra.url);
+      urlLabelMap.set(extra.url, extra.filename);
     }
   }
 
