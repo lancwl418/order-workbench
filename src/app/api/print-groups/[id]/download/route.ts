@@ -14,6 +14,11 @@ import {
   setAbortController,
 } from "@/lib/download-progress";
 import sharp from "sharp";
+import {
+  splitIntoChunks,
+  planContinuations,
+  type Piece,
+} from "@/lib/combine-utils";
 
 // Allow up to 5 minutes for large image processing
 export const maxDuration = 300;
@@ -25,7 +30,6 @@ sharp.concurrency(1);
 const OUTPUT_DPI = 300;
 const MAX_WIDTH = 6600; // 22 inches at 300 DPI
 const ORDER_MARGIN = 90; // separator height in px
-const MAX_CHUNK_HEIGHT = 80000; // ~10m per chunk at common DPIs
 
 function orderSeparatorSvg(
   text: string,
@@ -42,8 +46,6 @@ function orderSeparatorSvg(
   </svg>`;
   return Buffer.from(svg);
 }
-
-type Piece = { filePath: string; width: number; height: number };
 
 /** Delete source files for a list of pieces (best-effort). */
 async function cleanupFiles(pieces: Piece[]): Promise<void> {
@@ -96,31 +98,42 @@ async function generateChunkPng(
 }
 
 /**
- * Split pieces into chunks that don't exceed MAX_CHUNK_HEIGHT.
+ * Execute the continuation-separator plan produced by `planContinuations`:
+ *  - Insert new separator Piece entries at the start of continuation chunks
+ *  - (Re-)generate all separator PNGs for split orders with paginated labels
  */
-function splitIntoChunks(pieces: Piece[]): Piece[][] {
-  const chunks: Piece[][] = [];
-  let currentChunk: Piece[] = [];
-  let currentHeight = 0;
+async function applyContinuationPlan(
+  chunks: Piece[][],
+  canvasWidth: number,
+  tmpDir: string,
+  orderLabels: Map<string, string>
+): Promise<void> {
+  const plan = planContinuations(chunks, orderLabels);
+  if (plan.inserts.length === 0) return;
 
-  for (let i = 0; i < pieces.length; i++) {
-    const piece = pieces[i];
-
-    if (currentHeight + piece.height > MAX_CHUNK_HEIGHT && currentChunk.length > 0) {
-      chunks.push(currentChunk);
-      currentChunk = [];
-      currentHeight = 0;
-    }
-
-    currentChunk.push(piece);
-    currentHeight += piece.height;
+  // 1. Insert placeholder pieces (iterate in reverse so indices stay valid)
+  for (let i = plan.inserts.length - 1; i >= 0; i--) {
+    const ins = plan.inserts[i];
+    const sepPath = path.join(tmpDir, `cont-sep-${i}.png`);
+    await sharp(orderSeparatorSvg("...", canvasWidth, ORDER_MARGIN))
+      .png()
+      .toFile(sepPath);
+    chunks[ins.chunkIndex].unshift({
+      filePath: sepPath,
+      width: canvasWidth,
+      height: ORDER_MARGIN,
+      isSeparator: true,
+      orderId: ins.orderId,
+    });
   }
 
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk);
+  // 2. (Re-)generate PNGs with paginated labels
+  for (const lbl of plan.labels) {
+    const piece = chunks[lbl.chunkIndex][lbl.pieceIndex];
+    await sharp(orderSeparatorSvg(lbl.paginatedLabel, canvasWidth, ORDER_MARGIN))
+      .png()
+      .toFile(piece.filePath);
   }
-
-  return chunks;
 }
 
 /**
@@ -282,6 +295,7 @@ async function runCombineJob(
 
     // Step 1: Download all images and collect metadata
     const pieces: Piece[] = [];
+    const orderLabels = new Map<string, string>(); // orderId -> label text
 
     for (let i = 0; i < group.items.length; i++) {
       checkAborted(signal);
@@ -310,16 +324,18 @@ async function runCombineJob(
           .filter(Boolean)
           .join("  —  ");
 
+        orderLabels.set(item.orderId, label);
+
         const canvasWidth = Math.min(meta.width!, MAX_WIDTH);
         const sepPath = path.join(tmpDir, `sep-${i}.png`);
         await sharp(orderSeparatorSvg(label, canvasWidth, ORDER_MARGIN))
           .png()
           .toFile(sepPath);
 
-        pieces.push({ filePath: sepPath, width: canvasWidth, height: ORDER_MARGIN });
+        pieces.push({ filePath: sepPath, width: canvasWidth, height: ORDER_MARGIN, isSeparator: true, orderId: item.orderId });
       }
 
-      pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height! });
+      pieces.push({ filePath: imgPath, width: meta.width!, height: meta.height!, orderId: item.orderId });
 
       const progress = Math.round(((i + 1) / totalImages) * 60);
 
@@ -347,6 +363,12 @@ async function runCombineJob(
 
     // Step 2: Split into chunks if needed
     const chunks = splitIntoChunks(pieces);
+
+    // Step 2b: Add continuation separators for orders that span multiple chunks
+    if (chunks.length > 1) {
+      await applyContinuationPlan(chunks, canvasWidth, tmpDir, orderLabels);
+    }
+
     console.log(`Split into ${chunks.length} chunk(s)`);
 
     checkAborted(signal);
