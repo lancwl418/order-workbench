@@ -182,6 +182,7 @@ export default function ExceptionsPage() {
                       exception={ex}
                       onInvestigate={investigate}
                       onResolve={resolve}
+                      onEmailSent={() => { refresh(); refreshCounts(); }}
                     />
                   ))}
                 </div>

@@ -331,7 +331,18 @@
     "noShipmentIssues": "No shipment issues found.",
     "noProcessingDelays": "No processing delays found.",
     "noTracking": "No tracking",
-    "runScan": "Run Scan"
+    "runScan": "Run Scan",
+    "emailCustomer": "Email",
+    "emailDialogTitle": "Email Customer",
+    "emailTo": "To",
+    "emailSubject": "Subject",
+    "emailBody": "Body",
+    "emailSend": "Send Email",
+    "emailSending": "Sending...",
+    "emailNoEmail": "No customer email on file",
+    "emailSent": "Email sent",
+    "emailFailed": "Failed to send email",
+    "emailed": "Emailed"
   },
   "shipping": {
     "title": "Shipping",

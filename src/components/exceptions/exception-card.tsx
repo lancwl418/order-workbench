@@ -3,9 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -21,17 +24,20 @@ import {
   EXCEPTION_SEVERITY_COLORS,
 } from "@/lib/constants";
 import { timeAgo, getTrackingUrl } from "@/lib/utils";
+import { generateExceptionEmail } from "@/lib/email-templates";
 import type { ExceptionWithRelations } from "@/types";
-import { Search, CheckCircle2, User, AlertTriangle } from "lucide-react";
+import { Search, CheckCircle2, User, AlertTriangle, Mail } from "lucide-react";
 
 export function ExceptionCard({
   exception,
   onInvestigate,
   onResolve,
+  onEmailSent,
 }: {
   exception: ExceptionWithRelations;
   onInvestigate: (id: string) => void;
   onResolve: (id: string) => void;
+  onEmailSent?: () => void;
 }) {
   const tException = useTranslations("exception");
   const tExceptions = useTranslations("exceptions");
@@ -39,6 +45,11 @@ export function ExceptionCard({
   const tCommon = useTranslations("common");
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [sending, setSending] = useState(false);
+
   const typeColor =
     EXCEPTION_TYPE_COLORS[exception.type] || { bg: "bg-gray-100", text: "text-gray-700" };
   const statusColor =
@@ -49,6 +60,45 @@ export function ExceptionCard({
   const typeLabel = tException.has(`type.${exception.type}`) ? tException(`type.${exception.type}`) : exception.type;
   const statusLabel = tException.has(`status.${exception.status}`) ? tException(`status.${exception.status}`) : exception.status;
   const severityLabel = tException.has(`severity.${exception.severity}`) ? tException(`severity.${exception.severity}`) : exception.severity;
+
+  function openEmailDialog() {
+    const trackingNumber = exception.shipment?.trackingNumber || exception.order.trackingNumber;
+    const carrier = exception.shipment?.carrier || null;
+    const generated = generateExceptionEmail({
+      type: exception.type,
+      customerName: exception.order.customerName,
+      orderNumber: exception.order.shopifyOrderNumber,
+      trackingNumber,
+      carrier,
+      dayCount: exception.transitDays ?? exception.daysSinceLabel,
+    });
+    setEmailSubject(generated.subject);
+    setEmailBody(generated.body);
+    setEmailOpen(true);
+  }
+
+  async function handleSendEmail() {
+    setSending(true);
+    try {
+      const res = await fetch(`/api/exceptions/${exception.id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailSubject, body: emailBody }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || tExceptions("emailFailed"));
+        return;
+      }
+      toast.success(tExceptions("emailSent"));
+      setEmailOpen(false);
+      onEmailSent?.();
+    } catch {
+      toast.error(tExceptions("emailFailed"));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <Card className="border">
@@ -68,12 +118,22 @@ export function ExceptionCard({
               </p>
             )}
           </div>
-          <Badge
-            variant="outline"
-            className={`${severityColor.bg} ${severityColor.text} border-0 text-[10px] px-1.5`}
-          >
-            {severityLabel}
-          </Badge>
+          <div className="flex items-center gap-1">
+            {exception.customerEmailed && (
+              <Badge
+                variant="outline"
+                className="bg-green-50 text-green-700 border-0 text-[10px] px-1.5"
+              >
+                {tExceptions("emailed")}
+              </Badge>
+            )}
+            <Badge
+              variant="outline"
+              className={`${severityColor.bg} ${severityColor.text} border-0 text-[10px] px-1.5`}
+            >
+              {severityLabel}
+            </Badge>
+          </div>
         </div>
 
         {/* Exception type + status */}
@@ -177,6 +237,16 @@ export function ExceptionCard({
               <CheckCircle2 className="h-3 w-3" />
               {tExceptions("resolve")}
             </Button>
+            {exception.order.customerEmail && (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={openEmailDialog}
+              >
+                <Mail className="h-3 w-3" />
+                {tExceptions("emailCustomer")}
+              </Button>
+            )}
           </div>
         )}
 
@@ -208,6 +278,57 @@ export function ExceptionCard({
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {tExceptions("confirmResolve")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Email preview dialog */}
+        <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                {tExceptions("emailDialogTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                #{exception.order.shopifyOrderNumber || exception.order.id.slice(0, 8)} — {exception.order.customerName}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">{tExceptions("emailTo")}</label>
+                <p className="text-sm mt-0.5">{exception.order.customerEmail}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">{tExceptions("emailSubject")}</label>
+                <Input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="mt-0.5"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">{tExceptions("emailBody")}</label>
+                <Textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={10}
+                  className="mt-0.5 font-mono text-xs"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" size="sm" />}>
+                {tCommon("cancel")}
+              </DialogClose>
+              <Button
+                size="sm"
+                onClick={handleSendEmail}
+                disabled={sending || !emailSubject || !emailBody}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                {sending ? tExceptions("emailSending") : tExceptions("emailSend")}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -337,6 +337,10 @@ model OrderException {
   note       String?  @map("exception_note") @db.Text
   resolvedBy String?  @map("resolved_by")
 
+  // Customer outreach
+  customerEmailed   Boolean  @default(false) @map("customer_emailed")
+  customerEmailedAt DateTime? @map("customer_emailed_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

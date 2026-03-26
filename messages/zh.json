@@ -331,7 +331,18 @@
     "noShipmentIssues": "未发现物流问题。",
     "noProcessingDelays": "未发现处理延迟。",
     "noTracking": "无追踪号",
-    "runScan": "立即扫描"
+    "runScan": "立即扫描",
+    "emailCustomer": "邮件",
+    "emailDialogTitle": "发送邮件给客户",
+    "emailTo": "收件人",
+    "emailSubject": "主题",
+    "emailBody": "正文",
+    "emailSend": "发送邮件",
+    "emailSending": "发送中...",
+    "emailNoEmail": "该订单没有客户邮箱",
+    "emailSent": "邮件已发送",
+    "emailFailed": "邮件发送失败",
+    "emailed": "已发邮件"
   },
   "shipping": {
     "title": "发货管理",

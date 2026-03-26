@@ -63,6 +63,7 @@ export type ExceptionWithRelations = OrderException & {
     id: string;
     shopifyOrderNumber: string | null;
     customerName: string | null;
+    customerEmail: string | null;
     internalStatus: string;
     trackingNumber: string | null;
   };

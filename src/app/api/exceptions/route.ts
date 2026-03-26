@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
             id: true,
             shopifyOrderNumber: true,
             customerName: true,
+            customerEmail: true,
             internalStatus: true,
             trackingNumber: true,
           },
