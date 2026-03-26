@@ -7,33 +7,43 @@ type ExceptionEmailParams = {
   dayCount?: number | null;
 };
 
-const MESSAGES: Record<string, { subjectSuffix: string; paragraph: string }> = {
+const MESSAGES: Record<string, { subject: string; paragraph: string; reshipPrompt: string }> = {
   NO_MOVEMENT_AFTER_LABEL: {
-    subjectSuffix: "Shipping Update",
+    subject: "We found a shipping issue with your order #{orderNum}",
     paragraph:
-      "We noticed that your package hasn't shown any tracking movement yet. Please know that we are looking into this and will ensure your order reaches you as soon as possible. In some cases, there may be a short delay before the carrier scans the package into their system.",
+      "We noticed that your package hasn't shown any tracking movement since the label was created. Our team is actively looking into this with the carrier to determine the cause of the delay.",
+    reshipPrompt:
+      "If the package cannot be located, we would be happy to reship your order at no additional cost. Please let us know if you would like us to proceed with a replacement shipment, or if you'd prefer to wait a bit longer for the original package to update.",
   },
   LONG_TRANSIT: {
-    subjectSuffix: "Shipping Update",
+    subject: "We found a shipping issue with your order #{orderNum}",
     paragraph:
-      "Your package has been in transit longer than expected. We understand this can be frustrating and want to assure you that we are monitoring the situation closely. If the package does not arrive within the next few business days, we will take further action to resolve this for you.",
+      "Your package has been in transit longer than expected. We understand how frustrating this can be and want to assure you that we are monitoring the situation closely with the carrier.",
+    reshipPrompt:
+      "If the package does not arrive within the next few business days, we would like to offer a replacement shipment at no extra charge. Please reply to let us know if you would like us to reship your order, or if you'd prefer to continue waiting.",
   },
   DELIVERY_FAILURE: {
-    subjectSuffix: "Delivery Issue",
+    subject: "Delivery issue with your order #{orderNum} — action needed",
     paragraph:
-      "We were notified that there was an issue delivering your package. This may be due to an incorrect address, an access issue, or a carrier problem. We are looking into this and will reach out with next steps shortly. If you have any updated delivery instructions, please reply to this email.",
+      "We were notified that there was an issue delivering your package. This may be due to an incorrect address, an access issue, or a carrier problem. We sincerely apologize for the inconvenience.",
+    reshipPrompt:
+      "We would like to reship your order as soon as possible. Could you please confirm your current shipping address so we can send out a replacement? If you have any updated delivery instructions, please include them in your reply.",
   },
   PRODUCTION_DELAY: {
-    subjectSuffix: "Order Status Update",
+    subject: "Status update on your order #{orderNum}",
     paragraph:
-      "We wanted to let you know that your order is taking a little longer than usual to process. Our team is working to get it shipped out as quickly as possible. We appreciate your patience and will send you a tracking number as soon as your order is on its way.",
+      "We wanted to let you know that your order is taking a little longer than usual to process. Our production team is working hard to get it completed and shipped out as quickly as possible.",
+    reshipPrompt:
+      "We expect your order to ship within the next 1–2 business days. If you would prefer a refund or have any special requests, please don't hesitate to let us know.",
   },
 };
 
 const DEFAULT_MSG = {
-  subjectSuffix: "Order Update",
+  subject: "Important update regarding your order #{orderNum}",
   paragraph:
-    "We wanted to reach out regarding your order. Our team is looking into an issue and will keep you updated. If you have any questions, please don't hesitate to reply to this email.",
+    "We wanted to reach out regarding your order. Our team has identified an issue and is working to resolve it as quickly as possible.",
+  reshipPrompt:
+    "If you would like us to reship your order or if you have any other preferences, please reply to this email and we will take care of it right away.",
 };
 
 export function generateExceptionEmail(params: ExceptionEmailParams): {
@@ -44,7 +54,7 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
   const orderNum = params.orderNumber || "your recent order";
   const msg = MESSAGES[params.type] || DEFAULT_MSG;
 
-  const subject = `Order #${orderNum} — ${msg.subjectSuffix}`;
+  const subject = msg.subject.replace("{orderNum}", orderNum);
 
   const trackingSection =
     params.trackingNumber
@@ -63,7 +73,8 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
     <p style="margin:0 0 16px;">Thank you for your order <strong>#${orderNum}</strong>.</p>
     <p style="margin:0 0 16px;">${msg.paragraph}</p>
     ${trackingSection}
-    <p style="margin:0 0 16px;">If you have any questions or concerns, feel free to reply directly to this email and we'll be happy to help.</p>
+    <p style="margin:0 0 16px;">${msg.reshipPrompt}</p>
+    <p style="margin:0 0 16px;">If you have any other questions or concerns, feel free to reply directly to this email and we'll be happy to help.</p>
     <p style="margin:0 0 4px;">Best regards,</p>
     <p style="margin:0;color:#555;">Customer Support Team</p>
   </div>

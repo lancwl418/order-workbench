@@ -26,7 +26,7 @@ import {
 import { timeAgo, getTrackingUrl } from "@/lib/utils";
 import { generateExceptionEmail } from "@/lib/email-templates";
 import type { ExceptionWithRelations } from "@/types";
-import { Search, CheckCircle2, User, AlertTriangle, Mail } from "lucide-react";
+import { Search, CheckCircle2, User, AlertTriangle, Mail, Eye, Code } from "lucide-react";
 
 export function ExceptionCard({
   exception,
@@ -49,6 +49,7 @@ export function ExceptionCard({
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [bodyTab, setBodyTab] = useState<"preview" | "html">("preview");
 
   const typeColor =
     EXCEPTION_TYPE_COLORS[exception.type] || { bg: "bg-gray-100", text: "text-gray-700" };
@@ -284,8 +285,8 @@ export function ExceptionCard({
         </Dialog>
 
         {/* Email preview dialog */}
-        <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
-          <DialogContent className="sm:max-w-lg">
+        <Dialog open={emailOpen} onOpenChange={(open) => { setEmailOpen(open); if (open) setBodyTab("preview"); }}>
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
@@ -309,13 +310,40 @@ export function ExceptionCard({
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">{tExceptions("emailBody")}</label>
-                <Textarea
-                  value={emailBody}
-                  onChange={(e) => setEmailBody(e.target.value)}
-                  rows={10}
-                  className="mt-0.5 font-mono text-xs"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">{tExceptions("emailBody")}</label>
+                  <div className="flex gap-0 border rounded-md overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setBodyTab("preview")}
+                      className={`px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors ${bodyTab === "preview" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <Eye className="h-3 w-3" />
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBodyTab("html")}
+                      className={`px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors ${bodyTab === "html" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}
+                    >
+                      <Code className="h-3 w-3" />
+                      HTML
+                    </button>
+                  </div>
+                </div>
+                {bodyTab === "preview" ? (
+                  <div
+                    className="border rounded-md p-4 bg-white text-sm max-h-[400px] overflow-y-auto"
+                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                  />
+                ) : (
+                  <Textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    rows={14}
+                    className="font-mono text-xs"
+                  />
+                )}
               </div>
             </div>
             <DialogFooter>
