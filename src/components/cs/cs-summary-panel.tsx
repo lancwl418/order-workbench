@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import useSWR from "swr";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,11 +47,23 @@ export function CsSummaryPanel({
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
 
-  const { data: orders, mutate } = useSWR<CsSummaryOrder[]>(
+  const { data: session } = useSession();
+
+  const { data: allOrders, mutate: mutateAll } = useSWR<CsSummaryOrder[]>(
     "/api/orders/cs-summary",
     fetcher,
     { refreshInterval: 30000 }
   );
+
+  const { data: taggedOrders, mutate: mutateTagged } = useSWR<CsSummaryOrder[]>(
+    session?.user ? "/api/orders/cs-tagged" : null,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+
+  const [tab, setTab] = useState<"all" | "tagged">("all");
+  const orders = tab === "tagged" ? taggedOrders : allOrders;
+  const mutate = useCallback(() => { mutateAll(); mutateTagged(); }, [mutateAll, mutateTagged]);
 
   const [collapsed, setCollapsed] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -157,8 +170,10 @@ export function CsSummaryPanel({
   }, [orders, activeFilter]);
 
   const totalCount = orders?.length || 0;
+  const allCount = allOrders?.length || 0;
+  const taggedCount = taggedOrders?.length || 0;
 
-  if (!orders || totalCount === 0) return null;
+  if (!allOrders || (allCount === 0 && taggedCount === 0)) return null;
 
   return (
     <>
@@ -166,21 +181,44 @@ export function CsSummaryPanel({
         <CardContent className="pt-4 pb-3 px-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-2">
-            <button
-              onClick={toggleCollapsed}
-              className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
-            >
-              <Headset className="h-4 w-4" />
-              {tCS("summaryPanel.title")}
-              <span className="text-muted-foreground font-normal">
-                ({totalCount})
-              </span>
-              {collapsed ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronUp className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleCollapsed}
+                className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+              >
+                <Headset className="h-4 w-4" />
+                {tCS("summaryPanel.title")}
+                {collapsed ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {!collapsed && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => { setTab("all"); setActiveFilter(null); }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      tab === "all"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {tCS("summaryPanel.all")} ({allCount})
+                  </button>
+                  <button
+                    onClick={() => { setTab("tagged"); setActiveFilter(null); }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      tab === "tagged"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    Tagged ({taggedCount})
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
             <Button
               size="sm"
               variant="outline"
@@ -227,6 +265,11 @@ export function CsSummaryPanel({
               )}
 
               {/* Order cards grid — scroll after 3 rows, peek 4th row */}
+              {filteredOrders.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {tab === "tagged" ? "No tagged issues for you" : "No CS issues"}
+                </p>
+              ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pb-1 max-h-[26rem] overflow-y-auto">
                 {filteredOrders.map((order) => (
                   <CsSummaryCard
@@ -245,6 +288,7 @@ export function CsSummaryPanel({
                   />
                 ))}
               </div>
+              )}
             </>
           )}
         </CardContent>
