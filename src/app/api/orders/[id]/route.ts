@@ -5,6 +5,7 @@ import { orderUpdateSchema } from "@/lib/validators";
 import { onOrderStatusChanged } from "@/lib/exceptions/realtime";
 import { INTERNAL_STATUSES } from "@/lib/constants";
 import { markOrderFulfilledInShopify } from "@/lib/shopify/fulfillments";
+import { notifyAngelCsFlagged } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -192,6 +193,13 @@ export async function PATCH(
 
   if (logEntries.length > 0) {
     await prisma.orderLog.createMany({ data: logEntries });
+  }
+
+  // Notify Angel when CS-flagged
+  if (updateData.csFlag && updateData.csFlag !== existing.csFlag) {
+    const fromName = session.user?.name || session.user?.email || "Someone";
+    const orderNumber = existing.shopifyOrderNumber || id.slice(0, 8);
+    notifyAngelCsFlagged(id, orderNumber, session.user?.id, fromName).catch(() => {});
   }
 
   // Sync PICKED_UP to Shopify (mark as fulfilled without tracking)

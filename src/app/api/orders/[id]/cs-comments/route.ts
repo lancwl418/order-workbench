@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyAngelCsFlagged } from "@/lib/notifications";
 import { z } from "zod";
 
 const createCommentSchema = z.object({
@@ -88,7 +89,7 @@ export async function POST(
     }),
   ]);
 
-  // Log csFlag change
+  // Log csFlag change & notify Angel
   if (needsFlag) {
     await prisma.orderLog.create({
       data: {
@@ -100,6 +101,10 @@ export async function POST(
         message: "Auto-flagged by comment",
       },
     });
+
+    const fromName = session.user?.name || session.user?.email || "Someone";
+    const orderNumber = order.shopifyOrderNumber || id.slice(0, 8);
+    notifyAngelCsFlagged(id, orderNumber, session.user?.id, fromName).catch(() => {});
   }
 
   // Create notifications for mentioned users
