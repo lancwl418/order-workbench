@@ -83,6 +83,15 @@ export async function GET(req: NextRequest) {
             createdAt: true,
           },
         },
+        response: {
+          select: {
+            responseType: true,
+            needByDate: true,
+            noRush: true,
+            comments: true,
+            respondedAt: true,
+          },
+        },
       },
     }),
     prisma.orderException.count({ where }),

@@ -75,6 +75,13 @@ export type ExceptionWithRelations = OrderException & {
     shippedAt: Date | null;
     createdAt: Date;
   } | null;
+  response?: {
+    responseType: string | null;
+    needByDate: Date | null;
+    noRush: boolean;
+    comments: string | null;
+    respondedAt: Date | null;
+  } | null;
 };
 
 export type ExceptionCounts = {

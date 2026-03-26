@@ -83,3 +83,32 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
 
   return { subject, body };
 }
+
+export function appendResponseButtons(htmlBody: string, responseUrl: string): string {
+  const buttonsHtml = `
+    <div style="margin:24px 0;padding:24px;background:#f8f9fa;border-radius:8px;text-align:center;">
+      <p style="margin:0 0 16px;font-size:14px;color:#555;font-weight:600;">
+        How would you like us to resolve this?
+      </p>
+      <div>
+        <a href="${responseUrl}?option=reship"
+           style="display:inline-block;padding:12px 24px;margin:4px 8px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+          Reship My Order
+        </a>
+        <a href="${responseUrl}?option=refund"
+           style="display:inline-block;padding:12px 24px;margin:4px 8px;background:#059669;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+          Request Refund
+        </a>
+        <a href="${responseUrl}?option=contact"
+           style="display:inline-block;padding:12px 24px;margin:4px 8px;background:#6b7280;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px;">
+          Contact Support
+        </a>
+      </div>
+    </div>`;
+
+  // Insert before closing </div></body></html>
+  return htmlBody.replace(
+    /(<\/div>\s*<\/body>\s*<\/html>)\s*$/i,
+    `${buttonsHtml}\n$1`
+  );
+}

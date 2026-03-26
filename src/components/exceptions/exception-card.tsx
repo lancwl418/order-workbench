@@ -119,8 +119,26 @@ export function ExceptionCard({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            {exception.customerEmailed && (
+          <div className="flex items-center gap-1 flex-wrap justify-end">
+            {exception.response?.respondedAt && (
+              <Badge
+                variant="outline"
+                className={`border-0 text-[10px] px-1.5 ${
+                  exception.response.responseType === "RESHIP"
+                    ? "bg-blue-50 text-blue-700"
+                    : exception.response.responseType === "REFUND"
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-purple-50 text-purple-700"
+                }`}
+              >
+                {exception.response.responseType === "RESHIP"
+                  ? "Reship"
+                  : exception.response.responseType === "REFUND"
+                  ? "Refund"
+                  : "Contact"}
+              </Badge>
+            )}
+            {exception.customerEmailed && !exception.response?.respondedAt && (
               <Badge
                 variant="outline"
                 className="bg-green-50 text-green-700 border-0 text-[10px] px-1.5"
@@ -215,6 +233,27 @@ export function ExceptionCard({
           <p className="text-xs bg-muted/50 rounded p-1.5 text-muted-foreground">
             {exception.note}
           </p>
+        )}
+
+        {/* Customer response */}
+        {exception.response?.respondedAt && (
+          <div className="text-xs space-y-1">
+            {exception.response.responseType === "RESHIP" && (
+              <p className="text-blue-600">
+                {exception.response.needByDate
+                  ? `Need by: ${new Date(exception.response.needByDate).toLocaleDateString()}`
+                  : exception.response.noRush
+                  ? "No rush"
+                  : null}
+              </p>
+            )}
+            {exception.response.comments && (
+              <p className="bg-blue-50/50 rounded p-1.5 text-blue-700">
+                <span className="font-medium">Customer: </span>
+                {exception.response.comments}
+              </p>
+            )}
+          </div>
         )}
 
         {/* Actions */}

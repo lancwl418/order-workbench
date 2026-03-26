@@ -70,6 +70,12 @@ enum PrintGroupStatus {
   PRINTED
 }
 
+enum CustomerResponseType {
+  RESHIP
+  REFUND
+  CONTACT_SUPPORT
+}
+
 // ─── MODELS ──────────────────────────────────────────────────────
 
 model User {
@@ -346,6 +352,7 @@ model OrderException {
 
   order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  response ExceptionResponse?
 
   @@index([orderId, type, status])
   @@index([status])
@@ -443,4 +450,22 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+model ExceptionResponse {
+  id          String               @id @default(cuid())
+  exceptionId String               @unique @map("exception_id")
+  token       String               @unique
+
+  responseType    CustomerResponseType? @map("response_type")
+  needByDate      DateTime?             @map("need_by_date")
+  noRush          Boolean               @default(false) @map("no_rush")
+  comments        String?               @db.Text
+  respondedAt     DateTime?             @map("responded_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  exception  OrderException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("exception_responses")
 }

@@ -1,7 +1,9 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendCustomerEmail } from "@/lib/email";
+import { appendResponseButtons } from "@/lib/email-templates";
 
 /**
  * POST /api/exceptions/[id]/email
@@ -30,6 +32,7 @@ export async function POST(
           customerEmail: true,
         },
       },
+      response: { select: { token: true, respondedAt: true } },
     },
   });
 
@@ -53,7 +56,30 @@ export async function POST(
     );
   }
 
-  const result = await sendCustomerEmail(email, subject, body);
+  // Create or reuse response token
+  let token: string;
+  if (exception.response && !exception.response.respondedAt) {
+    // Reuse existing token if customer hasn't responded yet
+    token = exception.response.token;
+  } else {
+    // Delete old response if exists (already responded), create new
+    if (exception.response) {
+      await prisma.exceptionResponse.delete({
+        where: { exceptionId: id },
+      });
+    }
+    token = crypto.randomUUID();
+    await prisma.exceptionResponse.create({
+      data: { exceptionId: id, token },
+    });
+  }
+
+  // Append response buttons to email body
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const responseUrl = `${appUrl}/respond/${token}`;
+  const htmlWithButtons = appendResponseButtons(body, responseUrl);
+
+  const result = await sendCustomerEmail(email, subject, htmlWithButtons);
 
   if (!result.success) {
     return NextResponse.json(
