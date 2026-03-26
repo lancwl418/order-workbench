@@ -178,47 +178,48 @@ export function CsSummaryPanel({
   return (
     <>
       <Card className="mb-6 overflow-visible">
+        {/* Tabs — full-width bar at top */}
+        <div className="flex border-b">
+          <button
+            onClick={() => { setTab("all"); setActiveFilter(null); }}
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors relative ${
+              tab === "all"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground/70"
+            }`}
+          >
+            {tCS("summaryPanel.all")} ({allCount})
+            {tab === "all" && <span className="absolute bottom-0 inset-x-0 h-0.5 bg-primary" />}
+          </button>
+          <button
+            onClick={() => { setTab("tagged"); setActiveFilter(null); }}
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors relative ${
+              tab === "tagged"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground/70"
+            }`}
+          >
+            Tagged ({taggedCount})
+            {tab === "tagged" && <span className="absolute bottom-0 inset-x-0 h-0.5 bg-primary" />}
+          </button>
+        </div>
+
         <CardContent className="pt-4 pb-3 px-4">
           {/* Header */}
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleCollapsed}
-                className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
-              >
-                <Headset className="h-4 w-4" />
-                {tCS("summaryPanel.title")}
-                {collapsed ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                )}
-              </button>
-              {!collapsed && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => { setTab("all"); setActiveFilter(null); }}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      tab === "all"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    {tCS("summaryPanel.all")} ({allCount})
-                  </button>
-                  <button
-                    onClick={() => { setTab("tagged"); setActiveFilter(null); }}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      tab === "tagged"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    Tagged ({taggedCount})
-                  </button>
-                </div>
+            <button
+              onClick={toggleCollapsed}
+              className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+            >
+              <Headset className="h-4 w-4" />
+              {tCS("summaryPanel.title")}
+              <span className="text-muted-foreground font-normal">({totalCount})</span>
+              {collapsed ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronUp className="h-3.5 w-3.5" />
               )}
-            </div>
+            </button>
             <Button
               size="sm"
               variant="outline"
