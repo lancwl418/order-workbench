@@ -41,3 +41,13 @@ export function timeAgo(date: Date | string | null | undefined): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return formatDate(d);
 }
+
+export function getTrackingUrl(carrier: string | null, trackingNumber: string): string | null {
+  const c = (carrier || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (c.includes("gofo")) return `https://www.gofoexpress.com/tracking.html?searchID=${trackingNumber}`;
+  if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
+  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${trackingNumber}`;
+  if (c.includes("fedex")) return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
+  if (c.includes("dhl")) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingNumber}`;
+  return null;
+}

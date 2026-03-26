@@ -20,7 +20,7 @@ import {
   EXCEPTION_STATUS_COLORS,
   EXCEPTION_SEVERITY_COLORS,
 } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
+import { timeAgo, getTrackingUrl } from "@/lib/utils";
 import type { ExceptionWithRelations } from "@/types";
 import { Search, CheckCircle2, User, AlertTriangle } from "lucide-react";
 
@@ -114,7 +114,16 @@ export function ExceptionCard({
           {exception.shipment && (
             <p>
               {exception.shipment.carrier && `${exception.shipment.carrier} - `}
-              {exception.shipment.trackingNumber || tExceptions("noTracking")}
+              {exception.shipment.trackingNumber ? (
+                (() => {
+                  const url = getTrackingUrl(exception.shipment!.carrier, exception.shipment!.trackingNumber!);
+                  return url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                      {exception.shipment!.trackingNumber}
+                    </a>
+                  ) : exception.shipment!.trackingNumber;
+                })()
+              ) : tExceptions("noTracking")}
             </p>
           )}
           {exception.shipment?.shippedAt && (

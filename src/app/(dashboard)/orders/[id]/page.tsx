@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
-import { formatDateTime, timeAgo } from "@/lib/utils";
+import { formatDateTime, timeAgo, getTrackingUrl } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -397,7 +397,13 @@ export default function OrderDetailPage() {
               <div>
                 <span className="text-muted-foreground">{t("tracking")}</span>
                 <p className="font-mono text-sm">
-                  {order.trackingNumber || "-"}
+                  {order.trackingNumber ? (() => {
+                    const carrier = shipments?.[0]?.carrier ?? null;
+                    const url = getTrackingUrl(carrier, order.trackingNumber!);
+                    return url ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{order.trackingNumber}</a>
+                    ) : order.trackingNumber;
+                  })() : "-"}
                 </p>
               </div>
               <div>
@@ -550,7 +556,15 @@ export default function OrderDetailPage() {
                         {ex.transitDays != null && <p>{ex.transitDays} business days in transit</p>}
                         {ex.hoursSincePaid != null && <p>{ex.hoursSincePaid}{t("hoursSincePaid")}</p>}
                         {ex.shipment && (
-                          <p>{ex.shipment.carrier} - {ex.shipment.trackingNumber || t("noTrackingShort")}</p>
+                          <p>
+                            {ex.shipment.carrier && `${ex.shipment.carrier} - `}
+                            {ex.shipment.trackingNumber ? (() => {
+                              const url = getTrackingUrl(ex.shipment!.carrier ?? null, ex.shipment!.trackingNumber!);
+                              return url ? (
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{ex.shipment!.trackingNumber}</a>
+                              ) : ex.shipment!.trackingNumber;
+                            })() : t("noTrackingShort")}
+                          </p>
                         )}
                         {ex.note && <p className="bg-muted/50 rounded p-1">{ex.note}</p>}
                         <p>{tCommon("system")} {timeAgo(ex.detectedAt)}</p>
@@ -640,7 +654,12 @@ export default function OrderDetailPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-mono text-sm">
-                          {shipment.trackingNumber || t("noTrackingShort")}
+                          {shipment.trackingNumber ? (() => {
+                            const url = getTrackingUrl(shipment.carrier, shipment.trackingNumber!);
+                            return url ? (
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{shipment.trackingNumber}</a>
+                            ) : shipment.trackingNumber;
+                          })() : t("noTrackingShort")}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {shipment.carrier || t("unknownCarrier")} &middot;{" "}
@@ -782,9 +801,14 @@ export default function OrderDetailPage() {
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <p className="font-mono font-medium">
-                        {(omsRaw?.serverNo as string) || omsShipment.trackingNumber || (
-                          <span className="text-muted-foreground font-normal">{tOms("notAssignedYet")}</span>
-                        )}
+                        {(() => {
+                          const serverNo = (omsRaw?.serverNo as string) || omsShipment.trackingNumber;
+                          if (!serverNo) return <span className="text-muted-foreground font-normal">{tOms("notAssignedYet")}</span>;
+                          const url = getTrackingUrl(omsShipment.carrier, serverNo);
+                          return url ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">{serverNo}</a>
+                          ) : serverNo;
+                        })()}
                       </p>
                       {!((omsRaw?.serverNo as string) || omsShipment.trackingNumber) && (
                         <Button
