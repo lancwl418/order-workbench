@@ -178,11 +178,11 @@ export function CsSummaryPanel({
   return (
     <>
       <Card className="mb-6 overflow-visible">
-        {/* Tabs — full-width bar at top */}
-        <div className="flex border-b">
+        {/* Tabs */}
+        <div className="flex gap-0 border-b px-4 pt-1">
           <button
             onClick={() => { setTab("all"); setActiveFilter(null); }}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors relative ${
+            className={`px-3 py-2 text-sm font-medium transition-colors relative ${
               tab === "all"
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground/70"
@@ -193,7 +193,7 @@ export function CsSummaryPanel({
           </button>
           <button
             onClick={() => { setTab("tagged"); setActiveFilter(null); }}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors relative ${
+            className={`px-3 py-2 text-sm font-medium transition-colors relative ${
               tab === "tagged"
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground/70"
