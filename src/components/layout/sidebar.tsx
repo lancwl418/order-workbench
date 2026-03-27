@@ -8,12 +8,14 @@ import {
   ClipboardList,
   Printer,
   AlertTriangle,
+  Headphones,
 } from "lucide-react";
 
 const navKeys = [
   { key: "orders", href: "/orders", icon: ClipboardList },
   { key: "printQueue", href: "/print-queue", icon: Printer },
   { key: "exceptions", href: "/exceptions", icon: AlertTriangle },
+  { key: "csQueue", href: "/cs-queue", icon: Headphones },
 ] as const;
 
 export function Sidebar() {
