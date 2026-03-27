@@ -17,7 +17,7 @@ export async function resolveGangSheetUrls(
 ): Promise<ResolvedPrintFile[]> {
   try {
     // Step 1: fetch the initial URL without following redirects to capture cookies
-    const initialRes = await fetch(printReadyUrl, { redirect: "manual" });
+    const initialRes = await fetch(printReadyUrl, { redirect: "manual", cache: "no-store" });
     const redirectUrl = initialRes.headers.get("location");
     if (!redirectUrl) {
       return [];
@@ -32,6 +32,7 @@ export async function resolveGangSheetUrls(
     // Step 2: follow redirect with cookies to get the HTML page
     const pageRes = await fetch(redirectUrl, {
       headers: { cookie: cookieHeader },
+      cache: "no-store",
     });
     const html = await pageRes.text();
 

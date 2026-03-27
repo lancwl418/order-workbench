@@ -1131,7 +1131,7 @@ function PrintFilesSection({
   async function loadPrintFiles() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/orders/${orderId}/print-files`);
+      const res = await fetch(`/api/orders/${orderId}/print-files`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setFiles(data.files || []);

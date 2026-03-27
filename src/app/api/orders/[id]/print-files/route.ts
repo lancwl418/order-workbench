@@ -148,7 +148,9 @@ export async function GET(
     });
   }
 
-  return NextResponse.json({ files });
+  return NextResponse.json({ files }, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
 
 async function resolveUrl(
