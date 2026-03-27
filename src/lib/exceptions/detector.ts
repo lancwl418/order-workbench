@@ -13,7 +13,7 @@ export interface ScanResult {
   errors: string[];
 }
 
-function severityByDays(days: number): "LOW" | "MEDIUM" | "HIGH" {
+export function severityByDays(days: number): "LOW" | "MEDIUM" | "HIGH" {
   if (days > 5) return "HIGH";
   if (days >= 3) return "MEDIUM";
   return "LOW";
