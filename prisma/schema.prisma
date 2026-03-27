@@ -157,6 +157,11 @@ model Order {
   // Extra print files (not tied to order items)
   extraPrintFiles Json? @default("[]") @map("extra_print_files")
 
+  // Reship linkage
+  reshipForOrderId String? @map("reship_for_order_id")
+  reshipForOrder   Order?  @relation("ReshipLink", fields: [reshipForOrderId], references: [id])
+  reshipOrders     Order[] @relation("ReshipLink")
+
   // Metadata
   tags      String[] @default([])
   notes     String?  @db.Text

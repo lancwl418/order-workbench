@@ -111,6 +111,25 @@ async function handleOrderCreate(
     });
   }
 
+  // Auto-link reship orders: match by tags + note to find original order
+  const tags = orderData.tags || [];
+  if (tags.includes("reship") && tags.includes("customerservice") && !upsertedOrder.reshipForOrderId) {
+    const noteMatch = (shopifyOrder.note || "").match(/Reship for original order [#]?(\S+)/);
+    if (noteMatch) {
+      const originalOrderNum = noteMatch[1].startsWith("#") ? noteMatch[1] : `#${noteMatch[1]}`;
+      const originalOrder = await prisma.order.findFirst({
+        where: { shopifyOrderNumber: originalOrderNum },
+        select: { id: true },
+      });
+      if (originalOrder) {
+        await prisma.order.update({
+          where: { id: upsertedOrder.id },
+          data: { reshipForOrderId: originalOrder.id },
+        });
+      }
+    }
+  }
+
   await prisma.orderLog.create({
     data: {
       orderId: upsertedOrder.id,

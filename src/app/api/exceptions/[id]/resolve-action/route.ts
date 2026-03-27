@@ -141,6 +141,14 @@ export async function POST(
           },
         },
       });
+
+      // Link new reship order to original if it already exists in DB
+      if (result.orderId) {
+        await tx.order.updateMany({
+          where: { shopifyOrderId: result.orderId },
+          data: { reshipForOrderId: exception.orderId },
+        });
+      }
     });
 
     return NextResponse.json({
