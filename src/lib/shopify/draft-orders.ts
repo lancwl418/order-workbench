@@ -30,10 +30,18 @@ export async function createReshipOrder(
   const originalOrder = await fetchOrderById(params.shopifyOrderId);
 
   // Build line items from original order
-  const lineItems = originalOrder.line_items.map((item) => ({
-    variant_id: item.variant_id,
-    quantity: item.quantity,
-  }));
+  // Use variant_id when available, fall back to custom line item (title + price)
+  // for products that have been deleted/archived from Shopify
+  const lineItems = originalOrder.line_items.map((item) =>
+    item.variant_id
+      ? { variant_id: item.variant_id, quantity: item.quantity }
+      : {
+          title: item.title + (item.variant_title ? ` - ${item.variant_title}` : ""),
+          price: item.price,
+          quantity: item.quantity,
+          sku: item.sku || undefined,
+        }
+  );
 
   const shipping = SHIPPING_METHODS[params.shippingMethod] || SHIPPING_METHODS.standard;
 
@@ -43,32 +51,44 @@ export async function createReshipOrder(
   noteLines.push(`Reship for original order ${originalOrder.name || `#${originalOrder.order_number}`}`);
   const note = noteLines.join("\n");
 
-  // Step 1: Create draft order
-  const draftResponse = await client.post({
-    path: "draft_orders",
-    data: {
-      draft_order: {
-        line_items: lineItems,
-        shipping_address: originalOrder.shipping_address,
-        shipping_line: {
-          title: shipping.title,
-          price: shipping.price,
-        },
-        tags: RESHIP_TAGS,
-        note,
-        applied_discount: {
-          title: "customerservice",
-          description: "Customer service reship discount",
-          value_type: "percentage",
-          value: "100.0",
-        },
-        use_customer_default_address: false,
-        customer: originalOrder.customer
-          ? { id: originalOrder.customer.id }
-          : undefined,
+  // Step 1: Create draft order (retry with custom line items if products unavailable)
+  const draftPayload = {
+    draft_order: {
+      line_items: lineItems,
+      shipping_address: originalOrder.shipping_address,
+      shipping_line: {
+        title: shipping.title,
+        price: shipping.price,
       },
+      tags: RESHIP_TAGS,
+      note,
+      applied_discount: {
+        title: "customerservice",
+        description: "Customer service reship discount",
+        value_type: "percentage",
+        value: "100.0",
+      },
+      use_customer_default_address: false,
+      customer: originalOrder.customer
+        ? { id: originalOrder.customer.id }
+        : undefined,
     },
-  });
+  };
+
+  let draftResponse;
+  try {
+    draftResponse = await client.post({ path: "draft_orders", data: draftPayload });
+  } catch {
+    // Fallback: use custom line items (title + price) when variant_id products are unavailable
+    const fallbackItems = originalOrder.line_items.map((item) => ({
+      title: item.title + (item.variant_title ? ` - ${item.variant_title}` : ""),
+      price: item.price,
+      quantity: item.quantity,
+      sku: item.sku || undefined,
+    }));
+    draftPayload.draft_order.line_items = fallbackItems;
+    draftResponse = await client.post({ path: "draft_orders", data: draftPayload });
+  }
 
   const draftOrder = (draftResponse.body as { draft_order: { id: number } }).draft_order;
 
