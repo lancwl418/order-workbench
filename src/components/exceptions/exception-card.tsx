@@ -27,7 +27,8 @@ import { timeAgo, getTrackingUrl } from "@/lib/utils";
 import { generateExceptionEmail } from "@/lib/email-templates";
 import type { ExceptionWithRelations } from "@/types";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
-import { Search, CheckCircle2, User, AlertTriangle, Mail, Eye, Code } from "lucide-react";
+import { Search, CheckCircle2, User, AlertTriangle, Mail, Eye, Code, ClipboardCheck } from "lucide-react";
+import { ResolveResponseDialog } from "./resolve-response-dialog";
 
 export function ExceptionCard({
   exception,
@@ -47,6 +48,7 @@ export function ExceptionCard({
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [resolveOpen, setResolveOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -288,6 +290,15 @@ export function ExceptionCard({
                 {tExceptions("emailCustomer")}
               </Button>
             )}
+            {exception.response?.respondedAt && (exception.response.responseType === "RESHIP" || exception.response.responseType === "REFUND") && (
+              <Button
+                size="xs"
+                onClick={() => setResolveOpen(true)}
+              >
+                <ClipboardCheck className="h-3 w-3" />
+                Process
+              </Button>
+            )}
           </div>
         )}
         {exception.status !== "OPEN" && exception.status !== "INVESTIGATING" && exception.status !== "RESOLVED" && exception.order.customerEmail && (
@@ -423,6 +434,14 @@ export function ExceptionCard({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Resolve response dialog */}
+        <ResolveResponseDialog
+          exception={exception}
+          open={resolveOpen}
+          onOpenChange={setResolveOpen}
+          onProcessed={onEmailSent}
+        />
       </CardContent>
     </Card>
   );

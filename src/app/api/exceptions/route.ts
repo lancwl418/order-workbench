@@ -66,11 +66,13 @@ export async function GET(req: NextRequest) {
         order: {
           select: {
             id: true,
+            shopifyOrderId: true,
             shopifyOrderNumber: true,
             customerName: true,
             customerEmail: true,
             internalStatus: true,
             trackingNumber: true,
+            totalPrice: true,
           },
         },
         shipment: {

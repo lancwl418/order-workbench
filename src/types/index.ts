@@ -61,11 +61,13 @@ export type ApiError = {
 export type ExceptionWithRelations = OrderException & {
   order: {
     id: string;
+    shopifyOrderId: string | null;
     shopifyOrderNumber: string | null;
     customerName: string | null;
     customerEmail: string | null;
     internalStatus: string;
     trackingNumber: string | null;
+    totalPrice: unknown;
   };
   shipment?: {
     id: string;
