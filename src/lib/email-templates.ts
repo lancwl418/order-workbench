@@ -75,16 +75,6 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
     ${trackingSection}
     <p style="margin:0 0 16px;">${msg.reshipPrompt}</p>
     <p style="margin:0 0 16px;">If you have any other questions or concerns, feel free to reply directly to this email and we'll be happy to help.</p>
-    <div style="margin:0 0 20px;text-align:center;">
-      <p style="margin:0 0 10px;font-size:13px;color:#555;font-weight:600;">
-        How would you like us to resolve this?
-      </p>
-      <div>
-        <a href="#reship" style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">Reship My Order</a>
-        <a href="#refund" style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#059669;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">Request Refund</a>
-        <a href="#contact" style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#6b7280;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">Contact Support</a>
-      </div>
-    </div>
     <p style="margin:0 0 4px;">Best regards,</p>
     <p style="margin:0;color:#555;">Customer Support Team</p>
   </div>
@@ -95,8 +85,36 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
 }
 
 export function appendResponseButtons(htmlBody: string, responseUrl: string): string {
-  return htmlBody
-    .replace(/href="#reship"/g, `href="${responseUrl}?option=reship"`)
-    .replace(/href="#refund"/g, `href="${responseUrl}?option=refund"`)
-    .replace(/href="#contact"/g, `href="${responseUrl}?option=contact"`);
+  const buttonsHtml = `
+    <div style="margin:0 0 20px;text-align:center;">
+      <p style="margin:0 0 10px;font-size:13px;color:#555;font-weight:600;">
+        How would you like us to resolve this?
+      </p>
+      <div>
+        <a href="${responseUrl}?option=reship"
+           style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">
+          Reship My Order
+        </a>
+        <a href="${responseUrl}?option=refund"
+           style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#059669;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">
+          Request Refund
+        </a>
+        <a href="${responseUrl}?option=contact"
+           style="display:inline-block;padding:8px 16px;margin:2px 4px;background:#6b7280;color:#ffffff;text-decoration:none;border-radius:4px;font-weight:600;font-size:12px;">
+          Contact Support
+        </a>
+      </div>
+    </div>`;
+
+  // Insert before "Best regards"
+  const bestRegardsMatch = htmlBody.match(/<p[^>]*>\s*Best regards/i);
+  if (bestRegardsMatch) {
+    const idx = htmlBody.indexOf(bestRegardsMatch[0]);
+    return htmlBody.slice(0, idx) + buttonsHtml + htmlBody.slice(idx);
+  }
+  // Fallback: insert before closing </div></body></html>
+  return htmlBody.replace(
+    /(<\/div>\s*<\/body>\s*<\/html>)\s*$/i,
+    `${buttonsHtml}\n$1`
+  );
 }

@@ -396,6 +396,16 @@ export function ExceptionCard({
                     className="font-mono text-xs"
                   />
                 )}
+                {/* Resolution buttons preview (non-editable, appended at send time) */}
+                <div className="border rounded-md p-3 bg-muted/30 text-center space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">How would you like us to resolve this?</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="inline-block px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded">Reship My Order</span>
+                    <span className="inline-block px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded">Request Refund</span>
+                    <span className="inline-block px-3 py-1.5 bg-gray-500 text-white text-xs font-semibold rounded">Contact Support</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">These buttons will be added automatically when sent</p>
+                </div>
               </div>
             </div>
             <DialogFooter>
