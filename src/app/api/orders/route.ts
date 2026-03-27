@@ -52,6 +52,9 @@ export async function GET(req: NextRequest) {
           take: 1,
           select: { id: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true, syncStatus: true, providerName: true },
         },
+        reshipForOrder: {
+          select: { id: true, shopifyOrderNumber: true },
+        },
         _count: { select: { shipments: true } },
       },
     }),

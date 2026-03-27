@@ -38,6 +38,10 @@ export type ShipmentSummary = {
 export type OrderListItem = Order & {
   orderItems: OrderItem[];
   shipments: ShipmentSummary[];
+  reshipForOrder?: {
+    id: string;
+    shopifyOrderNumber: string | null;
+  } | null;
   _count: {
     shipments: number;
   };

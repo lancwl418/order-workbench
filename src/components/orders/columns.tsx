@@ -91,7 +91,7 @@ export function createColumns(opts: {
         const csFlag = row.original.csFlag;
         const note = row.original.notes;
         const id = row.original.id;
-        const isReship = !!row.original.reshipForOrderId;
+        const reshipFor = row.original.reshipForOrder;
 
         return (
           <div className="flex items-center gap-1.5">
@@ -101,11 +101,26 @@ export function createColumns(opts: {
             >
               #{row.getValue("shopifyOrderNumber") || row.original.id.slice(0, 8)}
             </Link>
-            {isReship && (
-              <span className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium bg-blue-100 text-blue-700">
-                <Undo2 className="h-2.5 w-2.5" />
-                Reship
-              </span>
+            {reshipFor && (
+              <TooltipProvider delay={200}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Link
+                        href={`/orders/${reshipFor.id}`}
+                        className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Undo2 className="h-2.5 w-2.5" />
+                        Reship
+                      </Link>
+                    }
+                  />
+                  <TooltipContent>
+                    Reship for #{reshipFor.shopifyOrderNumber || reshipFor.id.slice(0, 8)}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             <TooltipProvider delay={200}>
               <Tooltip>
