@@ -93,14 +93,23 @@ export async function createReshipOrder(
   const draftOrder = (draftResponse.body as { draft_order: { id: number } }).draft_order;
 
   // Step 2: Complete draft order (mark as paid)
-  const completeResponse = await client.put({
-    path: `draft_orders/${draftOrder.id}/complete`,
-    data: {
-      payment_pending: false,
-    },
-  });
+  // Retry up to 3 times with delay — Shopify may still be calculating taxes/shipping
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let completeResponse;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await delay(2000);
+      completeResponse = await client.put({
+        path: `draft_orders/${draftOrder.id}/complete`,
+        data: { payment_pending: false },
+      });
+      break;
+    } catch (err) {
+      if (attempt === 2) throw err;
+    }
+  }
 
-  const completedDraft = (completeResponse.body as {
+  const completedDraft = (completeResponse!.body as {
     draft_order: { order_id: number; name: string; order: { id: number; order_number: number; name: string } };
   }).draft_order;
 
