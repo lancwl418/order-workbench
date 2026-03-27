@@ -2,6 +2,49 @@ import { createShopifyRestClient } from "./client";
 import { fetchOrderById } from "./orders";
 
 const RESHIP_TAGS = "customerservice, reship, shipping issue";
+const DISCOUNT_CODE = "customerservice";
+
+/**
+ * Look up a Shopify discount code and return its price rule details.
+ */
+async function lookupDiscountCode(code: string): Promise<{
+  title: string;
+  value: string;
+  valueType: "percentage" | "fixed_amount";
+} | null> {
+  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const token = process.env.SHOPIFY_ACCESS_TOKEN!;
+  const version = process.env.SHOPIFY_API_VERSION || "2025-01";
+  const baseUrl = `https://${store}/admin/api/${version}`;
+
+  try {
+    // Step 1: Look up discount code to get price_rule_id
+    const codeRes = await fetch(`${baseUrl}/discount_codes/lookup.json?code=${encodeURIComponent(code)}`, {
+      headers: { "X-Shopify-Access-Token": token },
+      redirect: "follow",
+    });
+    if (!codeRes.ok) return null;
+    const codeData = await codeRes.json();
+    const priceRuleId = codeData.discount_code?.price_rule_id;
+    if (!priceRuleId) return null;
+
+    // Step 2: Get price rule details
+    const ruleRes = await fetch(`${baseUrl}/price_rules/${priceRuleId}.json`, {
+      headers: { "X-Shopify-Access-Token": token },
+    });
+    if (!ruleRes.ok) return null;
+    const ruleData = await ruleRes.json();
+    const rule = ruleData.price_rule;
+
+    return {
+      title: code,
+      value: String(Math.abs(parseFloat(rule.value))),
+      valueType: rule.value_type === "percentage" ? "percentage" : "fixed_amount",
+    };
+  } catch {
+    return null;
+  }
+}
 
 const SHIPPING_METHODS: Record<string, { title: string; price: string }> = {
   standard: { title: "Standard Shipping", price: "0.00" },
@@ -51,6 +94,13 @@ export async function createReshipOrder(
   noteLines.push(`Reship for original order ${originalOrder.name || `#${originalOrder.order_number}`}`);
   const note = noteLines.join("\n");
 
+  // Look up actual discount code from Shopify, fallback to 100% off
+  const discount = await lookupDiscountCode(DISCOUNT_CODE) || {
+    title: DISCOUNT_CODE,
+    value: "100.0",
+    valueType: "percentage" as const,
+  };
+
   // Step 1: Create draft order (retry with custom line items if products unavailable)
   const draftPayload = {
     draft_order: {
@@ -63,10 +113,10 @@ export async function createReshipOrder(
       tags: RESHIP_TAGS,
       note,
       applied_discount: {
-        title: "customerservice",
-        description: "Customer service reship discount",
-        value_type: "percentage",
-        value: "100.0",
+        title: discount.title,
+        description: `Discount code: ${DISCOUNT_CODE}`,
+        value_type: discount.valueType,
+        value: discount.value,
       },
       use_customer_default_address: false,
       customer: originalOrder.customer
