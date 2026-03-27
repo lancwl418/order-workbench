@@ -290,6 +290,18 @@ export function ExceptionCard({
             )}
           </div>
         )}
+        {exception.status !== "OPEN" && exception.status !== "INVESTIGATING" && exception.status !== "RESOLVED" && exception.order.customerEmail && (
+          <div className="flex items-center gap-1.5 pt-1">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={openEmailDialog}
+            >
+              <Mail className="h-3 w-3" />
+              {tExceptions("emailCustomer")}
+            </Button>
+          </div>
+        )}
 
         {/* Resolve confirmation dialog */}
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
