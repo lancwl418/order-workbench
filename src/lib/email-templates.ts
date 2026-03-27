@@ -76,7 +76,8 @@ export function generateExceptionEmail(params: ExceptionEmailParams): {
     <p style="margin:0 0 16px;">${msg.reshipPrompt}</p>
     <p style="margin:0 0 16px;">If you have any other questions or concerns, feel free to reply directly to this email and we'll be happy to help.</p>
     <p style="margin:0 0 4px;">Best regards,</p>
-    <p style="margin:0;color:#555;">Customer Support Team</p>
+    <p style="margin:0 0 2px;color:#555;">Idea Max Customer Support Team</p>
+    <p style="margin:0;"><a href="https://www.ideamaxusa.com" style="color:#2563eb;text-decoration:none;">www.ideamaxusa.com</a></p>
   </div>
 </body>
 </html>`.trim();
