@@ -6,6 +6,7 @@ import {
   isDirectImageUrl,
   type ResolvedPrintFile,
 } from "@/lib/drip/resolve-gang-sheet";
+import { refreshPrintFileUrls } from "@/lib/shopify/refresh-print-urls";
 
 export type PrintFileWithSource = ResolvedPrintFile & {
   sourceUrl: string;
@@ -32,6 +33,9 @@ export async function GET(
   }
 
   const { id } = await params;
+
+  // Refresh URLs from Shopify before loading (catches gangsheet updates)
+  await refreshPrintFileUrls(id);
 
   const order = await prisma.order.findUnique({
     where: { id },

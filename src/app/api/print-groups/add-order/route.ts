@@ -7,6 +7,7 @@ import {
   type ResolvedPrintFile,
 } from "@/lib/drip/resolve-gang-sheet";
 import { getPngDimensions } from "@/lib/drip/png-dimensions";
+import { refreshPrintFileUrls } from "@/lib/shopify/refresh-print-urls";
 import { z } from "zod";
 
 const MAX_GROUP_HEIGHT = 3897; // inches
@@ -31,6 +32,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { orderId } = parsed.data;
+
+  // Refresh URLs from Shopify before adding (catches gangsheet updates)
+  await refreshPrintFileUrls(orderId);
 
   // Load order with items
   const order = await prisma.order.findUnique({

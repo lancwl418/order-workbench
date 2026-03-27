@@ -16,8 +16,9 @@ describe("formatDate", () => {
   });
 
   it("formats a date string", () => {
-    const result = formatDate("2024-01-01T00:00:00Z");
-    expect(result).toMatch(/Jan/);
+    // Use a mid-month date to avoid timezone boundary issues
+    const result = formatDate("2024-06-15T12:00:00Z");
+    expect(result).toMatch(/Jun/);
     expect(result).toMatch(/2024/);
   });
 });
