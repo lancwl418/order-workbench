@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { uploadToR2 } from "@/lib/r2";
 
-const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-// Allow large file uploads (gang sheets can be 100MB+)
-export const maxDuration = 60;
+// Allow large file uploads (gang sheets can be 300MB+)
+export const maxDuration = 120;
 
 
 /**
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json(
-      { error: "File too large. Max 50MB" },
+      { error: "File too large. Max 500MB" },
       { status: 400 }
     );
   }
