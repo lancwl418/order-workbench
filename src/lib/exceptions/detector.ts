@@ -13,6 +13,12 @@ export interface ScanResult {
   errors: string[];
 }
 
+function severityByDays(days: number): "LOW" | "MEDIUM" | "HIGH" {
+  if (days > 5) return "HIGH";
+  if (days >= 3) return "MEDIUM";
+  return "LOW";
+}
+
 /**
  * Main scan entry point. Runs all four detectors + auto-recovery.
  */
@@ -91,11 +97,12 @@ async function detectNoMovementAfterLabel(): Promise<number> {
 
     const active = shipment.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
     if (active.length > 0) {
+      const newSeverity = severityByDays(daysSinceLabel);
       for (const ex of active) {
-        if (ex.daysSinceLabel !== daysSinceLabel) {
+        if (ex.daysSinceLabel !== daysSinceLabel || ex.severity !== newSeverity) {
           await prisma.orderException.update({
             where: { id: ex.id },
-            data: { daysSinceLabel },
+            data: { daysSinceLabel, severity: newSeverity },
           });
         }
       }
@@ -108,7 +115,7 @@ async function detectNoMovementAfterLabel(): Promise<number> {
           orderId: shipment.order.id,
           shipmentId: shipment.id,
           type: "NO_MOVEMENT_AFTER_LABEL",
-          severity: "HIGH",
+          severity: severityByDays(daysSinceLabel),
           daysSinceLabel,
         },
       }),
@@ -173,11 +180,12 @@ async function detectLongTransit(): Promise<number> {
 
     const active = shipment.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
     if (active.length > 0) {
+      const newSeverity = severityByDays(transitDays);
       for (const ex of active) {
-        if (ex.transitDays !== transitDays) {
+        if (ex.transitDays !== transitDays || ex.severity !== newSeverity) {
           await prisma.orderException.update({
             where: { id: ex.id },
-            data: { transitDays },
+            data: { transitDays, severity: newSeverity },
           });
         }
       }
@@ -192,7 +200,7 @@ async function detectLongTransit(): Promise<number> {
           orderId: shipment.order.id,
           shipmentId: shipment.id,
           type: "LONG_TRANSIT",
-          severity: "MEDIUM",
+          severity: severityByDays(transitDays),
           transitDays,
         },
       }),
@@ -309,13 +317,15 @@ async function detectProductionDelay(): Promise<number> {
     const resolved = order.exceptions.filter((e) => e.status === "RESOLVED" || e.status === "AUTO_RESOLVED");
     if (resolved.length > 0) continue;
 
+    const daysSincePaid = Math.floor(hoursSincePaid / 24);
     const active = order.exceptions.filter((e) => e.status === "OPEN" || e.status === "INVESTIGATING");
     if (active.length > 0) {
+      const newSeverity = severityByDays(daysSincePaid);
       for (const ex of active) {
-        if (ex.hoursSincePaid !== hoursSincePaid) {
+        if (ex.hoursSincePaid !== hoursSincePaid || ex.severity !== newSeverity) {
           await prisma.orderException.update({
             where: { id: ex.id },
-            data: { hoursSincePaid },
+            data: { hoursSincePaid, severity: newSeverity },
           });
         }
       }
@@ -327,7 +337,7 @@ async function detectProductionDelay(): Promise<number> {
         data: {
           orderId: order.id,
           type: "PRODUCTION_DELAY",
-          severity: "HIGH",
+          severity: severityByDays(daysSincePaid),
           hoursSincePaid,
         },
       }),

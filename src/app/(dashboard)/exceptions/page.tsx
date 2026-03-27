@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useExceptions, useExceptionCounts } from "@/hooks/use-exceptions";
 import { ExceptionCard } from "@/components/exceptions/exception-card";
 import { useExceptionActions } from "@/components/exceptions/exception-actions";
+import { CsQueuePanel } from "@/components/exceptions/cs-queue-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -18,9 +19,10 @@ import {
   AlertTriangle,
   Truck,
   Ban,
+  Headphones,
 } from "lucide-react";
 
-type Tab = "shipment" | "processing";
+type Tab = "shipment" | "processing" | "cs";
 
 const SHIPMENT_TYPES = [
   "NO_MOVEMENT_AFTER_LABEL",
@@ -47,7 +49,7 @@ export default function ExceptionsPage() {
     exceptions,
     isLoading,
     refresh,
-  } = useExceptions({ category: tab, limit: 100 });
+  } = useExceptions({ category: tab === "cs" ? "shipment" : tab, limit: 100 });
 
   const { investigate, resolve } = useExceptionActions(() => {
     refresh();
@@ -137,9 +139,19 @@ export default function ExceptionsPage() {
             </span>
           )}
         </Button>
+        <Button
+          size="sm"
+          variant={tab === "cs" ? "default" : "outline"}
+          onClick={() => setTab("cs")}
+        >
+          <Headphones className="h-4 w-4" />
+          CS Issues
+        </Button>
       </div>
 
-      {isLoading ? (
+      {tab === "cs" ? (
+        <CsQueuePanel />
+      ) : isLoading ? (
         <div className="flex items-center justify-center h-48 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
           {tCommon("loading")}

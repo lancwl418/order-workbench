@@ -1,0 +1,460 @@
+"use client";
+
+import { useMemo, useState, useCallback, useRef } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import useSWR from "swr";
+import { useTranslations } from "next-intl";
+import { useOrders } from "@/hooks/use-orders";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { DataTable } from "@/components/orders/data-table";
+import { StatusBadge } from "@/components/orders/status-badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { toast } from "sonner";
+import { formatDate, timeAgo } from "@/lib/utils";
+import { CS_ISSUE_TYPES } from "@/lib/constants";
+import type { OrderListItem, CsCommentWithUser } from "@/types";
+import Link from "next/link";
+import {
+  Flag,
+  Loader2,
+  MessageSquare,
+  Paperclip,
+  Send,
+  FileText,
+  Image as ImageIcon,
+  X,
+} from "lucide-react";
+import { MentionInput } from "@/components/cs/mention-input";
+import { PrioritySelector } from "@/components/cs/priority-stars";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+export function CsQueuePanel() {
+  const isMobile = useIsMobile();
+  const tCS = useTranslations("csQueue");
+  const tIssue = useTranslations("csIssueType");
+
+  const {
+    orders,
+    pagination,
+    isLoading,
+    setPage,
+    setSort,
+    refresh,
+  } = useOrders("cs-queue");
+
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [sheetOrder, setSheetOrder] = useState<OrderListItem | null>(null);
+
+  const handleResolve = useCallback(
+    async (orderId: string) => {
+      setResolvingId(orderId);
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csFlag: false }),
+        });
+        if (!res.ok) throw new Error("Failed to resolve");
+        toast.success("CS flag removed");
+        refresh();
+      } catch {
+        toast.error("Failed to resolve CS issue");
+      } finally {
+        setResolvingId(null);
+      }
+    },
+    [refresh]
+  );
+
+  const handleIssueTypeChange = useCallback(
+    async (orderId: string, csIssueType: string) => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csIssueType }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        toast.success("Issue type updated");
+        refresh();
+      } catch {
+        toast.error("Failed to update issue type");
+      }
+    },
+    [refresh]
+  );
+
+  const handlePriorityChange = useCallback(
+    async (orderId: string, csPriority: number) => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csPriority }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        refresh();
+      } catch {
+        toast.error("Failed to update priority");
+      }
+    },
+    [refresh]
+  );
+
+  const columns: ColumnDef<OrderListItem>[] = useMemo(
+    () => [
+      {
+        accessorKey: "csPriority",
+        header: tCS("columns.priority"),
+        cell: ({ row }) => (
+          <PrioritySelector
+            value={row.original.csPriority || 0}
+            onChange={(v) => handlePriorityChange(row.original.id, v)}
+          />
+        ),
+      },
+      {
+        accessorKey: "shopifyOrderNumber",
+        header: tCS("columns.orderNumber"),
+        cell: ({ row }) => (
+          <Link
+            href={`/orders/${row.original.id}`}
+            className="font-medium text-primary hover:underline"
+          >
+            #{row.getValue("shopifyOrderNumber") || row.original.id.slice(0, 8)}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "customerName",
+        header: tCS("columns.customer"),
+        cell: ({ row }) => (
+          <div className="max-w-[150px] truncate">
+            {row.getValue("customerName") || "-"}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "internalStatus",
+        header: tCS("columns.status"),
+        cell: ({ row }) => (
+          <StatusBadge status={row.getValue("internalStatus")} />
+        ),
+      },
+      {
+        accessorKey: "csIssueType",
+        header: tCS("columns.issueType"),
+        cell: ({ row }) => {
+          const id = row.original.id;
+          const current = row.original.csIssueType;
+          return (
+            <Select
+              value={current || ""}
+              onValueChange={(v) => v && handleIssueTypeChange(id, v)}
+            >
+              <SelectTrigger className="h-7 w-[140px] text-xs">
+                {current ? (
+                  <span>{tIssue.has(current) ? tIssue(current) : current}</span>
+                ) : (
+                  <span className="text-muted-foreground">{tCS("select")}</span>
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                {CS_ISSUE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {tIssue.has(t) ? tIssue(t) : t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        },
+      },
+      {
+        id: "csComments",
+        header: tCS("columns.csNotes"),
+        cell: ({ row }) => {
+          const order = row.original;
+          const note = order.csNote;
+          return (
+            <button
+              onClick={() => setSheetOrder(order)}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+            >
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+              {note ? (
+                <span className="max-w-[200px] truncate">{note}</span>
+              ) : (
+                <span className="text-xs">{tCS("addNote")}</span>
+              )}
+            </button>
+          );
+        },
+      },
+      {
+        accessorKey: "shopifyCreatedAt",
+        header: tCS("columns.date"),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">
+            {formatDate(row.getValue("shopifyCreatedAt"))}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: tCS("columns.actions"),
+        cell: ({ row }) => {
+          const id = row.original.id;
+          const loading = resolvingId === id;
+          return (
+            <div className="flex items-center gap-2">
+              <Link href={`/orders/${id}`}>
+                <Button size="sm" variant="outline">
+                  {tCS("view")}
+                </Button>
+              </Link>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={loading}
+                onClick={() => handleResolve(id)}
+                title="Remove CS flag"
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Flag className="h-3 w-3" />
+                )}
+                {tCS("resolve")}
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [resolvingId, handleResolve, handleIssueTypeChange, handlePriorityChange, tCS, tIssue]
+  );
+
+  const columnVisibility = useMemo(
+    () =>
+      isMobile
+        ? { customerName: false, shopifyCreatedAt: false, csIssueType: false }
+        : undefined,
+    [isMobile]
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-end mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSort("csPriority", "desc")}
+        >
+          {tCS("sortByPriority")}
+        </Button>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={orders}
+        pagination={pagination}
+        onPageChange={setPage}
+        isLoading={isLoading}
+        columnVisibility={columnVisibility}
+      />
+
+      <Sheet
+        open={!!sheetOrder}
+        onOpenChange={(open) => {
+          if (!open) setSheetOrder(null);
+        }}
+      >
+        <SheetContent side="right" className="sm:max-w-md w-full flex flex-col">
+          {sheetOrder && (
+            <CommentSheet
+              orderId={sheetOrder.id}
+              orderNumber={sheetOrder.shopifyOrderNumber}
+              customerName={sheetOrder.customerName}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function CommentSheet({
+  orderId,
+  orderNumber,
+  customerName,
+}: {
+  orderId: string;
+  orderNumber: string | null;
+  customerName: string | null;
+}) {
+  const tCS = useTranslations("csQueue");
+  const tCommon = useTranslations("common");
+  const tOD = useTranslations("orderDetail");
+
+  const { data: comments, mutate } = useSWR<CsCommentWithUser[]>(
+    `/api/orders/${orderId}/cs-comments`,
+    fetcher
+  );
+
+  const [content, setContent] = useState("");
+  const [mentions, setMentions] = useState<string[]>([]);
+  const [attachments, setAttachments] = useState<{ url: string; filename: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload/cs", { method: "POST", body: formData });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Upload failed");
+        }
+        const data = await res.json();
+        setAttachments((prev) => [...prev, { url: data.url, filename: data.filename }]);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload file");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!content.trim() && attachments.length === 0) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/cs-comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: content.trim(), attachments: attachments.map((a) => a.url), mentions }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setContent("");
+      setMentions([]);
+      setAttachments([]);
+      mutate();
+      toast.success("Comment added");
+    } catch {
+      toast.error("Failed to add comment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>
+          {tCS("csNotes")} — #{orderNumber || orderId.slice(0, 8)}
+        </SheetTitle>
+        <SheetDescription>{customerName || tCS("unknownCustomer")}</SheetDescription>
+      </SheetHeader>
+
+      <div className="px-4 space-y-2">
+        <MentionInput
+          value={content}
+          onChange={setContent}
+          mentions={mentions}
+          onMentionsChange={setMentions}
+          placeholder={tCS("addCommentPlaceholder")}
+          rows={3}
+          className="text-sm"
+          onSubmit={handleSubmit}
+        />
+
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((att, i) => (
+              <div key={i} className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs">
+                {/\.(png|jpe?g|webp)$/i.test(att.filename) ? <ImageIcon className="h-3 w-3 shrink-0" /> : <FileText className="h-3 w-3 shrink-0" />}
+                <span className="max-w-[120px] truncate">{att.filename}</span>
+                <button onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-foreground ml-1">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input ref={fileInputRef} type="file" className="hidden" accept="image/png,image/jpeg,image/webp,application/pdf" multiple onChange={handleFileUpload} />
+          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+            {uploading ? tCommon("uploading") : tOD("attach")}
+          </Button>
+          <Button size="sm" onClick={handleSubmit} disabled={submitting || (!content.trim() && attachments.length === 0)}>
+            {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+            {tOD("send")}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+        {!comments ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : comments.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">{tCS("noComments")}</p>
+        ) : (
+          comments.map((comment) => (
+            <div key={comment.id} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{comment.user?.displayName || comment.user?.username || tCommon("system")}</span>
+                <span className="text-xs text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+              </div>
+              {comment.content && (
+                <p className="text-sm whitespace-pre-wrap">
+                  {comment.content.split(/(@\S+)/g).map((part, i) =>
+                    part.startsWith("@") ? <span key={i} className="font-medium text-primary">{part}</span> : part
+                  )}
+                </p>
+              )}
+              {comment.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {comment.attachments.map((url, i) => {
+                    const filename = url.split("/").pop() || "file";
+                    return (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs text-blue-600 hover:underline">
+                        {/\.(png|jpe?g|webp)$/i.test(filename) ? <ImageIcon className="h-3 w-3 shrink-0" /> : <FileText className="h-3 w-3 shrink-0" />}
+                        <span className="max-w-[150px] truncate">{filename.replace(/^\d{10,}-/, "")}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}

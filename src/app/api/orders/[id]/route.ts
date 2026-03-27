@@ -202,6 +202,47 @@ export async function PATCH(
     notifyAngelCsFlagged(id, orderNumber, session.user?.id, fromName).catch(() => {});
   }
 
+  // Auto-create exception when CS flags shipping_issue
+  if (
+    updateData.csFlag &&
+    updateData.csFlag !== existing.csFlag &&
+    (updateData.csIssueType === "shipping_issue" || existing.csIssueType === "shipping_issue")
+  ) {
+    const hasActiveException = await prisma.orderException.findFirst({
+      where: { orderId: id, status: { in: ["OPEN", "INVESTIGATING"] } },
+    });
+    if (!hasActiveException) {
+      await prisma.orderException.create({
+        data: {
+          orderId: id,
+          type: "DELIVERY_FAILURE",
+          severity: "MEDIUM",
+          note: "Created from CS shipping issue flag",
+        },
+      });
+    }
+  }
+  // Also create exception when issue type changed to shipping_issue on already-flagged order
+  if (
+    updateData.csIssueType === "shipping_issue" &&
+    existing.csIssueType !== "shipping_issue" &&
+    existing.csFlag
+  ) {
+    const hasActiveException = await prisma.orderException.findFirst({
+      where: { orderId: id, status: { in: ["OPEN", "INVESTIGATING"] } },
+    });
+    if (!hasActiveException) {
+      await prisma.orderException.create({
+        data: {
+          orderId: id,
+          type: "DELIVERY_FAILURE",
+          severity: "MEDIUM",
+          note: "Created from CS shipping issue flag",
+        },
+      });
+    }
+  }
+
   // Sync PICKED_UP to Shopify (mark as fulfilled without tracking)
   if (
     updateData.internalStatus === "PICKED_UP" &&
