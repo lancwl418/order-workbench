@@ -58,18 +58,31 @@ export async function resolveGangSheetUrls(
       gang_sheet_url?: string;
       file_name?: string;
       status?: string;
+      updated_at?: string;
     }> = pageData?.props?.designs || [];
 
     return designs
       .filter((d) => d.gang_sheet_url && d.status === "completed")
       .map((d) => ({
-        url: d.gang_sheet_url!,
+        url: appendCacheBuster(d.gang_sheet_url!, d.updated_at),
         filename: d.file_name || "gang-sheet.png",
       }));
   } catch (e) {
     console.error("Failed to resolve gang sheet URLs:", e);
     return [];
   }
+}
+
+/**
+ * Append ?dt={unix_timestamp} from `updated_at` to bust CDN cache.
+ * Without this, the CDN may serve a stale version of the gang sheet image.
+ */
+function appendCacheBuster(url: string, updatedAt?: string): string {
+  if (!updatedAt) return url;
+  const ts = Math.floor(new Date(updatedAt).getTime() / 1000);
+  if (isNaN(ts)) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}dt=${ts}`;
 }
 
 /**

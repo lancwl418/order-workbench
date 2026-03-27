@@ -48,7 +48,7 @@ describe("resolveGangSheetUrls", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns resolved files when page has completed designs", async () => {
+  it("returns resolved files with ?dt= cache buster from updated_at", async () => {
     const pageData = {
       props: {
         designs: [
@@ -56,6 +56,7 @@ describe("resolveGangSheetUrls", () => {
             gang_sheet_url: "https://images.dripappsserver.com/production/gang_sheets/123/sheet.png",
             file_name: "order-1234-sheet.png",
             status: "completed",
+            updated_at: "2026-03-27T19:12:48.000000Z",
           },
         ],
       },
@@ -77,7 +78,7 @@ describe("resolveGangSheetUrls", () => {
 
     expect(result).toEqual([
       {
-        url: "https://images.dripappsserver.com/production/gang_sheets/123/sheet.png",
+        url: "https://images.dripappsserver.com/production/gang_sheets/123/sheet.png?dt=1774638768",
         filename: "order-1234-sheet.png",
       },
     ]);
@@ -153,8 +154,8 @@ describe("resolveGangSheetUrls", () => {
     const pageData = {
       props: {
         designs: [
-          { gang_sheet_url: "https://img.com/a.png", file_name: "a.png", status: "completed" },
-          { gang_sheet_url: "https://img.com/b.png", file_name: "b.png", status: "processing" },
+          { gang_sheet_url: "https://img.com/a.png", file_name: "a.png", status: "completed", updated_at: "2026-01-01T00:00:00.000000Z" },
+          { gang_sheet_url: "https://img.com/b.png", file_name: "b.png", status: "processing", updated_at: "2026-01-01T00:00:00.000000Z" },
           { gang_sheet_url: null, file_name: "c.png", status: "completed" },
         ],
       },
@@ -173,7 +174,8 @@ describe("resolveGangSheetUrls", () => {
       } as unknown as Response);
 
     const result = await resolveGangSheetUrls("https://example.com/print-ready");
-    expect(result).toEqual([{ url: "https://img.com/a.png", filename: "a.png" }]);
+    const expectedTs = Math.floor(new Date("2026-01-01T00:00:00.000000Z").getTime() / 1000);
+    expect(result).toEqual([{ url: `https://img.com/a.png?dt=${expectedTs}`, filename: "a.png" }]);
   });
 
   it("uses fallback filename when file_name is missing", async () => {
@@ -201,6 +203,31 @@ describe("resolveGangSheetUrls", () => {
     expect(result).toEqual([{ url: "https://img.com/a.png", filename: "gang-sheet.png" }]);
   });
 
+  it("omits ?dt= when updated_at is missing", async () => {
+    const pageData = {
+      props: {
+        designs: [
+          { gang_sheet_url: "https://img.com/a.png", file_name: "a.png", status: "completed" },
+        ],
+      },
+    };
+    const encodedData = JSON.stringify(pageData).replace(/"/g, "&quot;");
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        headers: {
+          get: () => "https://redirect.com",
+          getSetCookie: () => [],
+        },
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        text: async () => `<div data-page="${encodedData}"></div>`,
+      } as unknown as Response);
+
+    const result = await resolveGangSheetUrls("https://example.com/print-ready");
+    expect(result[0].url).toBe("https://img.com/a.png");
+  });
+
   it("returns empty array when fetch throws an error", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network error"));
 
@@ -212,7 +239,7 @@ describe("resolveGangSheetUrls", () => {
     const pageData = {
       props: {
         designs: [
-          { gang_sheet_url: "https://img.com/a.png?foo=1&bar=2", file_name: "test.png", status: "completed" },
+          { gang_sheet_url: "https://img.com/a.png?foo=1&bar=2", file_name: "test.png", status: "completed", updated_at: "2026-06-15T12:00:00.000000Z" },
         ],
       },
     };
@@ -233,6 +260,8 @@ describe("resolveGangSheetUrls", () => {
       } as unknown as Response);
 
     const result = await resolveGangSheetUrls("https://example.com/print-ready");
-    expect(result[0].url).toBe("https://img.com/a.png?foo=1&bar=2");
+    const expectedTs = Math.floor(new Date("2026-06-15T12:00:00.000000Z").getTime() / 1000);
+    // dt= is appended after existing query params with &
+    expect(result[0].url).toBe(`https://img.com/a.png?foo=1&bar=2&dt=${expectedTs}`);
   });
 });
