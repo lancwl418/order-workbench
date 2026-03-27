@@ -26,6 +26,7 @@ import {
 import { timeAgo, getTrackingUrl } from "@/lib/utils";
 import { generateExceptionEmail } from "@/lib/email-templates";
 import type { ExceptionWithRelations } from "@/types";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Search, CheckCircle2, User, AlertTriangle, Mail, Eye, Code } from "lucide-react";
 
 export function ExceptionCard({
@@ -371,9 +372,9 @@ export function ExceptionCard({
                   </div>
                 </div>
                 {bodyTab === "preview" ? (
-                  <div
-                    className="border rounded-md p-4 bg-white text-sm max-h-[400px] overflow-y-auto"
-                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                  <RichTextEditor
+                    content={emailBody}
+                    onChange={setEmailBody}
                   />
                 ) : (
                   <Textarea
