@@ -91,6 +91,7 @@ function buildWhereClause(
       break;
     case "cs-queue":
       where.csFlag = true;
+      where.csIssueType = { not: "shipping_issue" };
       break;
     case "exceptions":
       where.OR = [
