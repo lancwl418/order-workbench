@@ -146,6 +146,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   // Product IDs for print-ready URL extraction (compared as strings for safety)
   const TRANSFER_BY_SIZE_PRODUCT_ID = "9000096399595";
   const BUILD_A_GANGSHEET_PRODUCT_ID = "8999852835051";
+  const UPLOAD_GANGSHEET_PRODUCT_ID = "9101910016235";
 
   // For Transfer by Size: only grab one _Print Ready URL per order
   let transferBySizePrintUrl: string | null = null;
@@ -164,9 +165,9 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
             ?.find((p) => p.name === "_Print Ready")?.value || null;
         }
         designFileUrl = transferBySizePrintUrl;
-      } else if (productId === BUILD_A_GANGSHEET_PRODUCT_ID) {
+      } else if (productId === BUILD_A_GANGSHEET_PRODUCT_ID || productId === UPLOAD_GANGSHEET_PRODUCT_ID) {
         itemType = "gangsheet";
-        // Build a Gangsheet: each line item has its own URL
+        // Build a Gangsheet / Upload Gangsheet: each line item has its own URL
         designFileUrl = lineItem.properties
           ?.find((p) => p.name === "_Print Ready File")?.value || null;
       }
