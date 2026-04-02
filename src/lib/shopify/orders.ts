@@ -153,9 +153,11 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const items: MappedOrderItem[] = shopifyOrder.line_items.map(
     (lineItem: ShopifyLineItem) => {
       let designFileUrl: string | null = null;
+      let itemType: "transfer_by_size" | "gangsheet" | "other" = "other";
       const productId = String(lineItem.product_id || "");
 
       if (productId === TRANSFER_BY_SIZE_PRODUCT_ID) {
+        itemType = "transfer_by_size";
         // Transfer by Size: one shared print-ready URL per order
         if (!transferBySizePrintUrl) {
           transferBySizePrintUrl = lineItem.properties
@@ -163,6 +165,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         }
         designFileUrl = transferBySizePrintUrl;
       } else if (productId === BUILD_A_GANGSHEET_PRODUCT_ID) {
+        itemType = "gangsheet";
         // Build a Gangsheet: each line item has its own URL
         designFileUrl = lineItem.properties
           ?.find((p) => p.name === "_Print Ready File")?.value || null;
@@ -176,6 +179,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         quantity: lineItem.quantity,
         price: lineItem.price,
         designFileUrl,
+        itemType,
       };
     }
   );

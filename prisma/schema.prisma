@@ -100,19 +100,19 @@ model Order {
   id String @id @default(cuid())
 
   // Shopify fields (synced)
-  shopifyOrderId       String?  @unique @map("shopify_order_id")
-  shopifyOrderNumber   String?  @map("shopify_order_number")
-  shopifyStatus        String?  @map("shopify_status")
-  shopifyFulfillStatus String?  @map("shopify_fulfill_status")
+  shopifyOrderId       String?   @unique @map("shopify_order_id")
+  shopifyOrderNumber   String?   @map("shopify_order_number")
+  shopifyStatus        String?   @map("shopify_status")
+  shopifyFulfillStatus String?   @map("shopify_fulfill_status")
   shopifyCreatedAt     DateTime? @map("shopify_created_at")
   shopifyUpdatedAt     DateTime? @map("shopify_updated_at")
-  shopifyRawJson       Json?    @map("shopify_raw_json")
+  shopifyRawJson       Json?     @map("shopify_raw_json")
 
   // Customer info (denormalized)
-  customerName    String?  @map("customer_name")
-  customerEmail   String?  @map("customer_email")
-  customerPhone   String?  @map("customer_phone")
-  shippingAddress Json?    @map("shipping_address")
+  customerName    String? @map("customer_name")
+  customerEmail   String? @map("customer_email")
+  customerPhone   String? @map("customer_phone")
+  shippingAddress Json?   @map("shipping_address")
 
   // Financial (denormalized)
   totalPrice Decimal? @map("total_price") @db.Decimal(10, 2)
@@ -147,11 +147,11 @@ model Order {
   delayFlag   Boolean   @default(false) @map("delay_flag")
 
   // CS fields
-  csNote     String?  @map("cs_note") @db.Text
-  csFlag     Boolean  @default(false) @map("cs_flag")
-  csPriority Int      @default(0) @map("cs_priority")
-  csIssueType String? @map("cs_issue_type")
-  csRequiredAction String? @map("cs_required_action")
+  csNote            String?   @map("cs_note") @db.Text
+  csFlag            Boolean   @default(false) @map("cs_flag")
+  csPriority        Int       @default(0) @map("cs_priority")
+  csIssueType       String?   @map("cs_issue_type")
+  csRequiredAction  String?   @map("cs_required_action")
   csLastContactTime DateTime? @map("cs_last_contact_time")
 
   // Extra print files (not tied to order items)
@@ -188,7 +188,6 @@ model Order {
   @@index([shopifyCreatedAt])
   @@index([createdAt])
   @@index([priority])
-
   @@map("orders")
 }
 
@@ -204,14 +203,17 @@ model OrderItem {
   quantity          Int
   price             Decimal @db.Decimal(10, 2)
 
+  // Item type: transfer_by_size, gangsheet, or other (blanks/POD)
+  itemType              String    @default("other") @map("item_type")
+
   // DTF-specific fields
-  designFileUrl         String?  @map("design_file_url")
-  originalDesignFileUrl String?  @map("original_design_file_url")
-  artworkRef            String?  @map("artwork_ref")
-  printSize     String?  @map("print_size")
-  printNotes    String?  @map("print_notes") @db.Text
-  isPrinted     Boolean  @default(false) @map("is_printed")
-  printedAt     DateTime? @map("printed_at")
+  designFileUrl         String?   @map("design_file_url")
+  originalDesignFileUrl String?   @map("original_design_file_url")
+  artworkRef            String?   @map("artwork_ref")
+  printSize             String?   @map("print_size")
+  printNotes            String?   @map("print_notes") @db.Text
+  isPrinted             Boolean   @default(false) @map("is_printed")
+  printedAt             DateTime? @map("printed_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -220,7 +222,6 @@ model OrderItem {
 
   @@index([orderId])
   @@index([sku])
-
   @@map("order_items")
 }
 
@@ -258,9 +259,9 @@ model Shipment {
   providerRawJson    Json?   @map("provider_raw_json")
 
   // Shopify fulfillment sync
-  shopifyFulfillmentId String?  @unique @map("shopify_fulfillment_id")
-  syncStatus           String   @default("NOT_SYNCED") @map("sync_status") // "NOT_SYNCED","SYNCED","FAILED"
-  syncError            String?  @map("sync_error") @db.Text
+  shopifyFulfillmentId String? @unique @map("shopify_fulfillment_id")
+  syncStatus           String  @default("NOT_SYNCED") @map("sync_status") // "NOT_SYNCED","SYNCED","FAILED"
+  syncError            String? @map("sync_error") @db.Text
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -272,7 +273,6 @@ model Shipment {
   @@index([labelStatus])
   @@index([status])
   @@index([syncStatus])
-
   @@map("shipments")
 }
 
@@ -281,7 +281,7 @@ model OrderLog {
   orderId String  @map("order_id")
   userId  String? @map("user_id")
 
-  action    String  // "status_change","route_change","note_added","synced","printed","label_created","fulfillment_pushed"
+  action    String // "status_change","route_change","note_added","synced","printed","label_created","fulfillment_pushed"
   fromValue String? @map("from_value")
   toValue   String? @map("to_value")
   message   String? @db.Text
@@ -296,7 +296,6 @@ model OrderLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
-
   @@map("order_logs")
 }
 
@@ -305,7 +304,7 @@ model PrintLog {
   orderId String  @map("order_id")
   userId  String? @map("user_id")
 
-  action      String   // "print_started","print_completed","print_failed","reprint"
+  action      String // "print_started","print_completed","print_failed","reprint"
   itemIds     String[] @map("item_ids")
   printerName String?  @map("printer_name")
   printConfig Json?    @map("print_config")
@@ -322,56 +321,54 @@ model PrintLog {
   @@index([orderId])
   @@index([userId])
   @@index([startedAt])
-
   @@map("print_logs")
 }
 
 model OrderException {
-  id         String            @id @default(cuid())
-  orderId    String            @map("order_id")
-  shipmentId String?           @map("shipment_id")
+  id         String  @id @default(cuid())
+  orderId    String  @map("order_id")
+  shipmentId String? @map("shipment_id")
 
-  type       ExceptionType     @map("exception_type")
-  severity   ExceptionSeverity @default(HIGH)
-  status     ExceptionStatus   @default(OPEN) @map("exception_status")
+  type     ExceptionType     @map("exception_type")
+  severity ExceptionSeverity @default(HIGH)
+  status   ExceptionStatus   @default(OPEN) @map("exception_status")
 
-  detectedAt  DateTime  @default(now()) @map("detected_at")
-  resolvedAt  DateTime? @map("resolved_at")
+  detectedAt DateTime  @default(now()) @map("detected_at")
+  resolvedAt DateTime? @map("resolved_at")
 
   // Context snapshot at detection time
-  transitDays    Int?   @map("transit_days")
-  daysSinceLabel Int?   @map("days_since_label")
-  hoursSincePaid Int?   @map("hours_since_paid")
+  transitDays    Int? @map("transit_days")
+  daysSinceLabel Int? @map("days_since_label")
+  hoursSincePaid Int? @map("hours_since_paid")
 
   // Management
-  owner      String?  @map("exception_owner")
-  note       String?  @map("exception_note") @db.Text
-  resolvedBy String?  @map("resolved_by")
+  owner      String? @map("exception_owner")
+  note       String? @map("exception_note") @db.Text
+  resolvedBy String? @map("resolved_by")
 
   // Customer outreach
-  customerEmailed   Boolean  @default(false) @map("customer_emailed")
+  customerEmailed   Boolean   @default(false) @map("customer_emailed")
   customerEmailedAt DateTime? @map("customer_emailed_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  shipment Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  order    Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment Shipment?          @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
   response ExceptionResponse?
 
   @@index([orderId, type, status])
   @@index([status])
   @@index([type])
   @@index([detectedAt])
-
   @@map("order_exceptions")
 }
 
 model PrintGroup {
-  id              String           @id @default(cuid())
-  name            String
-  status          PrintGroupStatus @default(BUILDING)
-  totalHeight     Float            @default(0) @map("total_height")
+  id                String           @id @default(cuid())
+  name              String
+  status            PrintGroupStatus @default(BUILDING)
+  totalHeight       Float            @default(0) @map("total_height")
   combinedFileUrl   String?          @map("combined_file_url")
   downloadStatus    String?          @map("download_status")
   downloadProgress  Int              @default(0) @map("download_progress")
@@ -387,16 +384,16 @@ model PrintGroup {
 }
 
 model PrintGroupItem {
-  id           String @id @default(cuid())
-  printGroupId String @map("print_group_id")
-  orderId      String @map("order_id")
+  id           String   @id @default(cuid())
+  printGroupId String   @map("print_group_id")
+  orderId      String   @map("order_id")
   position     Int
-  fileUrl      String @map("file_url")
+  fileUrl      String   @map("file_url")
   filename     String
-  widthPx      Int    @map("width_px")
-  heightPx     Int    @map("height_px")
-  dpi          Int    @default(300)
-  heightInches Float  @map("height_inches")
+  widthPx      Int      @map("width_px")
+  heightPx     Int      @map("height_px")
+  dpi          Int      @default(300)
+  heightInches Float    @map("height_inches")
   createdAt    DateTime @default(now()) @map("created_at")
 
   printGroup PrintGroup @relation(fields: [printGroupId], references: [id], onDelete: Cascade)
@@ -440,8 +437,8 @@ model PackagePreset {
 
 model Notification {
   id         String   @id @default(cuid())
-  userId     String   @map("user_id")     // recipient
-  type       String   @default("mention")  // "mention"
+  userId     String   @map("user_id") // recipient
+  type       String   @default("mention") // "mention"
   message    String   @db.Text
   orderId    String?  @map("order_id")
   commentId  String?  @map("comment_id")
@@ -458,18 +455,18 @@ model Notification {
 }
 
 model ExceptionResponse {
-  id          String               @id @default(cuid())
-  exceptionId String               @unique @map("exception_id")
-  token       String               @unique
+  id          String @id @default(cuid())
+  exceptionId String @unique @map("exception_id")
+  token       String @unique
 
-  responseType    CustomerResponseType? @map("response_type")
-  needByDate      DateTime?             @map("need_by_date")
-  noRush          Boolean               @default(false) @map("no_rush")
-  comments        String?               @db.Text
-  respondedAt     DateTime?             @map("responded_at")
-  createdAt       DateTime              @default(now()) @map("created_at")
+  responseType CustomerResponseType? @map("response_type")
+  needByDate   DateTime?             @map("need_by_date")
+  noRush       Boolean               @default(false) @map("no_rush")
+  comments     String?               @db.Text
+  respondedAt  DateTime?             @map("responded_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
 
-  exception  OrderException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  exception OrderException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@map("exception_responses")

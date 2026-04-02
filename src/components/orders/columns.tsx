@@ -30,7 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap } from "lucide-react";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, Package } from "lucide-react";
 
 const DELIVERY_METHODS = ["standard", "express", "pickup"] as const;
 
@@ -196,11 +196,35 @@ export function createColumns(opts: {
     {
       id: "items",
       header: t.items,
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original.orderItems.length}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const hasNonTransfer = row.original.orderItems.some(
+          (item) => item.itemType === "other"
+        );
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-muted-foreground">
+              {row.original.orderItems.length}
+            </span>
+            {hasNonTransfer && (
+              <TooltipProvider delay={200}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
+                        <Package className="h-2.5 w-2.5" />
+                        Blanks
+                      </span>
+                    }
+                  />
+                  <TooltipContent>
+                    Including blanks/POD items
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "shippingMethod",
