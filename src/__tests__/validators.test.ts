@@ -92,6 +92,11 @@ describe("orderUpdateSchema", () => {
     expect(result.csNote).toBeNull();
   });
 
+  it("accepts DELIVERED as valid internalStatus", () => {
+    const result = orderUpdateSchema.parse({ internalStatus: "DELIVERED" });
+    expect(result.internalStatus).toBe("DELIVERED");
+  });
+
   it("accepts csFlag boolean", () => {
     const result = orderUpdateSchema.parse({ csFlag: true });
     expect(result.csFlag).toBe(true);
@@ -115,6 +120,14 @@ describe("bulkUpdateSchema", () => {
     });
     expect(result.orderIds).toHaveLength(2);
     expect(result.internalStatus).toBe("SHIPPED");
+  });
+
+  it("accepts DELIVERED as valid bulk internalStatus", () => {
+    const result = bulkUpdateSchema.parse({
+      orderIds: ["id1"],
+      internalStatus: "DELIVERED",
+    });
+    expect(result.internalStatus).toBe("DELIVERED");
   });
 });
 

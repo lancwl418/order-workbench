@@ -245,3 +245,14 @@ export function getPrevStatus(current: string): string | null {
   if (idx <= 0) return null;
   return STATUS_FLOW[idx - 1];
 }
+
+/** Statuses where CS issues are still being reviewed */
+export const CS_REVIEW_STATUSES = ["OPEN", "REVIEW"] as const;
+
+/** Whether csFlag should be auto-cleared for the given status (beyond CS review phase) */
+export function shouldAutoClearCsFlag(
+  newStatus: string,
+  existingCsFlag: boolean
+): boolean {
+  return existingCsFlag && !CS_REVIEW_STATUSES.includes(newStatus as typeof CS_REVIEW_STATUSES[number]);
+}

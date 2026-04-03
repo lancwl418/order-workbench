@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getNextStatus, getPrevStatus } from "@/lib/constants";
+import { getNextStatus, getPrevStatus, shouldAutoClearCsFlag } from "@/lib/constants";
 
 describe("getNextStatus", () => {
   it("OPEN -> REVIEW", () => {
@@ -59,5 +59,35 @@ describe("getPrevStatus", () => {
   it("returns null for statuses not in the flow", () => {
     expect(getPrevStatus("DELAYED")).toBeNull();
     expect(getPrevStatus("CANCELLED")).toBeNull();
+  });
+});
+
+describe("shouldAutoClearCsFlag", () => {
+  it("clears csFlag when moving to LABEL_CREATED", () => {
+    expect(shouldAutoClearCsFlag("LABEL_CREATED", true)).toBe(true);
+  });
+
+  it("clears csFlag when moving to SHIPPED", () => {
+    expect(shouldAutoClearCsFlag("SHIPPED", true)).toBe(true);
+  });
+
+  it("clears csFlag when moving to DELIVERED", () => {
+    expect(shouldAutoClearCsFlag("DELIVERED", true)).toBe(true);
+  });
+
+  it("clears csFlag when moving to PICKED_UP", () => {
+    expect(shouldAutoClearCsFlag("PICKED_UP", true)).toBe(true);
+  });
+
+  it("does NOT clear csFlag when staying in OPEN", () => {
+    expect(shouldAutoClearCsFlag("OPEN", true)).toBe(false);
+  });
+
+  it("does NOT clear csFlag when staying in REVIEW", () => {
+    expect(shouldAutoClearCsFlag("REVIEW", true)).toBe(false);
+  });
+
+  it("returns false when csFlag is already false", () => {
+    expect(shouldAutoClearCsFlag("SHIPPED", false)).toBe(false);
   });
 });

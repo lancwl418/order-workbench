@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { bulkUpdateSchema } from "@/lib/validators";
+import { CS_REVIEW_STATUSES } from "@/lib/constants";
 
 export async function PATCH(req: NextRequest) {
   const session = await auth();
@@ -26,6 +27,11 @@ export async function PATCH(req: NextRequest) {
     where: { id: { in: orderIds } },
     select: { id: true, internalStatus: true, shippingRoute: true },
   });
+
+  // Auto-clear csFlag when status moves beyond OPEN/REVIEW (entering production)
+  if (updateData.internalStatus && !CS_REVIEW_STATUSES.includes(updateData.internalStatus as typeof CS_REVIEW_STATUSES[number])) {
+    (updateData as Record<string, unknown>).csFlag = false;
+  }
 
   // Update all orders
   await prisma.order.updateMany({

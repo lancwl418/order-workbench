@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { orderUpdateSchema } from "@/lib/validators";
 import { onOrderStatusChanged } from "@/lib/exceptions/realtime";
-import { INTERNAL_STATUSES } from "@/lib/constants";
+import { INTERNAL_STATUSES, shouldAutoClearCsFlag } from "@/lib/constants";
 import { markOrderFulfilledInShopify } from "@/lib/shopify/fulfillments";
 import { notifyAngelCsFlagged } from "@/lib/notifications";
 
@@ -97,6 +97,15 @@ export async function PATCH(
         updateData.internalStatus = "OPEN";
       }
     }
+  }
+
+  // Auto-clear csFlag when status moves beyond OPEN/REVIEW (entering production)
+  if (
+    updateData.internalStatus &&
+    updateData.csFlag === undefined &&
+    shouldAutoClearCsFlag(updateData.internalStatus, existing.csFlag)
+  ) {
+    (updateData as Record<string, unknown>).csFlag = false;
   }
 
   // Auto-sync printStatus based on order status changes
