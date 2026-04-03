@@ -172,6 +172,14 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
           ?.find((p) => p.name === "_Print Ready File")?.value || null;
       }
 
+      // Fallback: check product title for transfer-related keywords
+      if (itemType === "other") {
+        const titleLower = (lineItem.title || "").toLowerCase();
+        if (titleLower.includes("transfer") || titleLower.includes("gang sheet") || titleLower.includes("gangsheet")) {
+          itemType = "gangsheet";
+        }
+      }
+
       return {
         shopifyLineItemId: String(lineItem.id),
         title: lineItem.title,

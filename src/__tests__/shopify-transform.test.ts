@@ -287,4 +287,61 @@ describe("transformShopifyOrder", () => {
       expect(items[1].designFileUrl).toBe("https://transferbysize.com/order/abc");
     });
   });
+
+  describe("item type fallback by title", () => {
+    it('classifies "other" item as gangsheet when title contains "transfer"', () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 6001, title: "DTF Transfer 22x30", quantity: 1, price: "15.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("gangsheet");
+    });
+
+    it('classifies "other" item as gangsheet when title contains "gang sheet"', () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 6002, title: "Custom Gang Sheet Print", quantity: 1, price: "25.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("gangsheet");
+    });
+
+    it('classifies "other" item as gangsheet when title contains "gangsheet"', () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 6003, title: "Gangsheet Bundle", quantity: 1, price: "30.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("gangsheet");
+    });
+
+    it("is case insensitive", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 6004, title: "CUSTOM TRANSFER PACK", quantity: 1, price: "20.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("gangsheet");
+    });
+
+    it('keeps "other" when title has no transfer keywords', () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 6005, title: "Blank T-Shirt White", quantity: 1, price: "10.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("other");
+    });
+  });
 });
