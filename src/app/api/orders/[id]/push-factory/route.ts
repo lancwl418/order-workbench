@@ -23,6 +23,7 @@ const itemMappingSchema = z.object({
   shouldPrint: z.boolean().default(false),
   printPosition: z.enum(["1", "2", "1,2"]).optional(),
   imageUrls: z.array(z.string().url()).optional(),
+  effectImageUrls: z.array(z.string().url()).optional(),
 });
 
 const pushSchema = z.object({
@@ -123,6 +124,20 @@ export async function POST(
   const pfOrderId = order.shopifyOrderNumber;
   const sourceOrderId = order.id;
 
+  // Pre-validate effect images for non-print items
+  for (const m of items) {
+    if (!m.shouldPrint) {
+      const item = itemById.get(m.orderItemId)!;
+      const hasEffectUrls = (m.effectImageUrls && m.effectImageUrls.length > 0) || item.designFileUrl;
+      if (!hasEffectUrls) {
+        return NextResponse.json(
+          { error: `Item "${item.title}" requires at least one effect image (效果图) when not printing` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const goodsList: FactoryGoodsItem[] = items.map((m, idx) => {
     const item = itemById.get(m.orderItemId)!;
     const resolvedCraftType = (m.craftType ?? craftType) as 1 | 2;
@@ -142,6 +157,27 @@ export async function POST(
         imageCode: `${item.id}-print-${i}`,
         imageName: `${item.id}-print-${i}`,
       }));
+    } else {
+      // 不打印: type=1 with "[不打印]" marker + type=2 effect images
+      const effectUrls = m.effectImageUrls && m.effectImageUrls.length > 0
+        ? m.effectImageUrls
+        : item.designFileUrl
+          ? [item.designFileUrl]
+          : [];
+      imageList = [
+        {
+          type: 1 as const,
+          imageUrl: "",
+          imageCode: "[不打印]",
+          imageName: "noprint",
+        },
+        ...effectUrls.slice(0, 2).map((url, i) => ({
+          type: 2 as const,
+          imageUrl: url,
+          imageCode: `${item.id}-effect-${i}`,
+          imageName: `${item.id}-effect-${i}`,
+        })),
+      ];
     }
 
     return {

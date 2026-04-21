@@ -57,6 +57,7 @@ interface ItemFormState {
   shouldPrint: boolean;
   printPosition: "1" | "2" | "1,2";
   imageUrlsText: string; // comma-separated when shouldPrint=true
+  effectImageUrlsText: string; // comma-separated effect images for non-print items
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -121,6 +122,7 @@ export function PushFactoryDialog({
           shouldPrint: item.itemType !== "other", // blanks default to no print
           printPosition: "1",
           imageUrlsText: item.designFileUrl ?? "",
+          effectImageUrlsText: item.designFileUrl ?? "",
         };
       })
     );
@@ -165,6 +167,12 @@ export function PushFactoryDialog({
             printPosition: f.shouldPrint ? f.printPosition : undefined,
             imageUrls: f.shouldPrint
               ? f.imageUrlsText
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : undefined,
+            effectImageUrls: !f.shouldPrint
+              ? f.effectImageUrlsText
                   .split(",")
                   .map((s) => s.trim())
                   .filter(Boolean)
@@ -340,7 +348,7 @@ export function PushFactoryDialog({
                         <span className="text-xs">Print this item (打印)</span>
                       </div>
 
-                      {f.shouldPrint && (
+                      {f.shouldPrint ? (
                         <>
                           <div className="md:col-span-2">
                             <label className="text-[11px] text-muted-foreground">Print position</label>
@@ -376,6 +384,23 @@ export function PushFactoryDialog({
                             />
                           </div>
                         </>
+                      ) : (
+                        <div className="md:col-span-4">
+                          <label className="text-[11px] text-muted-foreground">
+                            效果图 URLs (最多2张，逗号分隔) *
+                          </label>
+                          <Input
+                            value={f.effectImageUrlsText}
+                            onChange={(e) =>
+                              updateForm(f.orderItemId, { effectImageUrlsText: e.target.value })
+                            }
+                            placeholder="https://xxx.com/image.jpg"
+                            className="h-8 text-sm"
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            不打印模式：需提供效果图，工厂将以成品直接发货
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}
