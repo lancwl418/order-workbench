@@ -33,6 +33,7 @@ import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/ty
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
+import { PushFactoryDialog } from "@/components/orders/push-factory-dialog";
 
 type LogEntry = {
   id: string;
@@ -81,6 +82,7 @@ export default function OrderDetailPage() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [omsPushOpen, setOmsPushOpen] = useState(false);
+  const [pushFactoryOpen, setPushFactoryOpen] = useState(false);
   const [refreshingTracking, setRefreshingTracking] = useState(false);
   const [editingServerNo, setEditingServerNo] = useState(false);
   const [serverNoInput, setServerNoInput] = useState("");
@@ -520,6 +522,27 @@ export default function OrderDetailPage() {
               </div>
             )}
 
+            {/* Factory Push — shown when order has blank (itemType=other) items */}
+            {order.orderItems.some((i) => i.itemType === "other") && (
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setPushFactoryOpen(true)}
+                >
+                  <Package className="h-3.5 w-3.5 mr-1" />
+                  {order.factoryPushedAt ? "Re-push to Factory" : "Push to Factory"}
+                </Button>
+                {order.factoryPushedAt && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Last pushed {timeAgo(order.factoryPushedAt)}
+                    {order.factoryPushCount > 1 ? ` · ${order.factoryPushCount}×` : ""}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* CS Comments */}
             <CsCommentsSection orderId={order.id} />
           </CardContent>
@@ -873,6 +896,18 @@ export default function OrderDetailPage() {
           onOpenChange={setOmsPushOpen}
           onSuccess={() => {
             setOmsPushOpen(false);
+            mutate();
+          }}
+        />
+
+        {/* Factory Push Dialog */}
+        <PushFactoryDialog
+          orderId={order.id}
+          items={order.orderItems}
+          open={pushFactoryOpen}
+          onOpenChange={setPushFactoryOpen}
+          onSuccess={() => {
+            setPushFactoryOpen(false);
             mutate();
           }}
         />

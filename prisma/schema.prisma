@@ -162,6 +162,11 @@ model Order {
   reshipForOrder   Order?  @relation("ReshipLink", fields: [reshipForOrderId], references: [id])
   reshipOrders     Order[] @relation("ReshipLink")
 
+  // Factory push (Linmiao POD)
+  factoryPushedAt    DateTime? @map("factory_pushed_at")
+  factoryLastTraceId String?   @map("factory_last_trace_id")
+  factoryPushCount   Int       @default(0) @map("factory_push_count")
+
   // Metadata
   tags      String[] @default([])
   notes     String?  @db.Text
@@ -214,6 +219,13 @@ model OrderItem {
   printNotes            String?   @map("print_notes") @db.Text
   isPrinted             Boolean   @default(false) @map("is_printed")
   printedAt             DateTime? @map("printed_at")
+
+  // Factory push (last values sent to Linmiao per-item)
+  factorySku  String? @map("factory_sku")
+  factorySize String? @map("factory_size")
+  factoryColor String? @map("factory_color")
+  factoryStyle String? @map("factory_style")
+  factoryCraftType Int? @map("factory_craft_type")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -452,6 +464,24 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+model SkuMapping {
+  id           String   @id @default(cuid())
+  ourSku       String   @map("our_sku")
+  variantTitle String   @map("variant_title")
+  factorySku   String   @map("factory_sku")
+  factorySize  String?  @map("factory_size")
+  factoryColor String?  @map("factory_color")
+  factoryStyle String?  @map("factory_style")
+  factoryCraftType Int? @map("factory_craft_type")
+  lastUsedAt   DateTime @default(now()) @map("last_used_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([ourSku, variantTitle])
+  @@index([ourSku])
+  @@map("sku_mappings")
 }
 
 model ExceptionResponse {
