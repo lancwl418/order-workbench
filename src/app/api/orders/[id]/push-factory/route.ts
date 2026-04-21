@@ -20,6 +20,8 @@ const itemMappingSchema = z.object({
   styleCode: z.string().optional(),
   styleName: z.string().optional(),
   craftType: z.union([z.literal(1), z.literal(2)]).optional(),
+  shouldPrint: z.boolean().default(false),
+  printPosition: z.enum(["1", "2", "1,2"]).optional(),
   imageUrls: z.array(z.string().url()).optional(),
 });
 
@@ -125,24 +127,21 @@ export async function POST(
     const item = itemById.get(m.orderItemId)!;
     const resolvedCraftType = (m.craftType ?? craftType) as 1 | 2;
 
-    const imageList: FactoryImage[] = [];
-    const designUrl = item.designFileUrl || undefined;
-    if (m.imageUrls && m.imageUrls.length > 0) {
-      m.imageUrls.forEach((url, i) => {
-        imageList.push({
-          type: 1,
-          imageUrl: url,
-          imageCode: `${item.id}-print-${i}`,
-          imageName: `${item.id}-print-${i}`,
-        });
-      });
-    } else if (designUrl) {
-      imageList.push({
-        type: 1,
-        imageUrl: designUrl,
-        imageCode: `${item.id}-print-0`,
-        imageName: `${item.id}-print-0`,
-      });
+    let imageList: FactoryImage[] = [];
+    let printPosition: string | undefined;
+    if (m.shouldPrint) {
+      printPosition = m.printPosition;
+      const urls = m.imageUrls && m.imageUrls.length > 0
+        ? m.imageUrls
+        : item.designFileUrl
+          ? [item.designFileUrl]
+          : [];
+      imageList = urls.map((url, i) => ({
+        type: 1 as const,
+        imageUrl: url,
+        imageCode: `${item.id}-print-${i}`,
+        imageName: `${item.id}-print-${i}`,
+      }));
     }
 
     return {
@@ -165,6 +164,7 @@ export async function POST(
       skuId: m.factorySku,
       price: Number(item.price),
       sellPrice: Number(item.price),
+      printPosition,
       imageList,
     };
   });

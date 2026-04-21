@@ -30,6 +30,7 @@ interface OrderItem {
   sku: string | null;
   quantity: number;
   itemType: string;
+  designFileUrl?: string | null;
   factorySku?: string | null;
   factorySize?: string | null;
   factoryColor?: string | null;
@@ -53,6 +54,9 @@ interface ItemFormState {
   colorCode: string;
   styleCode: string;
   craftType: 1 | 2 | null; // null = use global default
+  shouldPrint: boolean;
+  printPosition: "1" | "2" | "1,2";
+  imageUrlsText: string; // comma-separated when shouldPrint=true
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -114,6 +118,9 @@ export function PushFactoryDialog({
           colorCode: storedColor,
           styleCode: storedStyle,
           craftType: storedCraft,
+          shouldPrint: item.itemType !== "other", // blanks default to no print
+          printPosition: "1",
+          imageUrlsText: item.designFileUrl ?? "",
         };
       })
     );
@@ -154,6 +161,14 @@ export function PushFactoryDialog({
             styleCode: f.styleCode || undefined,
             styleName: f.styleCode || undefined,
             craftType: f.craftType ?? undefined,
+            shouldPrint: f.shouldPrint,
+            printPosition: f.shouldPrint ? f.printPosition : undefined,
+            imageUrls: f.shouldPrint
+              ? f.imageUrlsText
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : undefined,
           })),
         }),
       });
@@ -313,6 +328,55 @@ export function PushFactoryDialog({
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {/* Print toggle */}
+                      <div className="md:col-span-4 flex items-center gap-2 pt-1 border-t">
+                        <Checkbox
+                          checked={f.shouldPrint}
+                          onCheckedChange={(v) =>
+                            updateForm(f.orderItemId, { shouldPrint: !!v })
+                          }
+                        />
+                        <span className="text-xs">Print this item (打印)</span>
+                      </div>
+
+                      {f.shouldPrint && (
+                        <>
+                          <div className="md:col-span-2">
+                            <label className="text-[11px] text-muted-foreground">Print position</label>
+                            <Select
+                              value={f.printPosition}
+                              onValueChange={(v) =>
+                                updateForm(f.orderItemId, {
+                                  printPosition: v as "1" | "2" | "1,2",
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">前 Front</SelectItem>
+                                <SelectItem value="2">后 Back</SelectItem>
+                                <SelectItem value="1,2">前后 Both</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="text-[11px] text-muted-foreground">
+                              Image URLs (逗号分隔)
+                            </label>
+                            <Input
+                              value={f.imageUrlsText}
+                              onChange={(e) =>
+                                updateForm(f.orderItemId, { imageUrlsText: e.target.value })
+                              }
+                              placeholder="https://..., https://..."
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
