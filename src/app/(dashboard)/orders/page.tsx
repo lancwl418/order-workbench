@@ -123,6 +123,7 @@ export default function OrdersPage() {
 
   // OMS Push dialog state
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
+  const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
   const [splitOrder, setSplitOrder] = useState<OrderListItem | null>(null);
 
   const handleStatusChange = useCallback(
@@ -302,7 +303,10 @@ export default function OrdersPage() {
         onPrintStatusChange: handlePrintStatusChange,
         onCsToggle: handleCsToggle,
         onDeliveryMethodChange: openDeliveryConfirm,
-        onOmsPush: (orderId) => setOmsPushOrderId(orderId),
+        onOmsPush: (orderId, fulfillmentOrderId) => {
+          setOmsPushGroup(fulfillmentOrderId);
+          setOmsPushOrderId(orderId);
+        },
         onSplit: (order) => setSplitOrder(order),
         onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
@@ -455,12 +459,17 @@ export default function OrdersPage() {
       {omsPushOrderId && (
         <OmsPushDialog
           orderId={omsPushOrderId}
+          presetFulfillmentOrderId={omsPushGroup}
           open={!!omsPushOrderId}
           onOpenChange={(open) => {
-            if (!open) setOmsPushOrderId(null);
+            if (!open) {
+              setOmsPushOrderId(null);
+              setOmsPushGroup(undefined);
+            }
           }}
           onSuccess={() => {
             setOmsPushOrderId(null);
+            setOmsPushGroup(undefined);
             refresh();
           }}
         />

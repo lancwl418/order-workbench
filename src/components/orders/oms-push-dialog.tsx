@@ -65,11 +65,13 @@ export function OmsPushDialog({
   open,
   onOpenChange,
   onSuccess,
+  presetFulfillmentOrderId,
 }: {
   orderId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  presetFulfillmentOrderId?: string;
 }) {
   const t = useTranslations("oms");
 
@@ -109,15 +111,20 @@ export function OmsPushDialog({
       .filter(Boolean)
   );
 
-  // Default the group selector to the first group not yet pushed.
+  // Default the group selector: the explicitly requested group wins,
+  // otherwise the first group not yet pushed.
   useEffect(() => {
     if (!open || groups.length === 0) return;
+    if (presetFulfillmentOrderId && groups.some((g) => g.foId === presetFulfillmentOrderId)) {
+      setSelectedGroup(presetFulfillmentOrderId);
+      return;
+    }
     const firstUnpushed = groups.find((g) => !pushedFoIds.has(g.foId));
     setSelectedGroup((prev) =>
       prev && groups.some((g) => g.foId === prev) ? prev : firstUnpushed?.foId ?? groups[0].foId
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, orderData]);
+  }, [open, orderData, presetFulfillmentOrderId]);
 
   // New preset form
   const [showAddPreset, setShowAddPreset] = useState(false);

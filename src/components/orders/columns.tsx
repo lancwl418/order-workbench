@@ -40,7 +40,7 @@ export function createColumns(opts: {
   onPrintStatusChange?: (orderId: string, newPrintStatus: string) => Promise<void>;
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
-  onOmsPush?: (orderId: string) => void;
+  onOmsPush?: (orderId: string, fulfillmentOrderId?: string) => void;
   onSplit?: (order: OrderListItem) => void;
   onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
@@ -381,7 +381,11 @@ export function createColumns(opts: {
                   {carrier}
                 </span>
               )}
-              {trackingUrl ? (
+              {!tn ? (
+                <span className="text-xs text-muted-foreground block">
+                  Label created · tracking pending
+                </span>
+              ) : trackingUrl ? (
                 <a
                   href={trackingUrl}
                   target="_blank"
@@ -439,14 +443,14 @@ export function createColumns(opts: {
                     <span className="text-[10px] font-medium text-amber-700 block">
                       G{g.num} · {g.label}
                     </span>
-                    {sh?.trackingNumber ? (
+                    {sh ? (
                       renderShipment(sh)
                     ) : (
                       <Button
                         size="xs"
                         variant="outline"
                         className="gap-1 text-xs mt-0.5"
-                        onClick={() => opts.onOmsPush?.(row.original.id)}
+                        onClick={() => opts.onOmsPush?.(row.original.id, g.foId)}
                         disabled={!opts.onOmsPush}
                       >
                         <Tag className="h-3 w-3" />
