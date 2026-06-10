@@ -49,8 +49,8 @@ export async function GET(req: NextRequest) {
         orderItems: true,
         shipments: {
           orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { id: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true, syncStatus: true, providerName: true },
+          take: 20,
+          select: { id: true, status: true, carrier: true, trackingNumber: true, trackingUrl: true, syncStatus: true, providerName: true, shopifyFulfillmentOrderId: true },
         },
         reshipForOrder: {
           select: { id: true, shopifyOrderNumber: true },

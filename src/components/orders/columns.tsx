@@ -17,6 +17,7 @@ import {
   PRINT_STATUS_COLORS,
 } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
+import { getFulfillmentGroups } from "@/lib/orders/groups";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -361,6 +362,104 @@ export function createColumns(opts: {
       id: "tracking",
       header: t.tracking,
       cell: ({ row }) => {
+        const groups = getFulfillmentGroups(row.original.orderItems);
+        const allShipments = row.original.shipments ?? [];
+
+        // Tracking block (carrier, number, status, sync) for a single shipment.
+        const renderShipment = (sh: (typeof allShipments)[number]) => {
+          const carrier = sh.carrier;
+          const trackingUrl = sh.trackingUrl;
+          const transitStatus = sh.status;
+          const tn = sh.trackingNumber;
+          const isOms = sh.providerName === "eccangtms";
+          const syncStatus = sh.syncStatus || "NOT_SYNCED";
+          const syncing = opts.syncingId === sh.id;
+          return (
+            <div className="space-y-0.5">
+              {carrier && (
+                <span className="text-xs font-medium text-muted-foreground block">
+                  {carrier}
+                </span>
+              )}
+              {trackingUrl ? (
+                <a
+                  href={trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
+                >
+                  {tn}
+                </a>
+              ) : (
+                <span className="text-xs font-mono block max-w-[140px] truncate">{tn}</span>
+              )}
+              <div className="flex items-center gap-1 flex-wrap">
+                {transitStatus && <StatusBadge status={transitStatus} />}
+                {isOms && syncStatus === "SYNCED" && (
+                  <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-0 gap-0.5 px-1.5 py-0">
+                    Synced
+                  </Badge>
+                )}
+                {isOms && syncStatus === "FAILED" && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="text-[10px] h-5 text-red-600 border-red-200 hover:bg-red-50"
+                    disabled={syncing}
+                    onClick={() => opts.onSyncToShopify?.(sh.id)}
+                  >
+                    {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Retry Sync"}
+                  </Button>
+                )}
+                {isOms && syncStatus === "NOT_SYNCED" && (
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="text-[10px] h-5"
+                    disabled={syncing}
+                    onClick={() => opts.onSyncToShopify?.(sh.id)}
+                  >
+                    {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : "Sync to Shopify"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        // Split order: show one tracking block per fulfillment group.
+        if (groups.length > 0) {
+          return (
+            <div className="space-y-1.5">
+              {groups.map((g) => {
+                const sh =
+                  allShipments.find((s) => s.shopifyFulfillmentOrderId === g.foId) || null;
+                return (
+                  <div key={g.foId} className="border-l-2 border-amber-200 pl-1.5">
+                    <span className="text-[10px] font-medium text-amber-700 block">
+                      G{g.num} · {g.label}
+                    </span>
+                    {sh?.trackingNumber ? (
+                      renderShipment(sh)
+                    ) : (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="gap-1 text-xs mt-0.5"
+                        onClick={() => opts.onOmsPush?.(row.original.id)}
+                        disabled={!opts.onOmsPush}
+                      >
+                        <Tag className="h-3 w-3" />
+                        {t.createLabel}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }
+
         const tracking = row.original.trackingNumber;
         const shipment = row.original.shipments?.[0];
         const carrier = shipment?.carrier || row.original.carrier;

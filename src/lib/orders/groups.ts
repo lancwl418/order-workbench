@@ -16,19 +16,22 @@ export function groupLabelFromType(itemType: string): string {
  * shopifyFulfillmentOrderId. Returns [] when the order isn't split.
  */
 export function getFulfillmentGroups(
-  items: { itemType: string; shopifyFulfillmentOrderId: string | null }[]
-): { foId: string; num: number; label: string }[] {
-  const byFo = new Map<string, Set<string>>();
+  items: { title?: string; itemType: string; shopifyFulfillmentOrderId: string | null }[]
+): { foId: string; num: number; label: string; titles: string[] }[] {
+  const byFo = new Map<string, { types: Set<string>; titles: string[] }>();
   for (const item of items) {
     const fo = item.shopifyFulfillmentOrderId;
     if (!fo) continue;
-    if (!byFo.has(fo)) byFo.set(fo, new Set());
-    byFo.get(fo)!.add(item.itemType);
+    if (!byFo.has(fo)) byFo.set(fo, { types: new Set(), titles: [] });
+    const g = byFo.get(fo)!;
+    g.types.add(item.itemType);
+    if (item.title) g.titles.push(item.title);
   }
   if (byFo.size <= 1) return [];
-  return [...byFo.entries()].map(([foId, types], idx) => ({
+  return [...byFo.entries()].map(([foId, g], idx) => ({
     foId,
     num: idx + 1,
-    label: [...new Set([...types].map(groupLabelFromType))].join("/"),
+    label: [...new Set([...g.types].map(groupLabelFromType))].join("/"),
+    titles: g.titles,
   }));
 }

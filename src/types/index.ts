@@ -33,6 +33,7 @@ export type ShipmentSummary = {
   trackingUrl: string | null;
   syncStatus: string;
   providerName: string | null;
+  shopifyFulfillmentOrderId: string | null;
 };
 
 export type OrderListItem = Order & {

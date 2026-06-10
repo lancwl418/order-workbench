@@ -295,6 +295,17 @@ export function OmsPushDialog({
                     </option>
                   ))}
                 </select>
+                {(() => {
+                  const g = groups.find((x) => x.foId === selectedGroup);
+                  return g ? (
+                    <p className="text-xs text-muted-foreground">
+                      Fulfills:{" "}
+                      <span className="font-medium text-foreground">
+                        {g.titles.join(", ")}
+                      </span>
+                    </p>
+                  ) : null;
+                })()}
                 <p className="text-xs text-muted-foreground">
                   This order is split — only the selected group is pushed to OMS
                   and fulfilled in Shopify.

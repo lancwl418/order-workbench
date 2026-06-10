@@ -37,9 +37,9 @@ describe("getFulfillmentGroups", () => {
       it_("free_sample", "C"),
     ]);
     expect(groups).toEqual([
-      { foId: "A", num: 1, label: "Blanks" },
-      { foId: "B", num: 2, label: "Transfer" },
-      { foId: "C", num: 3, label: "Free Sample" },
+      { foId: "A", num: 1, label: "Blanks", titles: [] },
+      { foId: "B", num: 2, label: "Transfer", titles: [] },
+      { foId: "C", num: 3, label: "Free Sample", titles: [] },
     ]);
   });
 
@@ -49,7 +49,22 @@ describe("getFulfillmentGroups", () => {
       it_("free_sample", "A"),
       it_("transfer_by_size", "B"),
     ]);
-    expect(groups[0]).toEqual({ foId: "A", num: 1, label: "Blanks/Free Sample" });
+    expect(groups[0]).toEqual({
+      foId: "A",
+      num: 1,
+      label: "Blanks/Free Sample",
+      titles: [],
+    });
+  });
+
+  it("collects item titles per group", () => {
+    const groups = getFulfillmentGroups([
+      { title: "DTF Transfer", itemType: "transfer_by_size", shopifyFulfillmentOrderId: "A" },
+      { title: "Tote Bag", itemType: "other", shopifyFulfillmentOrderId: "B" },
+      { title: "Polo Shirt", itemType: "other", shopifyFulfillmentOrderId: "B" },
+    ]);
+    expect(groups[0].titles).toEqual(["DTF Transfer"]);
+    expect(groups[1].titles).toEqual(["Tote Bag", "Polo Shirt"]);
   });
 
   it("ignores items with no fulfillment order id when others are split", () => {
