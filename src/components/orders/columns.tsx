@@ -30,7 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap } from "lucide-react";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, SplitSquareHorizontal } from "lucide-react";
 
 const DELIVERY_METHODS = ["standard", "express", "pickup"] as const;
 
@@ -40,6 +40,7 @@ export function createColumns(opts: {
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
   onOmsPush?: (orderId: string) => void;
+  onSplit?: (order: OrderListItem) => void;
   onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
   syncingId: string | null;
@@ -197,20 +198,22 @@ export function createColumns(opts: {
       id: "items",
       header: t.items,
       cell: ({ row }) => {
-        const hasTransfer = row.original.orderItems.some(
+        const items = row.original.orderItems;
+        const hasTransfer = items.some(
           (item) => item.itemType === "transfer_by_size" || item.itemType === "gangsheet"
         );
-        const hasBlanks = row.original.orderItems.some(
-          (item) => item.itemType === "other"
-        );
-        const hasFreeSample = row.original.orderItems.some(
-          (item) => item.itemType === "free_sample"
-        );
+        const hasBlanks = items.some((item) => item.itemType === "other");
+        const hasFreeSample = items.some((item) => item.itemType === "free_sample");
+        const categoryCount = [hasTransfer, hasBlanks, hasFreeSample].filter(
+          Boolean
+        ).length;
+        // Orders spanning more than one product type may need a split fulfillment.
+        const isMixed = categoryCount >= 2;
+        const isSplit = items.some((item) => item.shopifyFulfillmentOrderId);
+        const canSplit = isMixed && !!row.original.shopifyOrderId;
         return (
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-sm text-muted-foreground">
-              {row.original.orderItems.length}
-            </span>
+            <span className="text-sm text-muted-foreground">{items.length}</span>
             {hasTransfer && (
               <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-blue-100 text-blue-700">
                 Transfer
@@ -226,6 +229,38 @@ export function createColumns(opts: {
                 Free Sample
               </span>
             )}
+            {isMixed &&
+              (isSplit ? (
+                <span className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-700">
+                  <SplitSquareHorizontal className="h-2.5 w-2.5" />
+                  Split
+                </span>
+              ) : canSplit && opts.onSplit ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          opts.onSplit!(row.original);
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-semibold bg-amber-100 text-amber-800 ring-1 ring-amber-300 hover:bg-amber-200 cursor-pointer"
+                      >
+                        <SplitSquareHorizontal className="h-2.5 w-2.5" />
+                        Split?
+                      </button>
+                    }
+                  />
+                  <TooltipContent>
+                    Multiple product types — split fulfillment to ship each separately
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-700 ring-1 ring-amber-300">
+                  Mixed
+                </span>
+              ))}
           </div>
         );
       },

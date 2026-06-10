@@ -28,16 +28,35 @@ async function graphql<T>(
   variables: Record<string, unknown>
 ): Promise<T> {
   const token = process.env.SHOPIFY_ACCESS_TOKEN!;
-  const res = await fetch(gqlEndpoint(), {
+  const endpoint = gqlEndpoint();
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "X-Shopify-Access-Token": token,
       "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({ query, variables }),
   });
 
   const text = await res.text();
+  const looksLikeJson = text.trimStart().startsWith("{") || text.trimStart().startsWith("[");
+
+  // A non-JSON body (usually an HTML login/redirect page) means the request
+  // never reached the GraphQL API as authenticated — almost always a bad or
+  // stale SHOPIFY_ACCESS_TOKEN, or one missing the
+  // write_merchant_managed_fulfillment_orders scope.
+  if (!looksLikeJson) {
+    console.error(
+      `[Shopify GraphQL] non-JSON response from ${endpoint} (HTTP ${res.status}): ${text.substring(0, 300)}`
+    );
+    throw new Error(
+      `Shopify GraphQL returned a non-JSON response (HTTP ${res.status}). ` +
+        `Verify SHOPIFY_ACCESS_TOKEN is valid and has the ` +
+        `write_merchant_managed_fulfillment_orders scope.`
+    );
+  }
+
   if (!res.ok) {
     throw new Error(
       `Shopify GraphQL HTTP ${res.status}: ${text.substring(0, 500)}`

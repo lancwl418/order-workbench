@@ -87,7 +87,15 @@ export function SplitOrderDialog({
           groups: [...groups.values()].map((orderItemIds) => ({ orderItemIds })),
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { error?: string; groups?: number } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok ? "Unexpected server response" : `Server error (HTTP ${res.status})`
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Split failed");
       toast.success(`Split into ${data.groups} fulfillment group(s)`);
       onOpenChange(false);

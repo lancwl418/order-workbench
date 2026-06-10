@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
+import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { CsSummaryPanel } from "@/components/cs/cs-summary-panel";
 
 type StatusCounts = Record<string, number>;
@@ -122,6 +123,7 @@ export default function OrdersPage() {
 
   // OMS Push dialog state
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
+  const [splitOrder, setSplitOrder] = useState<OrderListItem | null>(null);
 
   const handleStatusChange = useCallback(
     async (orderId: string, newStatus: string) => {
@@ -301,6 +303,7 @@ export default function OrdersPage() {
         onCsToggle: handleCsToggle,
         onDeliveryMethodChange: openDeliveryConfirm,
         onOmsPush: (orderId) => setOmsPushOrderId(orderId),
+        onSplit: (order) => setSplitOrder(order),
         onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
         syncingId: syncingShipmentId,
@@ -458,6 +461,21 @@ export default function OrdersPage() {
           }}
           onSuccess={() => {
             setOmsPushOrderId(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {splitOrder && (
+        <SplitOrderDialog
+          orderId={splitOrder.id}
+          items={splitOrder.orderItems}
+          open={!!splitOrder}
+          onOpenChange={(open) => {
+            if (!open) setSplitOrder(null);
+          }}
+          onSuccess={() => {
+            setSplitOrder(null);
             refresh();
           }}
         />
