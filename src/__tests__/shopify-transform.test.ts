@@ -344,4 +344,28 @@ describe("transformShopifyOrder", () => {
       expect(items[0].itemType).toBe("other");
     });
   });
+
+  describe("free sample classification", () => {
+    it("classifies Free Sample product id as free_sample", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 7001, product_id: 9385735061739, title: "Free Sample", quantity: 1, price: "0.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("free_sample");
+    });
+
+    it("does not let the transfer-title fallback override free_sample", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            { id: 7002, product_id: 9385735061739, title: "Free Sample Transfer", quantity: 1, price: "0.00", fulfillable_quantity: 1 },
+          ],
+        })
+      );
+      expect(items[0].itemType).toBe("free_sample");
+    });
+  });
 });

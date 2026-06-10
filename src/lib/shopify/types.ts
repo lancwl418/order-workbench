@@ -138,5 +138,5 @@ export interface MappedOrderItem {
   quantity: number;
   price: string; // Decimal as string for Prisma
   designFileUrl: string | null;
-  itemType: "transfer_by_size" | "gangsheet" | "other";
+  itemType: "transfer_by_size" | "gangsheet" | "free_sample" | "other";
 }

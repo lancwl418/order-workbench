@@ -203,6 +203,9 @@ export function createColumns(opts: {
         const hasBlanks = row.original.orderItems.some(
           (item) => item.itemType === "other"
         );
+        const hasFreeSample = row.original.orderItems.some(
+          (item) => item.itemType === "free_sample"
+        );
         return (
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-sm text-muted-foreground">
@@ -216,6 +219,11 @@ export function createColumns(opts: {
             {hasBlanks && (
               <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
                 Blanks
+              </span>
+            )}
+            {hasFreeSample && (
+              <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-green-100 text-green-700">
+                Free Sample
               </span>
             )}
           </div>

@@ -256,6 +256,10 @@ export function PushFactoryDialog({
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
                             Blank
                           </span>
+                        ) : item.itemType === "free_sample" ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                            Free Sample
+                          </span>
                         ) : (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
                             {item.itemType}

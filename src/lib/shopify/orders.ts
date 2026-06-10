@@ -147,6 +147,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const TRANSFER_BY_SIZE_PRODUCT_ID = "9000096399595";
   const BUILD_A_GANGSHEET_PRODUCT_ID = "8999852835051";
   const UPLOAD_GANGSHEET_PRODUCT_ID = "9101910016235";
+  const FREE_SAMPLE_PRODUCT_ID = "9385735061739";
 
   // For Transfer by Size: only grab one _Print Ready URL per order
   let transferBySizePrintUrl: string | null = null;
@@ -154,10 +155,12 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const items: MappedOrderItem[] = shopifyOrder.line_items.map(
     (lineItem: ShopifyLineItem) => {
       let designFileUrl: string | null = null;
-      let itemType: "transfer_by_size" | "gangsheet" | "other" = "other";
+      let itemType: "transfer_by_size" | "gangsheet" | "free_sample" | "other" = "other";
       const productId = String(lineItem.product_id || "");
 
-      if (productId === TRANSFER_BY_SIZE_PRODUCT_ID) {
+      if (productId === FREE_SAMPLE_PRODUCT_ID) {
+        itemType = "free_sample";
+      } else if (productId === TRANSFER_BY_SIZE_PRODUCT_ID) {
         itemType = "transfer_by_size";
         // Transfer by Size: one shared print-ready URL per order
         if (!transferBySizePrintUrl) {
