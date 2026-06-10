@@ -35,6 +35,7 @@ import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import { PushFactoryDialog } from "@/components/orders/push-factory-dialog";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
+import { getFulfillmentGroups } from "@/lib/orders/groups";
 
 type LogEntry = {
   id: string;
@@ -56,6 +57,7 @@ type ShipmentEntry = {
   providerName: string | null;
   externalShipmentId: string | null;
   providerRawJson: Record<string, unknown> | null;
+  shopifyFulfillmentOrderId: string | null;
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -100,6 +102,7 @@ export default function OrderDetailPage() {
   const [addingTracking, setAddingTracking] = useState(false);
   const [newTrackingNumber, setNewTrackingNumber] = useState("");
   const [newCarrier, setNewCarrier] = useState("");
+  const [newTrackingGroup, setNewTrackingGroup] = useState("");
   const [savingNewTracking, setSavingNewTracking] = useState(false);
 
   // Delivery method editing (double confirm)
@@ -274,13 +277,21 @@ export default function OrderDetailPage() {
           trackingNumber: newTrackingNumber.trim(),
           carrier: newCarrier.trim() || undefined,
           sourceType: "MANUAL",
+          shopifyFulfillmentOrderId: newTrackingGroup || undefined,
         }),
       });
       if (!res.ok) throw new Error("Failed to create shipment");
       toast.success("Tracking added");
+      // A manual shipment for a split group should be synced to its own
+      // fulfillment order. The create endpoint doesn't auto-sync, so push it.
+      if (newTrackingGroup) {
+        const created = await res.json();
+        if (created?.id) await syncToShopify(created.id);
+      }
       setAddingTracking(false);
       setNewTrackingNumber("");
       setNewCarrier("");
+      setNewTrackingGroup("");
       mutate();
       mutateShipments();
     } catch (e) {
@@ -509,8 +520,19 @@ export default function OrderDetailPage() {
               </Button>
             </div>
 
-            {/* OMS Push — hidden for Express orders */}
-            {!omsShipment && !order.shippingMethod?.toLowerCase().includes("express") && (
+            {/* OMS Push — hidden for Express orders. For a split order, show
+                until every group has its own OMS shipment. */}
+            {!order.shippingMethod?.toLowerCase().includes("express") &&
+              (getFulfillmentGroups(order.orderItems).length > 0
+                ? getFulfillmentGroups(order.orderItems).some(
+                    (g) =>
+                      !(shipments ?? []).some(
+                        (s) =>
+                          s.providerName === "eccangtms" &&
+                          s.shopifyFulfillmentOrderId === g.foId
+                      )
+                  )
+                : !omsShipment) && (
               <div>
                 <Button
                   size="sm"
@@ -658,7 +680,11 @@ export default function OrderDetailPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setAddingTracking(true)}
+                  onClick={() => {
+                    const groups = getFulfillmentGroups(order.orderItems);
+                    setNewTrackingGroup(groups[0]?.foId ?? "");
+                    setAddingTracking(true);
+                  }}
                 >
                   + {t("addTracking")}
                 </Button>
@@ -722,6 +748,17 @@ export default function OrderDetailPage() {
                         <p className="text-sm text-muted-foreground">
                           {shipment.carrier || t("unknownCarrier")} &middot;{" "}
                           {shipment.sourceType}
+                          {(() => {
+                            if (!shipment.shopifyFulfillmentOrderId) return null;
+                            const g = getFulfillmentGroups(order.orderItems).find(
+                              (x) => x.foId === shipment.shopifyFulfillmentOrderId
+                            );
+                            return g ? (
+                              <span className="ml-1.5 inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-700">
+                                Group {g.num} · {g.label}
+                              </span>
+                            ) : null;
+                          })()}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -754,6 +791,19 @@ export default function OrderDetailPage() {
               {/* Add new tracking */}
               {addingTracking && (
                 <div className="p-3 rounded-md border border-dashed space-y-2">
+                  {getFulfillmentGroups(order.orderItems).length > 0 && (
+                    <select
+                      value={newTrackingGroup}
+                      onChange={(e) => setNewTrackingGroup(e.target.value)}
+                      className="h-8 w-full rounded-md border bg-background px-2 text-sm"
+                    >
+                      {getFulfillmentGroups(order.orderItems).map((g) => (
+                        <option key={g.foId} value={g.foId}>
+                          Group {g.num} · {g.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <Input
                     value={newTrackingNumber}
                     onChange={(e) => setNewTrackingNumber(e.target.value)}

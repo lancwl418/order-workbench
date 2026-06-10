@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { transformShopifyOrder } from "./orders";
 import type { ShopifyOrder, ShopifyFulfillment } from "./types";
 import { onShipmentUpdated } from "@/lib/exceptions/realtime";
+import {
+  computeSplitOrderStatus,
+  fulfillmentGroups,
+} from "@/lib/orders/fulfillment-status";
 
 /**
  * Verify the HMAC signature of an incoming Shopify webhook request.
@@ -329,6 +333,31 @@ async function handleFulfillmentUpsert(
 
     // Real-time exception detection/resolution
     onShipmentUpdated(upsertedShipment.id).catch(() => {});
+  }
+
+  // Split order: the status mapped above reflects only this one fulfillment.
+  // Re-aggregate across all groups so the order advances to SHIPPED/DELIVERED
+  // only once every group has reached it.
+  const splitItems = await prisma.orderItem.findMany({
+    where: { orderId: order.id },
+    select: { shopifyFulfillmentOrderId: true },
+  });
+  if (fulfillmentGroups(splitItems).length > 1) {
+    const splitShipments = await prisma.shipment.findMany({
+      where: { orderId: order.id },
+      select: {
+        shopifyFulfillmentOrderId: true,
+        status: true,
+        trackingNumber: true,
+      },
+    });
+    const aggregated = computeSplitOrderStatus(splitItems, splitShipments);
+    if (aggregated) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { internalStatus: aggregated as never },
+      });
+    }
   }
 
   await prisma.orderLog.create({

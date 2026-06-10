@@ -18,6 +18,10 @@ export async function pushFulfillmentToShopify(params: {
   carrier: string;
   trackingUrl?: string;
   notify?: boolean;
+  // When set, only the matching fulfillment order is fulfilled (split order:
+  // one group/shipment at a time). When omitted, all fulfillable orders are
+  // bundled into one fulfillment (default, non-split behaviour).
+  fulfillmentOrderId?: string;
 }): Promise<{
   fulfillmentId: string;
   status: string;
@@ -87,12 +91,16 @@ export async function pushFulfillmentToShopify(params: {
     `[Shopify] Parsed fulfillment_orders: count=${foData.fulfillment_orders?.length ?? "undefined"} keys=${Object.keys(foData).join(",")} [${allStatuses.join(", ")}]`
   );
 
-  // Find fulfillable orders — accept open, in_progress, or scheduled
+  // Find fulfillable orders — accept open, in_progress, or scheduled.
+  // For a split order, restrict to the requested fulfillment order so we only
+  // fulfill that group's line items.
   const fulfillableOrders = foData.fulfillment_orders.filter(
     (fo) =>
-      fo.status === "open" ||
-      fo.status === "in_progress" ||
-      fo.status === "scheduled"
+      (fo.status === "open" ||
+        fo.status === "in_progress" ||
+        fo.status === "scheduled") &&
+      (!params.fulfillmentOrderId ||
+        String(fo.id) === params.fulfillmentOrderId)
   );
 
   if (fulfillableOrders.length > 0) {

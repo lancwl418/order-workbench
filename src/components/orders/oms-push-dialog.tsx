@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Package, Truck, Plus, Trash2, Check, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { getFulfillmentGroups } from "@/lib/orders/groups";
 
 interface PackagePreset {
   id: string;
@@ -97,6 +98,26 @@ export function OmsPushDialog({
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState("");
+
+  // Split fulfillment groups and which already have an OMS shipment.
+  const groups = getFulfillmentGroups(orderData?.orderItems ?? []);
+  const pushedFoIds = new Set(
+    (orderData?.shipments ?? [])
+      .filter((s: { providerName?: string | null }) => s.providerName === "eccangtms")
+      .map((s: { shopifyFulfillmentOrderId?: string | null }) => s.shopifyFulfillmentOrderId)
+      .filter(Boolean)
+  );
+
+  // Default the group selector to the first group not yet pushed.
+  useEffect(() => {
+    if (!open || groups.length === 0) return;
+    const firstUnpushed = groups.find((g) => !pushedFoIds.has(g.foId));
+    setSelectedGroup((prev) =>
+      prev && groups.some((g) => g.foId === prev) ? prev : firstUnpushed?.foId ?? groups[0].foId
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, orderData]);
 
   // New preset form
   const [showAddPreset, setShowAddPreset] = useState(false);
@@ -188,7 +209,7 @@ export function OmsPushDialog({
       const res = await fetch("/api/oms/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg, addressOverride: addr }),
+        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg, addressOverride: addr, shopifyFulfillmentOrderId: selectedGroup || undefined }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -258,6 +279,29 @@ export function OmsPushDialog({
         {/* Step 1: Package Selection */}
         {step === "package" && (
           <div className="space-y-4">
+            {/* Split fulfillment group selector */}
+            {groups.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-sm font-medium">Fulfillment group</span>
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                >
+                  {groups.map((g) => (
+                    <option key={g.foId} value={g.foId} disabled={pushedFoIds.has(g.foId)}>
+                      Group {g.num} · {g.label}
+                      {pushedFoIds.has(g.foId) ? " (already pushed)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  This order is split — only the selected group is pushed to OMS
+                  and fulfilled in Shopify.
+                </p>
+              </div>
+            )}
+
             {/* Presets */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">

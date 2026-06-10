@@ -281,6 +281,11 @@ model Shipment {
   syncStatus           String  @default("NOT_SYNCED") @map("sync_status") // "NOT_SYNCED","SYNCED","FAILED"
   syncError            String? @map("sync_error") @db.Text
 
+  // Split fulfillment: which Shopify Fulfillment Order group this shipment
+  // covers. Null = whole order (not split). Set when an order is split and a
+  // shipment is created per group, so syncing only fulfills that group's items.
+  shopifyFulfillmentOrderId String? @map("shopify_fulfillment_order_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

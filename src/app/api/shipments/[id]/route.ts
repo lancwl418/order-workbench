@@ -97,6 +97,7 @@ export async function PATCH(
           shopifyOrderId: order.shopifyOrderId,
           trackingNumber: parsed.data.trackingNumber,
           carrier: "USPS",
+          fulfillmentOrderId: existing.shopifyFulfillmentOrderId ?? undefined,
         });
 
         await prisma.shipment.update({

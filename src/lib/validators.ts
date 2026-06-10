@@ -116,6 +116,8 @@ export const shipmentCreateSchema = z.object({
   carrier: z.string().optional(),
   service: z.string().optional(),
   sourceType: z.enum(["SHOPIFY", "THIRD_PARTY", "MANUAL"]).default("MANUAL"),
+  // Split fulfillment: the Shopify fulfillment order group this shipment covers.
+  shopifyFulfillmentOrderId: z.string().optional(),
 });
 
 export const shipmentUpdateSchema = z.object({

@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       shopifyOrderId: shipment.order.shopifyOrderId,
       trackingNumber: shipment.trackingNumber,
       carrier,
+      fulfillmentOrderId: shipment.shopifyFulfillmentOrderId ?? undefined,
     });
 
     // Update shipment with Shopify fulfillment info

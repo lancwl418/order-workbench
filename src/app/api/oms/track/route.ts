@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
           shopifyOrderId: shipment.order.shopifyOrderId,
           trackingNumber: serverNo,
           carrier,
+          fulfillmentOrderId: shipment.shopifyFulfillmentOrderId ?? undefined,
         });
         await prisma.shipment.update({
           where: { id: shipment.id },

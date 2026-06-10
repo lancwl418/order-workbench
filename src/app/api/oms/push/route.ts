@@ -16,6 +16,8 @@ const pushSchema = z.object({
     heightIn: z.number().positive(),
   }),
   addressOverride: addressOverrideSchema.optional(),
+  // Split fulfillment: which Shopify fulfillment order group this push covers.
+  shopifyFulfillmentOrderId: z.string().optional(),
 });
 
 /**
@@ -37,7 +39,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { orderId, productCode, packageInfo, addressOverride } = parsed.data;
+  const { orderId, productCode, packageInfo, addressOverride, shopifyFulfillmentOrderId } =
+    parsed.data;
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -65,14 +68,21 @@ export async function POST(req: NextRequest) {
     (order as Record<string, unknown>).shippingAddress = merged;
   }
 
-  // Check if already pushed to OMS
-  const existingOms = order.shipments.find(
-    (s) => s.providerName === "eccangtms"
+  // Check if already pushed to OMS. For a split order we push once per group,
+  // so only block when THIS group already has an OMS shipment. For a non-split
+  // push (no group), keep the one-push-per-order rule.
+  const existingOms = order.shipments.find((s) =>
+    s.providerName === "eccangtms" &&
+    (shopifyFulfillmentOrderId
+      ? s.shopifyFulfillmentOrderId === shopifyFulfillmentOrderId
+      : true)
   );
   if (existingOms) {
     return NextResponse.json(
       {
-        error: "Order already pushed to OMS",
+        error: shopifyFulfillmentOrderId
+          ? "This fulfillment group is already pushed to OMS"
+          : "Order already pushed to OMS",
         shipment: existingOms,
       },
       { status: 409 }
@@ -116,6 +126,7 @@ export async function POST(req: NextRequest) {
         providerRawJson: JSON.parse(JSON.stringify(result)),
         labelStatus: "CREATED",
         status: result.status === 1 ? "label_created" : "pending",
+        shopifyFulfillmentOrderId: shopifyFulfillmentOrderId ?? null,
       },
     });
 
