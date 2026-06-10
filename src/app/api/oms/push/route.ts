@@ -80,7 +80,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const params = mapOrderToEccangParams(order, productCode, packageInfo);
+    // Suffix the OMS order number per push (5566-1, 5566-2, ...) so a split
+    // order pushed to OMS more than once never collides on a duplicate number.
+    const sequence =
+      order.shipments.filter((s) => s.providerName === "eccangtms").length + 1;
+    const params = mapOrderToEccangParams(order, productCode, packageInfo, sequence);
     const result = await createOrder(params);
 
     // serverNo may be null at creation time — EccangTMS assigns it asynchronously

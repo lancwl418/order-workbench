@@ -208,8 +208,13 @@ model OrderItem {
   quantity          Int
   price             Decimal @db.Decimal(10, 2)
 
-  // Item type: transfer_by_size, gangsheet, or other (blanks/POD)
+  // Item type: transfer_by_size, gangsheet, free_sample, or other (blanks/POD)
   itemType              String    @default("other") @map("item_type")
+
+  // Split fulfillment: which Shopify Fulfillment Order this item currently
+  // belongs to. Null = not split (single default fulfillment order). Items
+  // sharing the same value are fulfilled together as one shipment.
+  shopifyFulfillmentOrderId String? @map("shopify_fulfillment_order_id")
 
   // DTF-specific fields
   designFileUrl         String?   @map("design_file_url")
@@ -234,6 +239,7 @@ model OrderItem {
 
   @@index([orderId])
   @@index([sku])
+  @@index([shopifyFulfillmentOrderId])
   @@map("order_items")
 }
 

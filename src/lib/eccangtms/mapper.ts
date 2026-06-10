@@ -24,10 +24,16 @@ export interface PackageInfo {
 export function mapOrderToEccangParams(
   order: Order & { orderItems: OrderItem[] },
   productCode: string,
-  pkg: PackageInfo
+  pkg: PackageInfo,
+  // Push sequence for this order. When set, it is appended to customerNo
+  // (e.g. "5566-1", "5566-2") so a split order pushed to OMS more than once
+  // does not collide on a duplicate order number. Only customerNo changes —
+  // everything else (including consigneeName) keeps the base order number.
+  sequence?: number
 ): EccangOrderParams {
   const addr = (order.shippingAddress as ShopifyAddress | null) || {};
   const orderNumber = order.shopifyOrderNumber?.replace("#", "") || order.id.slice(0, 8);
+  const customerNo = sequence ? `${orderNumber}-${sequence}` : orderNumber;
 
   const recipientName =
     `${addr.first_name || ""} ${addr.last_name || ""}`.trim() ||
@@ -91,7 +97,7 @@ export function mapOrderToEccangParams(
 
   return {
     productCode,
-    customerNo: orderNumber,
+    customerNo,
     goodsType: 3,
     orderWeight: pkg.weightLbs,
     weightSizeUnit: 2, // imperial (in/lb)

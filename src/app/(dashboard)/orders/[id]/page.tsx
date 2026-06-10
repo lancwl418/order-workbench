@@ -27,13 +27,14 @@ import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo, getTrackingUrl } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2, SplitSquareHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import { PushFactoryDialog } from "@/components/orders/push-factory-dialog";
+import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 
 type LogEntry = {
   id: string;
@@ -83,6 +84,7 @@ export default function OrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [omsPushOpen, setOmsPushOpen] = useState(false);
   const [pushFactoryOpen, setPushFactoryOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [refreshingTracking, setRefreshingTracking] = useState(false);
   const [editingServerNo, setEditingServerNo] = useState(false);
   const [serverNoInput, setServerNoInput] = useState("");
@@ -543,6 +545,39 @@ export default function OrderDetailPage() {
               </div>
             )}
 
+            {/* Split fulfillment — shown when the order spans more than one
+                fulfillment group (e.g. blanks + transfer) and is on Shopify */}
+            {(() => {
+              const cats = new Set(
+                order.orderItems.map((i) =>
+                  i.itemType === "free_sample"
+                    ? "Free Sample"
+                    : i.itemType === "transfer_by_size" || i.itemType === "gangsheet"
+                    ? "Transfer"
+                    : "Blanks"
+                )
+              );
+              if (!order.shopifyOrderId || order.orderItems.length < 2 || cats.size < 2) {
+                return null;
+              }
+              const alreadySplit = order.orderItems.some(
+                (i) => i.shopifyFulfillmentOrderId
+              );
+              return (
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setSplitOpen(true)}
+                  >
+                    <SplitSquareHorizontal className="h-3.5 w-3.5 mr-1" />
+                    {alreadySplit ? "Re-split Fulfillment" : "Split Fulfillment"}
+                  </Button>
+                </div>
+              );
+            })()}
+
             {/* CS Comments */}
             <CsCommentsSection orderId={order.id} />
           </CardContent>
@@ -912,6 +947,18 @@ export default function OrderDetailPage() {
           }}
         />
 
+        {/* Split Fulfillment Dialog */}
+        <SplitOrderDialog
+          orderId={order.id}
+          items={order.orderItems}
+          open={splitOpen}
+          onOpenChange={setSplitOpen}
+          onSuccess={() => {
+            setSplitOpen(false);
+            mutate();
+          }}
+        />
+
         {/* Activity Log */}
         <Card>
           <CardHeader>
@@ -1018,6 +1065,15 @@ export default function OrderDetailPage() {
 function LineItemsSection({ order }: { order: OrderWithRelations }) {
   const t = useTranslations("orderDetail");
 
+  // Number the distinct fulfillment-order groups (set when the order is split)
+  // so each item can show which shipment group it belongs to.
+  const foGroupNumber = new Map<string, number>();
+  for (const item of order.orderItems) {
+    const fo = item.shopifyFulfillmentOrderId;
+    if (fo && !foGroupNumber.has(fo)) foGroupNumber.set(fo, foGroupNumber.size + 1);
+  }
+  const isSplit = foGroupNumber.size > 1;
+
   return (
     <Card className="md:col-span-2">
       <CardHeader>
@@ -1031,7 +1087,14 @@ function LineItemsSection({ order }: { order: OrderWithRelations }) {
               className="flex items-center justify-between p-3 rounded-md border"
             >
               <div>
-                <p className="font-medium">{item.title}</p>
+                <p className="font-medium">
+                  {item.title}
+                  {isSplit && item.shopifyFulfillmentOrderId && (
+                    <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 align-middle">
+                      Group {foGroupNumber.get(item.shopifyFulfillmentOrderId)}
+                    </span>
+                  )}
+                </p>
                 {item.variantTitle && (
                   <p className="text-sm text-muted-foreground">
                     {item.variantTitle}
