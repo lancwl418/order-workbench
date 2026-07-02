@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { splitFulfillmentOrders, type SplitGroup } from "@/lib/shopify/split";
+import { syncGroupMethodsFromShopify } from "@/lib/orders/sync-groups";
 
 const splitSchema = z.object({
   groups: z
@@ -125,6 +126,10 @@ export async function POST(
       },
     });
   });
+
+  // Record each group's delivery method (Standard/Express) so the per-group
+  // OMS gating and badges work immediately after the split. Never throws.
+  await syncGroupMethodsFromShopify(id, order.shopifyOrderId);
 
   const distinctFos = new Set(Object.values(mapping));
   return NextResponse.json({

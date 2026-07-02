@@ -13,17 +13,30 @@ import type { ShopifyOrder } from "@/lib/shopify/types";
  *  - Order.groupShippingMethods ({ foId: "Express" | "Standard" | ... }).
  *
  * Only runs for orders with more than one shipping line — single-method
- * orders (including workbench-split ones) don't need per-group methods.
+ * orders don't need per-group methods on the sync path (use
+ * syncGroupMethodsFromShopify directly after a workbench split).
  * Never throws: a Shopify API failure must not break order sync/webhooks.
  */
 export async function syncFulfillmentGroupsFromShopify(
   localOrderId: string,
   shopifyOrder: ShopifyOrder
 ): Promise<void> {
-  try {
-    if ((shopifyOrder.shipping_lines?.length ?? 0) <= 1) return;
+  if ((shopifyOrder.shipping_lines?.length ?? 0) <= 1) return;
+  await syncGroupMethodsFromShopify(localOrderId, String(shopifyOrder.id));
+}
 
-    const fos = await fetchFulfillmentGroupInfo(String(shopifyOrder.id));
+/**
+ * Fetch the order's fulfillment orders and persist per-item FO assignment +
+ * per-group delivery methods, regardless of shipping-line count. Called right
+ * after a workbench split so each group's Standard/Express is known
+ * immediately (the OMS option is gated per group on it). Never throws.
+ */
+export async function syncGroupMethodsFromShopify(
+  localOrderId: string,
+  shopifyOrderId: string
+): Promise<void> {
+  try {
+    const fos = await fetchFulfillmentGroupInfo(shopifyOrderId);
     // Cancelled FOs are leftovers from moves/splits; their line items now
     // live in another fulfillment order.
     const active = fos.filter(
@@ -56,7 +69,7 @@ export async function syncFulfillmentGroupsFromShopify(
     });
   } catch (err) {
     console.error(
-      `[SyncGroups] Failed to sync fulfillment groups for order ${localOrderId} (shopify ${shopifyOrder.id}):`,
+      `[SyncGroups] Failed to sync fulfillment groups for order ${localOrderId} (shopify ${shopifyOrderId}):`,
       err instanceof Error ? err.message : err
     );
   }
