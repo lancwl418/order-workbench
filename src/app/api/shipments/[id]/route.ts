@@ -96,7 +96,7 @@ export async function PATCH(
         const result = await pushFulfillmentToShopify({
           shopifyOrderId: order.shopifyOrderId,
           trackingNumber: parsed.data.trackingNumber,
-          carrier: "USPS",
+          carrier: parsed.data.carrier || existing.carrier || "Other",
           fulfillmentOrderId: existing.shopifyFulfillmentOrderId ?? undefined,
         });
 

@@ -217,6 +217,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
       status: f.status,
       shipmentStatus: f.shipment_status || null,
       shippedAt: new Date(f.created_at),
+      lineItemIds: (f.line_items || []).map((li) => String(li.id)),
     }));
 
   return { order, items, fulfillments };

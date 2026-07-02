@@ -10,7 +10,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { StatusBadge } from "./status-badge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getTrackingUrl } from "@/lib/utils";
 import {
   INTERNAL_STATUSES,
   PRINT_STATUSES,
@@ -392,9 +392,10 @@ export function createColumns(opts: {
         // Tracking block (carrier, number, status, sync) for a single shipment.
         const renderShipment = (sh: (typeof allShipments)[number]) => {
           const carrier = sh.carrier;
-          const trackingUrl = sh.trackingUrl;
-          const transitStatus = sh.status;
           const tn = sh.trackingNumber;
+          const trackingUrl =
+            sh.trackingUrl || (tn ? getTrackingUrl(carrier, tn) : null);
+          const transitStatus = sh.status;
           const isOms = sh.providerName === "eccangtms";
           const syncStatus = sh.syncStatus || "NOT_SYNCED";
           const syncing = opts.syncingId === sh.id;
@@ -523,7 +524,9 @@ export function createColumns(opts: {
         const tracking = row.original.trackingNumber;
         const shipment = row.original.shipments?.[0];
         const carrier = shipment?.carrier || row.original.carrier;
-        const trackingUrl = shipment?.trackingUrl;
+        const trackingUrl =
+          shipment?.trackingUrl ||
+          (tracking ? getTrackingUrl(carrier ?? null, tracking) : null);
         const transitStatus = shipment?.status;
 
         if (!tracking) {

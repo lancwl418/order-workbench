@@ -127,6 +127,8 @@ export interface MappedFulfillment {
   status: string;
   shipmentStatus: string | null;
   shippedAt: Date;
+  /** Numeric ids of the fulfilled order line items (for group resolution). */
+  lineItemIds: string[];
 }
 
 /** Data shape for creating an OrderItem via Prisma */

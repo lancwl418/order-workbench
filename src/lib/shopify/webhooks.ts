@@ -7,7 +7,10 @@ import {
   computeSplitOrderStatus,
   fulfillmentGroups,
 } from "@/lib/orders/fulfillment-status";
-import { syncFulfillmentGroupsFromShopify } from "@/lib/orders/sync-groups";
+import {
+  syncFulfillmentGroupsFromShopify,
+  foIdForLineItems,
+} from "@/lib/orders/sync-groups";
 
 /**
  * Verify the HMAC signature of an incoming Shopify webhook request.
@@ -110,14 +113,22 @@ async function handleOrderCreate(
   await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
   for (const f of fulfillments) {
+    // Attach the fulfillment to its split group (null = whole order) so the
+    // per-group tracking UI picks up Shopify-created fulfillments.
+    const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
     await prisma.shipment.upsert({
       where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
       create: {
         orderId: upsertedOrder.id, sourceType: "SHOPIFY", trackingNumber: f.trackingNumber,
         trackingUrl: f.trackingUrl, carrier: f.carrier, shopifyFulfillmentId: f.shopifyFulfillmentId,
         syncStatus: "SYNCED", status: f.shipmentStatus || f.status, shippedAt: f.shippedAt,
+        shopifyFulfillmentOrderId: foId,
       },
-      update: { trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier, status: f.shipmentStatus || f.status },
+      update: {
+        trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier,
+        status: f.shipmentStatus || f.status,
+        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
+      },
     });
   }
 
@@ -232,14 +243,22 @@ async function handleOrderUpdated(
   await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
   for (const f of fulfillments) {
+    // Attach the fulfillment to its split group (null = whole order) so the
+    // per-group tracking UI picks up Shopify-created fulfillments.
+    const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
     await prisma.shipment.upsert({
       where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
       create: {
         orderId: upsertedOrder.id, sourceType: "SHOPIFY", trackingNumber: f.trackingNumber,
         trackingUrl: f.trackingUrl, carrier: f.carrier, shopifyFulfillmentId: f.shopifyFulfillmentId,
         syncStatus: "SYNCED", status: f.shipmentStatus || f.status, shippedAt: f.shippedAt,
+        shopifyFulfillmentOrderId: foId,
       },
-      update: { trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier, status: f.shipmentStatus || f.status },
+      update: {
+        trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier,
+        status: f.shipmentStatus || f.status,
+        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
+      },
     });
   }
 
@@ -334,6 +353,13 @@ async function handleFulfillmentUpsert(
     const deliveredAt =
       shipmentStatus === "delivered" ? new Date() : undefined;
 
+    // Attach the fulfillment to its split group (null = whole order) so the
+    // per-group tracking UI picks up fulfillments created in Shopify admin.
+    const foId = await foIdForLineItems(
+      order.id,
+      (payload.line_items || []).map((li) => String(li.id))
+    );
+
     const upsertedShipment = await prisma.shipment.upsert({
       where: { shopifyFulfillmentId: fulfillmentId },
       create: {
@@ -346,6 +372,7 @@ async function handleFulfillmentUpsert(
         syncStatus: "SYNCED",
         status: shipmentStatus || "shipped",
         shippedAt: new Date(payload.created_at),
+        shopifyFulfillmentOrderId: foId,
         ...(deliveredAt ? { deliveredAt } : {}),
       },
       update: {
@@ -353,6 +380,7 @@ async function handleFulfillmentUpsert(
         trackingUrl,
         carrier,
         status: shipmentStatus || "shipped",
+        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
         ...(deliveredAt ? { deliveredAt } : {}),
       },
     });

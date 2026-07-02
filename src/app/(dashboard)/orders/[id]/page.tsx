@@ -67,6 +67,52 @@ type ShipmentEntry = {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+/** Carriers we generate tracking links for (see getTrackingUrl). */
+const CARRIER_PRESETS = ["UPS", "USPS", "FedEx"];
+
+/** Carrier dropdown (UPS/USPS/FedEx/Other) with a free-text field for Other. */
+function CarrierPicker({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const isPreset = CARRIER_PRESETS.includes(value);
+  const showOther = !isPreset && value !== "";
+  return (
+    <div className={`flex items-center gap-2 ${className ?? ""}`}>
+      <Select
+        value={isPreset ? value : showOther ? "Other" : ""}
+        onValueChange={(v) => {
+          if (v) onChange(v);
+        }}
+      >
+        <SelectTrigger className="h-8 text-sm w-28">
+          <SelectValue placeholder="Carrier" />
+        </SelectTrigger>
+        <SelectContent>
+          {[...CARRIER_PRESETS, "Other"].map((c) => (
+            <SelectItem key={c} value={c}>
+              {c}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {showOther && (
+        <Input
+          value={value === "Other" ? "" : value}
+          onChange={(e) => onChange(e.target.value || "Other")}
+          placeholder="Carrier name"
+          className="h-8 text-sm flex-1"
+        />
+      )}
+    </div>
+  );
+}
+
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -757,11 +803,10 @@ export default function OrderDetailPage() {
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Input
+                        <CarrierPicker
                           value={shipCarrierInput}
-                          onChange={(e) => setShipCarrierInput(e.target.value)}
-                          placeholder={t("carrier")}
-                          className="h-8 text-sm flex-1"
+                          onChange={setShipCarrierInput}
+                          className="flex-1"
                         />
                         <Button
                           size="sm"
@@ -859,11 +904,10 @@ export default function OrderDetailPage() {
                     className="h-8 text-sm font-mono"
                   />
                   <div className="flex items-center gap-2">
-                    <Input
+                    <CarrierPicker
                       value={newCarrier}
-                      onChange={(e) => setNewCarrier(e.target.value)}
-                      placeholder={t("carrier")}
-                      className="h-8 text-sm flex-1"
+                      onChange={setNewCarrier}
+                      className="flex-1"
                     />
                     <Button
                       size="sm"

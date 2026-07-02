@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchOrders, transformShopifyOrder } from "@/lib/shopify/orders";
-import { syncFulfillmentGroupsFromShopify } from "@/lib/orders/sync-groups";
+import {
+  syncFulfillmentGroupsFromShopify,
+  foIdForLineItems,
+} from "@/lib/orders/sync-groups";
 
 /**
  * POST /api/orders/sync
@@ -142,8 +145,11 @@ export async function POST(req: NextRequest) {
         // delivery methods (Standard/Express per group)
         await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
-        // Upsert shipments from fulfillments (tracking data)
+        // Upsert shipments from fulfillments (tracking data). Attach each to
+        // its split group (null = whole order) so per-group tracking shows
+        // fulfillments created in Shopify admin.
         for (const f of fulfillments) {
+          const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
           await prisma.shipment.upsert({
             where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
             create: {
@@ -156,12 +162,14 @@ export async function POST(req: NextRequest) {
               syncStatus: "SYNCED",
               status: f.shipmentStatus || f.status,
               shippedAt: f.shippedAt,
+              shopifyFulfillmentOrderId: foId,
             },
             update: {
               trackingNumber: f.trackingNumber,
               trackingUrl: f.trackingUrl,
               carrier: f.carrier,
               status: f.shipmentStatus || f.status,
+              ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
             },
           });
         }
