@@ -457,7 +457,6 @@ export function createColumns(opts: {
 
         // Split order: show one tracking block per fulfillment group.
         if (groups.length > 0) {
-          const groupMethods = getGroupMethods(row.original.groupShippingMethods);
           const shopifyOrderId = row.original.shopifyOrderId;
           const domain = opts.shopifyStoreDomain;
           return (
@@ -465,11 +464,6 @@ export function createColumns(opts: {
               {groups.map((g) => {
                 const sh =
                   allShipments.find((s) => s.shopifyFulfillmentOrderId === g.foId) || null;
-                // Express groups ship via Shopify labels, not OMS — same
-                // gating as non-split orders, but per group.
-                const gExpress = isExpressMethod(
-                  groupMethodFor(groupMethods, g.foId, row.original.shippingMethod)
-                );
                 return (
                   <div key={g.foId} className="border-l-2 border-amber-200 pl-1.5">
                     <span className="text-[10px] font-medium text-amber-700 block">
@@ -508,16 +502,14 @@ export function createColumns(opts: {
                             <ExternalLink className="h-3.5 w-3.5" />
                             Shopify
                           </button>
-                          {!gExpress && (
-                            <button
-                              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                              onClick={() => opts.onOmsPush?.(row.original.id, g.foId)}
-                              disabled={!opts.onOmsPush}
-                            >
-                              <Tag className="h-3.5 w-3.5" />
-                              OMS
-                            </button>
-                          )}
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                            onClick={() => opts.onOmsPush?.(row.original.id, g.foId)}
+                            disabled={!opts.onOmsPush}
+                          >
+                            <Tag className="h-3.5 w-3.5" />
+                            OMS
+                          </button>
                         </PopoverContent>
                       </Popover>
                     )}
@@ -537,7 +529,6 @@ export function createColumns(opts: {
         if (!tracking) {
           const shopifyOrderId = row.original.shopifyOrderId;
           const domain = opts.shopifyStoreDomain;
-          const isExpress = isExpressMethod(row.original.shippingMethod);
 
           return (
             <Popover>
@@ -566,16 +557,14 @@ export function createColumns(opts: {
                   <ExternalLink className="h-3.5 w-3.5" />
                   Shopify
                 </button>
-                {!isExpress && (
-                  <button
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                    onClick={() => opts.onOmsPush?.(row.original.id)}
-                    disabled={!opts.onOmsPush}
-                  >
-                    <Tag className="h-3.5 w-3.5" />
-                    OMS
-                  </button>
-                )}
+                <button
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                  onClick={() => opts.onOmsPush?.(row.original.id)}
+                  disabled={!opts.onOmsPush}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  OMS
+                </button>
               </PopoverContent>
             </Popover>
           );

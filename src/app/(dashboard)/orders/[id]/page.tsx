@@ -563,26 +563,21 @@ export default function OrderDetailPage() {
               </Button>
             </div>
 
-            {/* OMS Push — hidden for Express. Express is judged per group on
-                a split order: show while any NON-express group still lacks
-                its own OMS shipment. */}
+            {/* OMS Push — for a split order, show until every group has its
+                own OMS shipment. Express orders can also use OMS. */}
             {(() => {
               const groups = getFulfillmentGroups(order.orderItems);
-              const groupMethods = getGroupMethods(order.groupShippingMethods);
               const showOmsPush =
                 groups.length > 0
                   ? groups.some(
                       (g) =>
-                        !isExpressMethod(
-                          groupMethodFor(groupMethods, g.foId, order.shippingMethod)
-                        ) &&
                         !(shipments ?? []).some(
                           (s) =>
                             s.providerName === "eccangtms" &&
                             s.shopifyFulfillmentOrderId === g.foId
                         )
                     )
-                  : !isExpressMethod(order.shippingMethod) && !omsShipment;
+                  : !omsShipment;
               if (!showOmsPush) return null;
               return (
                 <div>
