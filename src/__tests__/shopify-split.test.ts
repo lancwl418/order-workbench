@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { splitFulfillmentOrders } from "@/lib/shopify/split";
+import {
+  splitFulfillmentOrders,
+  fetchFulfillmentGroupInfo,
+} from "@/lib/shopify/split";
 import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
 
 beforeEach(() => {
@@ -193,6 +196,102 @@ describe("splitFulfillmentOrders", () => {
         { shopifyLineItemIds: ["101"] },
       ])
     ).rejects.toThrow(/cannot split/);
+  });
+});
+
+describe("fetchFulfillmentGroupInfo", () => {
+  const foNode = (
+    id: number,
+    status: string,
+    presentedName: string | null,
+    lineItemIds: number[]
+  ) => ({
+    id: `gid://shopify/FulfillmentOrder/${id}`,
+    status,
+    deliveryMethod:
+      presentedName === null
+        ? null
+        : { methodType: "SHIPPING", presentedName },
+    lineItems: {
+      nodes: lineItemIds.map((li) => ({
+        lineItem: { id: `gid://shopify/LineItem/${li}` },
+      })),
+    },
+  });
+
+  it("maps fulfillment orders to numeric ids, delivery names, and line items", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        resp({
+          data: {
+            order: {
+              fulfillmentOrders: {
+                nodes: [
+                  foNode(900, "OPEN", "Standard", [100, 101]),
+                  foNode(901, "OPEN", "Express", [102]),
+                ],
+              },
+            },
+          },
+        })
+      )
+    );
+
+    const groups = await fetchFulfillmentGroupInfo("ORDER1");
+
+    expect(groups).toEqual([
+      {
+        foId: "900",
+        status: "OPEN",
+        deliveryMethodName: "Standard",
+        shopifyLineItemIds: ["100", "101"],
+      },
+      {
+        foId: "901",
+        status: "OPEN",
+        deliveryMethodName: "Express",
+        shopifyLineItemIds: ["102"],
+      },
+    ]);
+  });
+
+  it("returns null deliveryMethodName when the FO has no delivery method", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        resp({
+          data: {
+            order: {
+              fulfillmentOrders: {
+                nodes: [foNode(900, "CLOSED", null, [100])],
+              },
+            },
+          },
+        })
+      )
+    );
+
+    const groups = await fetchFulfillmentGroupInfo("ORDER1");
+    expect(groups).toEqual([
+      {
+        foId: "900",
+        status: "CLOSED",
+        deliveryMethodName: null,
+        shopifyLineItemIds: ["100"],
+      },
+    ]);
+  });
+
+  it("throws when the order is not found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => resp({ data: { order: null } }))
+    );
+
+    await expect(fetchFulfillmentGroupInfo("MISSING")).rejects.toThrow(
+      /not found/
+    );
   });
 });
 

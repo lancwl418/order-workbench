@@ -16,6 +16,11 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Package, Truck, Plus, Trash2, Check, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
+import {
+  isExpressMethod,
+  getGroupMethods,
+  groupMethodFor,
+} from "@/lib/orders/shipping";
 
 interface PackagePreset {
   id: string;
@@ -110,18 +115,29 @@ export function OmsPushDialog({
       .map((s: { shopifyFulfillmentOrderId?: string | null }) => s.shopifyFulfillmentOrderId)
       .filter(Boolean)
   );
+  // Express groups ship via Shopify labels — they must not go to OMS.
+  const groupMethods = getGroupMethods(orderData?.groupShippingMethods);
+  const expressFoIds = new Set(
+    groups
+      .filter((g) =>
+        isExpressMethod(groupMethodFor(groupMethods, g.foId, orderData?.shippingMethod))
+      )
+      .map((g) => g.foId)
+  );
 
   // Default the group selector: the explicitly requested group wins,
-  // otherwise the first group not yet pushed.
+  // otherwise the first pushable (not yet pushed, non-express) group.
   useEffect(() => {
     if (!open || groups.length === 0) return;
     if (presetFulfillmentOrderId && groups.some((g) => g.foId === presetFulfillmentOrderId)) {
       setSelectedGroup(presetFulfillmentOrderId);
       return;
     }
-    const firstUnpushed = groups.find((g) => !pushedFoIds.has(g.foId));
+    const firstPushable = groups.find(
+      (g) => !pushedFoIds.has(g.foId) && !expressFoIds.has(g.foId)
+    );
     setSelectedGroup((prev) =>
-      prev && groups.some((g) => g.foId === prev) ? prev : firstUnpushed?.foId ?? groups[0].foId
+      prev && groups.some((g) => g.foId === prev) ? prev : firstPushable?.foId ?? groups[0].foId
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, orderData, presetFulfillmentOrderId]);
@@ -296,9 +312,17 @@ export function OmsPushDialog({
                   className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                 >
                   {groups.map((g) => (
-                    <option key={g.foId} value={g.foId} disabled={pushedFoIds.has(g.foId)}>
+                    <option
+                      key={g.foId}
+                      value={g.foId}
+                      disabled={pushedFoIds.has(g.foId) || expressFoIds.has(g.foId)}
+                    >
                       Group {g.num} · {g.label}
-                      {pushedFoIds.has(g.foId) ? " (already pushed)" : ""}
+                      {pushedFoIds.has(g.foId)
+                        ? " (already pushed)"
+                        : expressFoIds.has(g.foId)
+                        ? " (Express — ship via Shopify)"
+                        : ""}
                     </option>
                   ))}
                 </select>

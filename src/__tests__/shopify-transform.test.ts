@@ -101,6 +101,30 @@ describe("transformShopifyOrder", () => {
     expect(order.shippingMethod).toBe("Standard Shipping");
   });
 
+  it("aggregates all shipping lines for multi-profile checkouts", () => {
+    const { order } = transformShopifyOrder(
+      makeShopifyOrder({
+        shipping_lines: [
+          { title: "Standard", price: "5.00" },
+          { title: "Express", price: "25.00" },
+        ],
+      })
+    );
+    expect(order.shippingMethod).toBe("Standard + Express");
+  });
+
+  it("dedupes repeated shipping line titles", () => {
+    const { order } = transformShopifyOrder(
+      makeShopifyOrder({
+        shipping_lines: [
+          { title: "Standard", price: "5.00" },
+          { title: "Standard", price: "5.00" },
+        ],
+      })
+    );
+    expect(order.shippingMethod).toBe("Standard");
+  });
+
   it("sets shippingMethod null when no shipping lines", () => {
     const { order } = transformShopifyOrder(
       makeShopifyOrder({ shipping_lines: [] })

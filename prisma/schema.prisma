@@ -118,8 +118,18 @@ model Order {
   totalPrice Decimal? @map("total_price") @db.Decimal(10, 2)
   currency   String?  @default("USD")
 
-  // Shipping method from Shopify
+  // Shipping method from Shopify. Aggregates ALL shipping lines (a checkout
+  // spanning multiple shipping profiles produces one line per profile, e.g.
+  // "Standard + Express").
   shippingMethod String? @map("shipping_method")
+
+  // Per-fulfillment-order delivery methods for orders whose groups ship with
+  // different methods: { [shopifyFulfillmentOrderId]: "Express" | "Standard" }
+  groupShippingMethods Json? @map("group_shipping_methods")
+
+  // True once an operator manually overrides shippingMethod — Shopify sync
+  // then stops overwriting the manual value.
+  shippingMethodManual Boolean @default(false) @map("shipping_method_manual")
 
   // Internal workflow fields
   internalStatus InternalStatus @default(OPEN) @map("internal_status")

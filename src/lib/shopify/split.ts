@@ -139,6 +139,70 @@ async function fetchFulfillmentOrders(
   }));
 }
 
+/** Per-fulfillment-order info needed to sync split groups from Shopify. */
+export interface FulfillmentGroupInfo {
+  /** Numeric fulfillment order id (string). */
+  foId: string;
+  status: string;
+  /** Delivery method shown in the Shopify admin, e.g. "Express". */
+  deliveryMethodName: string | null;
+  /** Numeric ids of the order line items in this fulfillment order. */
+  shopifyLineItemIds: string[];
+}
+
+const FO_DELIVERY_QUERY = `
+  query orderFulfillmentGroups($id: ID!) {
+    order(id: $id) {
+      fulfillmentOrders(first: 50) {
+        nodes {
+          id
+          status
+          deliveryMethod { methodType presentedName }
+          lineItems(first: 100) {
+            nodes { lineItem { id } }
+          }
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * Fetch the order's fulfillment orders with their delivery method names.
+ * Used to sync natively split orders (multiple shipping profiles at checkout)
+ * so each group's Standard/Express method is known locally.
+ */
+export async function fetchFulfillmentGroupInfo(
+  shopifyOrderId: string
+): Promise<FulfillmentGroupInfo[]> {
+  const data = await graphql<{
+    order: {
+      fulfillmentOrders: {
+        nodes: Array<{
+          id: string;
+          status: string;
+          deliveryMethod: {
+            methodType: string | null;
+            presentedName: string | null;
+          } | null;
+          lineItems: { nodes: Array<{ lineItem: { id: string } }> };
+        }>;
+      };
+    } | null;
+  }>(FO_DELIVERY_QUERY, { id: `gid://shopify/Order/${shopifyOrderId}` });
+
+  if (!data.order) {
+    throw new Error(`Shopify order ${shopifyOrderId} not found`);
+  }
+
+  return data.order.fulfillmentOrders.nodes.map((fo) => ({
+    foId: numericId(fo.id),
+    status: fo.status,
+    deliveryMethodName: fo.deliveryMethod?.presentedName || null,
+    shopifyLineItemIds: fo.lineItems.nodes.map((li) => numericId(li.lineItem.id)),
+  }));
+}
+
 const SPLIT_MUTATION = `
   mutation foSplit($splits: [FulfillmentOrderSplitInput!]!) {
     fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {

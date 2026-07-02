@@ -79,6 +79,14 @@ export async function PATCH(
 
   const updateData = parsed.data;
 
+  // Manual delivery-method change: flag it so Shopify sync stops overwriting
+  if (
+    updateData.shippingMethod !== undefined &&
+    updateData.shippingMethod !== existing.shippingMethod
+  ) {
+    (updateData as Record<string, unknown>).shippingMethodManual = true;
+  }
+
   // Auto-set REVIEW when CS-flagged, revert to previous status when unflagged
   if (updateData.csFlag !== undefined && updateData.csFlag !== existing.csFlag && !updateData.internalStatus) {
     if (updateData.csFlag) {

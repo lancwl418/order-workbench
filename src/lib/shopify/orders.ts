@@ -101,9 +101,19 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     customerName = shippingAddress.name;
   }
 
-  // Determine shipping method from the first shipping line
+  // Determine shipping method from ALL shipping lines. A checkout spanning
+  // multiple shipping profiles produces one line per profile (e.g. the blanks
+  // ship Standard while the transfers ship Express), so taking only [0] would
+  // silently drop the Express line.
+  const shippingLineTitles = [
+    ...new Set(
+      (shopifyOrder.shipping_lines ?? [])
+        .map((l) => l.title)
+        .filter((t): t is string => Boolean(t))
+    ),
+  ];
   const shippingMethod =
-    shopifyOrder.shipping_lines?.[0]?.title || null;
+    shippingLineTitles.length > 0 ? shippingLineTitles.join(" + ") : null;
 
   // Map Shopify fulfillment/financial status to internal workflow status
   const internalStatus = mapShopifyToInternalStatus(

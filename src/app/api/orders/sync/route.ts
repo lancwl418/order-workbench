@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchOrders, transformShopifyOrder } from "@/lib/shopify/orders";
+import { syncFulfillmentGroupsFromShopify } from "@/lib/orders/sync-groups";
 
 /**
  * POST /api/orders/sync
@@ -85,6 +86,11 @@ export async function POST(req: NextRequest) {
           ? { printStatus: "READY" as const }
           : {};
 
+        // Don't overwrite an operator's manual delivery-method change
+        const shippingMethodField = existingOrder?.shippingMethodManual
+          ? {}
+          : { shippingMethod: orderData.shippingMethod };
+
         const upsertedOrder = await prisma.order.upsert({
           where: { shopifyOrderId: orderData.shopifyOrderId },
           create: {
@@ -104,7 +110,7 @@ export async function POST(req: NextRequest) {
             shippingAddress: orderData.shippingAddress,
             totalPrice: orderData.totalPrice,
             currency: orderData.currency,
-            shippingMethod: orderData.shippingMethod,
+            ...shippingMethodField,
             tags: orderData.tags,
             notes: orderData.notes,
             ...trackingFields,
@@ -131,6 +137,10 @@ export async function POST(req: NextRequest) {
             },
           });
         }
+
+        // Natively split order: persist per-group fulfillment order ids and
+        // delivery methods (Standard/Express per group)
+        await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
         // Upsert shipments from fulfillments (tracking data)
         for (const f of fulfillments) {

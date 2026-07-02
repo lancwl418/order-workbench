@@ -36,6 +36,11 @@ import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import { PushFactoryDialog } from "@/components/orders/push-factory-dialog";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
+import {
+  isExpressMethod,
+  getGroupMethods,
+  groupMethodFor,
+} from "@/lib/orders/shipping";
 
 type LogEntry = {
   id: string;
@@ -429,7 +434,7 @@ export default function OrderDetailPage() {
                       <Badge
                         variant="outline"
                         className={`text-xs border-0 ${
-                          order.shippingMethod.toLowerCase().includes("express")
+                          isExpressMethod(order.shippingMethod)
                             ? "bg-orange-100 text-orange-700"
                             : "bg-gray-100 text-gray-600"
                         }`}
@@ -448,6 +453,44 @@ export default function OrderDetailPage() {
                     <Pencil className="h-3 w-3" />
                   </button>
                 </div>
+                {/* Split order: each group can ship with its own method */}
+                {(() => {
+                  const groups = getFulfillmentGroups(order.orderItems);
+                  const groupMethods = getGroupMethods(order.groupShippingMethods);
+                  if (groups.length === 0 || !groupMethods) return null;
+                  return (
+                    <div className="mt-1 space-y-0.5">
+                      {groups.map((g) => {
+                        const m = groupMethodFor(
+                          groupMethods,
+                          g.foId,
+                          order.shippingMethod
+                        );
+                        return (
+                          <div key={g.foId} className="flex items-center gap-1">
+                            <span className="text-[10px] font-medium text-amber-700">
+                              G{g.num} · {g.label}
+                            </span>
+                            {m ? (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs border-0 ${
+                                  isExpressMethod(m)
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
+                                {m}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <span className="text-muted-foreground">{t("priority")}</span>
@@ -520,31 +563,41 @@ export default function OrderDetailPage() {
               </Button>
             </div>
 
-            {/* OMS Push — hidden for Express orders. For a split order, show
-                until every group has its own OMS shipment. */}
-            {!order.shippingMethod?.toLowerCase().includes("express") &&
-              (getFulfillmentGroups(order.orderItems).length > 0
-                ? getFulfillmentGroups(order.orderItems).some(
-                    (g) =>
-                      !(shipments ?? []).some(
-                        (s) =>
-                          s.providerName === "eccangtms" &&
-                          s.shopifyFulfillmentOrderId === g.foId
-                      )
-                  )
-                : !omsShipment) && (
-              <div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setOmsPushOpen(true)}
-                >
-                  <Truck className="h-3.5 w-3.5 mr-1" />
-                  {tOms("pushToOms")}
-                </Button>
-              </div>
-            )}
+            {/* OMS Push — hidden for Express. Express is judged per group on
+                a split order: show while any NON-express group still lacks
+                its own OMS shipment. */}
+            {(() => {
+              const groups = getFulfillmentGroups(order.orderItems);
+              const groupMethods = getGroupMethods(order.groupShippingMethods);
+              const showOmsPush =
+                groups.length > 0
+                  ? groups.some(
+                      (g) =>
+                        !isExpressMethod(
+                          groupMethodFor(groupMethods, g.foId, order.shippingMethod)
+                        ) &&
+                        !(shipments ?? []).some(
+                          (s) =>
+                            s.providerName === "eccangtms" &&
+                            s.shopifyFulfillmentOrderId === g.foId
+                        )
+                    )
+                  : !isExpressMethod(order.shippingMethod) && !omsShipment;
+              if (!showOmsPush) return null;
+              return (
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setOmsPushOpen(true)}
+                  >
+                    <Truck className="h-3.5 w-3.5 mr-1" />
+                    {tOms("pushToOms")}
+                  </Button>
+                </div>
+              );
+            })()}
 
             {/* Factory Push — shown when order has blank (itemType=other) items */}
             {order.orderItems.some((i) => i.itemType === "other") && (

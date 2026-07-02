@@ -7,6 +7,7 @@ import {
   computeSplitOrderStatus,
   fulfillmentGroups,
 } from "@/lib/orders/fulfillment-status";
+import { syncFulfillmentGroupsFromShopify } from "@/lib/orders/sync-groups";
 
 /**
  * Verify the HMAC signature of an incoming Shopify webhook request.
@@ -68,6 +69,15 @@ async function handleOrderCreate(
   const hasDesignFiles = items.some((item) => item.designFileUrl);
   const printFields = hasDesignFiles ? { printStatus: "READY" as const } : {};
 
+  // Don't overwrite an operator's manual delivery-method change
+  const existing = await prisma.order.findUnique({
+    where: { shopifyOrderId: orderData.shopifyOrderId },
+    select: { shippingMethodManual: true },
+  });
+  const shippingMethodField = existing?.shippingMethodManual
+    ? {}
+    : { shippingMethod: orderData.shippingMethod };
+
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
     create: { ...orderData, ...trackingFields, ...printFields },
@@ -82,7 +92,7 @@ async function handleOrderCreate(
       shippingAddress: orderData.shippingAddress,
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
-      shippingMethod: orderData.shippingMethod,
+      ...shippingMethodField,
       ...trackingFields,
     },
   });
@@ -94,6 +104,10 @@ async function handleOrderCreate(
       update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, quantity: item.quantity, price: item.price, itemType: item.itemType },
     });
   }
+
+  // Natively split order (multiple shipping profiles): persist per-group
+  // fulfillment order ids and delivery methods (Standard/Express per group).
+  await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
   for (const f of fulfillments) {
     await prisma.shipment.upsert({
@@ -177,6 +191,15 @@ async function handleOrderUpdated(
   }
   const statusFields = derivedStatus;
 
+  // Don't overwrite an operator's manual delivery-method change
+  const existing = await prisma.order.findUnique({
+    where: { shopifyOrderId: orderData.shopifyOrderId },
+    select: { shippingMethodManual: true },
+  });
+  const shippingMethodField = existing?.shippingMethodManual
+    ? {}
+    : { shippingMethod: orderData.shippingMethod };
+
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
     create: { ...orderData, ...trackingFields },
@@ -191,7 +214,7 @@ async function handleOrderUpdated(
       shippingAddress: orderData.shippingAddress,
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
-      shippingMethod: orderData.shippingMethod,
+      ...shippingMethodField,
       ...statusFields,
       ...trackingFields,
     },
@@ -204,6 +227,9 @@ async function handleOrderUpdated(
       update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, quantity: item.quantity, price: item.price, itemType: item.itemType },
     });
   }
+
+  // Keep per-group fulfillment order ids + delivery methods in sync
+  await syncFulfillmentGroupsFromShopify(upsertedOrder.id, shopifyOrder);
 
   for (const f of fulfillments) {
     await prisma.shipment.upsert({

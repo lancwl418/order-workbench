@@ -18,6 +18,11 @@ import {
 } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
+import {
+  isExpressMethod,
+  getGroupMethods,
+  groupMethodFor,
+} from "@/lib/orders/shipping";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -273,10 +278,12 @@ export function createColumns(opts: {
         const method = row.original.shippingMethod;
         const id = row.original.id;
         const loading = opts.loadingId === id;
+        const groups = getFulfillmentGroups(row.original.orderItems);
+        const groupMethods = getGroupMethods(row.original.groupShippingMethods);
 
         const renderBadge = (m: string | null) => {
           if (!m) return <span className="text-sm text-muted-foreground">-</span>;
-          const isExpress = m.toLowerCase().includes("express");
+          const isExpress = isExpressMethod(m);
           return (
             <Badge
               variant="outline"
@@ -291,6 +298,23 @@ export function createColumns(opts: {
             </Badge>
           );
         };
+
+        // Split order with per-group delivery methods (e.g. blanks Standard +
+        // transfers Express): show each group's own method.
+        if (groups.length > 0 && groupMethods) {
+          return (
+            <div className="space-y-0.5">
+              {groups.map((g) => (
+                <div key={g.foId} className="flex items-center gap-1">
+                  <span className="text-[10px] font-medium text-amber-700">
+                    G{g.num}
+                  </span>
+                  {renderBadge(groupMethodFor(groupMethods, g.foId, method))}
+                </div>
+              ))}
+            </div>
+          );
+        }
 
         if (!opts.onDeliveryMethodChange) return renderBadge(method);
 
@@ -433,11 +457,19 @@ export function createColumns(opts: {
 
         // Split order: show one tracking block per fulfillment group.
         if (groups.length > 0) {
+          const groupMethods = getGroupMethods(row.original.groupShippingMethods);
+          const shopifyOrderId = row.original.shopifyOrderId;
+          const domain = opts.shopifyStoreDomain;
           return (
             <div className="space-y-1.5">
               {groups.map((g) => {
                 const sh =
                   allShipments.find((s) => s.shopifyFulfillmentOrderId === g.foId) || null;
+                // Express groups ship via Shopify labels, not OMS — same
+                // gating as non-split orders, but per group.
+                const gExpress = isExpressMethod(
+                  groupMethodFor(groupMethods, g.foId, row.original.shippingMethod)
+                );
                 return (
                   <div key={g.foId} className="border-l-2 border-amber-200 pl-1.5">
                     <span className="text-[10px] font-medium text-amber-700 block">
@@ -446,16 +478,48 @@ export function createColumns(opts: {
                     {sh ? (
                       renderShipment(sh)
                     ) : (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="gap-1 text-xs mt-0.5"
-                        onClick={() => opts.onOmsPush?.(row.original.id, g.foId)}
-                        disabled={!opts.onOmsPush}
-                      >
-                        <Tag className="h-3 w-3" />
-                        {t.createLabel}
-                      </Button>
+                      <Popover>
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              className="gap-1 text-xs mt-0.5"
+                            >
+                              <Tag className="h-3 w-3" />
+                              {t.createLabel}
+                              <ChevronDown className="h-3 w-3" />
+                            </Button>
+                          }
+                        />
+                        <PopoverContent className="w-44 p-1" align="start">
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                            onClick={() => {
+                              if (domain && shopifyOrderId) {
+                                window.open(
+                                  `https://${domain}/admin/orders/${shopifyOrderId}`,
+                                  "_blank"
+                                );
+                              }
+                            }}
+                            disabled={!domain || !shopifyOrderId}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Shopify
+                          </button>
+                          {!gExpress && (
+                            <button
+                              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                              onClick={() => opts.onOmsPush?.(row.original.id, g.foId)}
+                              disabled={!opts.onOmsPush}
+                            >
+                              <Tag className="h-3.5 w-3.5" />
+                              OMS
+                            </button>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                 );
@@ -473,7 +537,7 @@ export function createColumns(opts: {
         if (!tracking) {
           const shopifyOrderId = row.original.shopifyOrderId;
           const domain = opts.shopifyStoreDomain;
-          const isExpress = row.original.shippingMethod?.toLowerCase().includes("express");
+          const isExpress = isExpressMethod(row.original.shippingMethod);
 
           return (
             <Popover>
