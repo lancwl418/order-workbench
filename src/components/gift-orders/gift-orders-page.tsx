@@ -57,6 +57,7 @@ import {
   GiftOmsPushDialog,
   GiftPackageEditDialog,
 } from "@/components/gift-orders/gift-oms-dialog";
+import { GiftOrderEditDialog } from "@/components/gift-orders/gift-order-edit-dialog";
 import {
   missingGiftCustomerFields,
   parseGiftCustomers,
@@ -165,6 +166,7 @@ export function GiftOrdersPage() {
   const [importing, setImporting] = useState(false);
   const [packageOpen, setPackageOpen] = useState(false);
   const [pushOpen, setPushOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<GiftOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -490,6 +492,9 @@ export function GiftOrdersPage() {
                         <TableHead>{t("columns.status")}</TableHead>
                         <TableHead>{t("columns.shipping")}</TableHead>
                         <TableHead>{t("columns.tracking")}</TableHead>
+                        <TableHead className="w-16 text-right">
+                          {t("columns.actions")}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -569,6 +574,29 @@ export function GiftOrdersPage() {
                             >
                               {order.trackingNumber || order.omsOrderNo || "—"}
                             </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={
+                                order.status === "PUSHED" ||
+                                order.status === "PUSHING"
+                              }
+                              aria-label={t("editOrderFor", {
+                                customer: order.customerName,
+                              })}
+                              title={
+                                order.status === "PUSHED" ||
+                                order.status === "PUSHING"
+                                  ? t("pushedOrderLocked")
+                                  : t("editOrder")
+                              }
+                              onClick={() => setEditingOrder(order)}
+                            >
+                              <Pencil />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -839,6 +867,16 @@ export function GiftOrdersPage() {
           />
         </>
       )}
+      <GiftOrderEditDialog
+        order={editingOrder}
+        open={Boolean(editingOrder)}
+        onOpenChange={(open) => {
+          if (!open) setEditingOrder(null);
+        }}
+        onSuccess={() => {
+          void mutate();
+        }}
+      />
     </div>
   );
 }

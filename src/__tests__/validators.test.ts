@@ -5,6 +5,7 @@ import {
   bulkUpdateSchema,
   shipmentCreateSchema,
   exceptionQuerySchema,
+  giftOrderUpdateSchema,
   giftPackageSchema,
 } from "@/lib/validators";
 
@@ -202,6 +203,57 @@ describe("giftPackageSchema", () => {
           [field]: 0,
         })
       ).toThrow();
+    }
+  );
+});
+
+describe("giftOrderUpdateSchema", () => {
+  const validOrder = {
+    customerName: "Jane Doe",
+    customerEmail: "jane@example.com",
+    customerPhone: "5551234567",
+    shippingAddress: {
+      first_name: "Jane",
+      last_name: "Doe",
+      company: "",
+      address1: "123 Main St",
+      address2: "",
+      city: "Los Angeles",
+      province_code: "CA",
+      zip: "90001",
+      country_code: "US",
+      phone: "5551234567",
+    },
+  };
+
+  it("accepts editable recipient and address fields", () => {
+    expect(giftOrderUpdateSchema.parse(validOrder)).toMatchObject(validOrder);
+  });
+
+  it("allows empty optional contact fields", () => {
+    const result = giftOrderUpdateSchema.parse({
+      ...validOrder,
+      customerEmail: null,
+      customerPhone: null,
+    });
+    expect(result.customerEmail).toBeNull();
+    expect(result.customerPhone).toBeNull();
+  });
+
+  it.each(["customerName", "address1", "city", "province_code", "zip"])(
+    "rejects an empty required %s",
+    (field) => {
+      const input =
+        field === "customerName"
+          ? { ...validOrder, customerName: "" }
+          : {
+              ...validOrder,
+              shippingAddress: {
+                ...validOrder.shippingAddress,
+                [field]: "",
+              },
+            };
+      expect(() => giftOrderUpdateSchema.parse(input)).toThrow();
     }
   );
 });

@@ -219,6 +219,14 @@
     "missingFields": "Missing fields",
     "previewMore": "And {count} more customers",
     "editPackage": "Edit package",
+    "editOrder": "Edit order",
+    "editOrderFor": "Edit order for {customer}",
+    "editOrderTitle": "Edit gift order",
+    "editOrderDescription": "Update the recipient and shipping address for {customer}.",
+    "saveOrder": "Save order",
+    "orderSaved": "Gift order saved.",
+    "orderSaveFailed": "Could not save the gift order.",
+    "pushedOrderLocked": "Orders already sent to OMS cannot be edited.",
     "editPackageDescription": "Update the shared package information for {segment}.",
     "savePackage": "Save package",
     "packageSaved": "Segment package information saved.",
@@ -265,7 +273,22 @@
       "gift": "Gift",
       "status": "OMS status",
       "shipping": "Service / cost",
-      "tracking": "Tracking / OMS"
+      "tracking": "Tracking / OMS",
+      "actions": "Actions"
+    },
+    "orderFields": {
+      "customerName": "Customer name",
+      "email": "Email",
+      "phone": "Phone",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "company": "Company",
+      "address1": "Address line 1",
+      "address2": "Address line 2",
+      "city": "City",
+      "state": "State / province",
+      "zip": "ZIP / postal code",
+      "country": "Country code"
     },
     "status": {
       "READY": "Ready",
