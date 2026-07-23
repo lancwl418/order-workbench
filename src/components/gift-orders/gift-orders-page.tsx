@@ -472,7 +472,7 @@ export function GiftOrdersPage() {
                     </p>
                   </div>
                 ) : (
-                  <Table>
+                  <Table className="min-w-[1280px]" showScrollbar>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10">
