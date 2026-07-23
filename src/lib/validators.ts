@@ -163,6 +163,39 @@ export const addressOverrideSchema = z.object({
   phone: z.string().optional(),
 });
 
+export const giftAddressSchema = z.object({
+  first_name: z.string().trim().optional().default(""),
+  last_name: z.string().trim().optional().default(""),
+  company: z.string().trim().optional().default(""),
+  address1: z.string().trim().min(1),
+  address2: z.string().trim().optional().default(""),
+  city: z.string().trim().min(1),
+  province_code: z.string().trim().min(1),
+  zip: z.string().trim().min(1),
+  country_code: z.string().trim().min(2).default("US"),
+  phone: z.string().trim().optional().default(""),
+});
+
+export const giftCustomerSchema = z.object({
+  customerExternalId: z.string().trim().min(1).optional(),
+  customerName: z.string().trim().optional(),
+  customerEmail: z.string().trim().email().optional().or(z.literal("")),
+  customerPhone: z.string().trim().optional(),
+  shippingAddress: giftAddressSchema,
+});
+
+export const giftSegmentSchema = z.object({
+  name: z.string().trim().min(1),
+  giftTitle: z.string().trim().min(1),
+  giftSku: z.string().trim().min(1),
+  giftQuantity: z.number().int().positive(),
+  giftValue: z.number().nonnegative(),
+  weightLbs: z.number().positive(),
+  lengthIn: z.number().positive(),
+  widthIn: z.number().positive(),
+  heightIn: z.number().positive(),
+});
+
 export const exceptionUpdateSchema = z.object({
   status: z.enum(["INVESTIGATING", "RESOLVED"]).optional(),
   owner: z.string().nullable().optional(),

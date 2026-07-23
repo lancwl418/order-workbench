@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   ClipboardList,
+  Gift,
   Printer,
   AlertTriangle,
   Headphones,
@@ -13,6 +14,7 @@ import {
 
 const navKeys = [
   { key: "orders", href: "/orders", icon: ClipboardList },
+  { key: "giftOrders", href: "/gift-orders", icon: Gift },
   { key: "printQueue", href: "/print-queue", icon: Printer },
   { key: "exceptions", href: "/exceptions", icon: AlertTriangle },
   { key: "csQueue", href: "/cs-queue", icon: Headphones },

@@ -76,6 +76,13 @@ enum CustomerResponseType {
   CONTACT_SUPPORT
 }
 
+enum GiftOrderStatus {
+  READY
+  PUSHING
+  PUSHED
+  FAILED
+}
+
 // ─── MODELS ──────────────────────────────────────────────────────
 
 model User {
@@ -466,6 +473,63 @@ model PackagePreset {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("package_presets")
+}
+
+// A customer segment receives one shared gift and one shared package
+// configuration. Gift orders stay separate from Shopify orders.
+model GiftSegment {
+  id String @id @default(cuid())
+
+  name         String
+  giftTitle    String @map("gift_title")
+  giftSku      String @map("gift_sku")
+  giftQuantity Int    @default(1) @map("gift_quantity")
+  giftValue    Float  @default(10) @map("gift_value")
+
+  weightLbs Float @map("weight_lbs")
+  lengthIn  Float @map("length_in")
+  widthIn   Float @map("width_in")
+  heightIn  Float @map("height_in")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orders GiftOrder[]
+
+  @@index([createdAt])
+  @@map("gift_segments")
+}
+
+model GiftOrder {
+  id        String @id @default(cuid())
+  segmentId String @map("segment_id")
+
+  customerExternalId String? @map("customer_external_id")
+  customerName       String  @map("customer_name")
+  customerEmail      String? @map("customer_email")
+  customerPhone      String? @map("customer_phone")
+  shippingAddress    Json    @map("shipping_address")
+
+  status      GiftOrderStatus @default(READY)
+  errorMessage String?         @map("error_message") @db.Text
+
+  omsOrderNo    String?   @unique @map("oms_order_no")
+  trackingNumber String?  @map("tracking_number")
+  carrier        String?
+  service        String?
+  shippingCost   Decimal? @map("shipping_cost") @db.Decimal(10, 2)
+  omsRawJson     Json?     @map("oms_raw_json")
+  pushedAt       DateTime? @map("pushed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  segment GiftSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@unique([segmentId, customerExternalId])
+  @@index([segmentId, status])
+  @@index([createdAt])
+  @@map("gift_orders")
 }
 
 model Notification {
