@@ -184,6 +184,13 @@ export const giftCustomerSchema = z.object({
   shippingAddress: giftAddressSchema,
 });
 
+export const giftOrderUpdateSchema = z.object({
+  customerName: z.string().trim().min(1),
+  customerEmail: z.string().trim().email().nullable(),
+  customerPhone: z.string().trim().nullable(),
+  shippingAddress: giftAddressSchema,
+});
+
 export const giftPackageSchema = z.object({
   weightLbs: z.number().positive(),
   lengthIn: z.number().positive(),

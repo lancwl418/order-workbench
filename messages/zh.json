@@ -219,6 +219,14 @@
     "missingFields": "缺少字段",
     "previewMore": "另外还有 {count} 位客户",
     "editPackage": "修改包裹",
+    "editOrder": "编辑订单",
+    "editOrderFor": "编辑 {customer} 的订单",
+    "editOrderTitle": "编辑赠礼订单",
+    "editOrderDescription": "修改 {customer} 的收件人资料和收货地址。",
+    "saveOrder": "保存订单",
+    "orderSaved": "赠礼订单已保存。",
+    "orderSaveFailed": "无法保存赠礼订单。",
+    "pushedOrderLocked": "已推送到 OMS 的订单不能再编辑。",
     "editPackageDescription": "修改 {segment} 共用的包裹信息。",
     "savePackage": "保存包裹",
     "packageSaved": "Segment 包裹信息已保存。",
@@ -265,7 +273,22 @@
       "gift": "礼包",
       "status": "OMS 状态",
       "shipping": "渠道 / 费用",
-      "tracking": "追踪号 / OMS"
+      "tracking": "追踪号 / OMS",
+      "actions": "操作"
+    },
+    "orderFields": {
+      "customerName": "客户姓名",
+      "email": "邮箱",
+      "phone": "电话",
+      "firstName": "名",
+      "lastName": "姓",
+      "company": "公司",
+      "address1": "地址 1",
+      "address2": "地址 2",
+      "city": "城市",
+      "state": "州 / 省",
+      "zip": "邮编",
+      "country": "国家代码"
     },
     "status": {
       "READY": "待推送",
