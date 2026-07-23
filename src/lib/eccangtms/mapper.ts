@@ -1,4 +1,4 @@
-import type { Order, OrderItem } from "@prisma/client";
+import type { GiftOrder, GiftSegment, Order, OrderItem } from "@prisma/client";
 import type { ShopifyAddress } from "@/lib/shopify/types";
 import type { EccangOrderParams, EccangConsigneeShipper, EccangBox, EccangGoods } from "./types";
 
@@ -108,5 +108,76 @@ export function mapOrderToEccangParams(
     consigneeShipper,
     boxList,
     goodsList,
+  };
+}
+
+/**
+ * Maps a non-Shopify gift order to EccangTMS. The gift and package details are
+ * owned by the segment, so every customer in a segment is pushed consistently.
+ */
+export function mapGiftOrderToEccangParams(
+  order: GiftOrder,
+  segment: GiftSegment,
+  productCode: string
+): EccangOrderParams {
+  const addr = (order.shippingAddress as ShopifyAddress | null) || {};
+  const orderNumber = `GIFT-${order.id.slice(-12).toUpperCase()}`;
+  const recipientName =
+    `${addr.first_name || ""} ${addr.last_name || ""}`.trim() ||
+    order.customerName;
+  const boxNo = "BOX001";
+
+  return {
+    productCode,
+    customerNo: orderNumber,
+    goodsType: 3,
+    orderWeight: segment.weightLbs,
+    weightSizeUnit: 2,
+    currencyCode: "USD",
+    async: 0,
+    signatureService: "NO",
+    sameCustomerNoHandler: "return_last_successful_data",
+    consigneeShipper: {
+      consigneeName: `${recipientName}-${orderNumber}`,
+      consigneeCompanyName: addr.company || "",
+      consigneeCountryCode: addr.country_code || "US",
+      consigneeStateOrProvince: addr.province_code || addr.province || "",
+      consigneeCity: addr.city || "",
+      consigneeAddress1: addr.address1 || "",
+      consigneeAddress2: addr.address2 || "",
+      consigneePostCode: addr.zip || "",
+      consigneePhone: addr.phone || order.customerPhone || "",
+      consigneeEmail: order.customerEmail || "",
+      shipperName: "LOGISTIC",
+      shipperCompanyName: "IDEAMAX",
+      shipperCountryCode: "US",
+      shipperStateOrProvince: "CA",
+      shipperCity: "City of Industry",
+      shipperAddress1: "18751 Railroad St",
+      shipperPostCode: "91789",
+      shipperPhone: "6666666666",
+      shipperEmail: "support@idea-max.com",
+    },
+    boxList: [
+      {
+        boxNo,
+        boxWeight: segment.weightLbs,
+        boxLength: segment.lengthIn,
+        boxWidth: segment.widthIn,
+        boxHeight: segment.heightIn,
+      },
+    ],
+    goodsList: [
+      {
+        goodsName: segment.giftTitle,
+        goodsNameEn: segment.giftTitle,
+        declareUnit: "box",
+        quantity: segment.giftQuantity,
+        value: segment.giftValue,
+        weight: segment.weightLbs,
+        sku: segment.giftSku,
+        boxNo,
+      },
+    ],
   };
 }

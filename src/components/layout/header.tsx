@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   ClipboardList,
+  Gift,
   Printer,
   Truck,
   Tag,
@@ -25,6 +26,7 @@ import {
 
 const navKeys = [
   { key: "orders", href: "/orders", icon: ClipboardList },
+  { key: "giftOrders", href: "/gift-orders", icon: Gift },
   { key: "printQueue", href: "/print-queue", icon: Printer },
   { key: "shipping", href: "/shipping", icon: Truck },
   { key: "labels", href: "/labels", icon: Tag },
