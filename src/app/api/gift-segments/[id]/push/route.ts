@@ -7,12 +7,25 @@ import {
   getTrackingNumber,
 } from "@/lib/eccangtms/client";
 import { mapGiftOrderToEccangParams } from "@/lib/eccangtms/mapper";
+import { giftPackageSchema } from "@/lib/validators";
 import { z } from "zod";
 
 export const maxDuration = 300;
 
 const pushSchema = z.object({
-  orderIds: z.array(z.string()).min(1).optional(),
+  orderIds: z.array(z.string()).min(1).max(500).optional(),
+  orders: z
+    .array(
+      z.object({
+        orderId: z.string(),
+        productCode: z.string().min(1),
+      })
+    )
+    .min(1)
+    .max(500)
+    .optional(),
+  packageInfo: giftPackageSchema.optional(),
+  savePackageInfo: z.boolean().default(false),
 });
 
 export async function POST(
@@ -34,14 +47,21 @@ export async function POST(
     );
   }
 
+  const requestedOrderIds =
+    parsed.data.orders?.map((order) => order.orderId) ??
+    parsed.data.orderIds;
+  const selectedProductByOrder = new Map(
+    parsed.data.orders?.map((order) => [order.orderId, order.productCode]) ?? []
+  );
+
   const segment = await prisma.giftSegment.findUnique({
     where: { id },
     include: {
       orders: {
         where: {
           status: { not: "PUSHED" },
-          ...(parsed.data.orderIds
-            ? { id: { in: parsed.data.orderIds } }
+          ...(requestedOrderIds
+            ? { id: { in: requestedOrderIds } }
             : {}),
         },
         orderBy: { createdAt: "asc" },
@@ -53,7 +73,17 @@ export async function POST(
     return NextResponse.json({ error: "Segment not found" }, { status: 404 });
   }
 
-  const giftSegment = segment;
+  const giftSegment = {
+    ...segment,
+    ...(parsed.data.packageInfo ?? {}),
+  };
+
+  if (parsed.data.packageInfo && parsed.data.savePackageInfo) {
+    await prisma.giftSegment.update({
+      where: { id },
+      data: parsed.data.packageInfo,
+    });
+  }
 
   if (giftSegment.orders.length === 0) {
     return NextResponse.json({
@@ -84,28 +114,40 @@ export async function POST(
           data: { status: "PUSHING", errorMessage: null },
         });
 
-        const estimateParams = mapGiftOrderToEccangParams(order, giftSegment, "");
-        const { productCode: _productCode, ...paramsWithoutProduct } =
-          estimateParams;
-        void _productCode;
-        const estimates = await calculateShipping(
-          paramsWithoutProduct as typeof estimateParams
-        );
-        const cheapest = estimates
-          .filter(
-            (estimate) =>
-              Number.isFinite(estimate.totalPrice) && estimate.totalPrice >= 0
-          )
-          .sort((a, b) => a.totalPrice - b.totalPrice)[0];
+        let productCode = selectedProductByOrder.get(order.id);
+        let estimatedProductName: string | undefined;
 
-        if (!cheapest) {
-          throw new Error("OMS returned no available shipping service");
+        if (!productCode) {
+          const estimateParams = mapGiftOrderToEccangParams(
+            order,
+            giftSegment,
+            ""
+          );
+          const { productCode: _productCode, ...paramsWithoutProduct } =
+            estimateParams;
+          void _productCode;
+          const estimates = await calculateShipping(
+            paramsWithoutProduct as typeof estimateParams
+          );
+          const cheapest = estimates
+            .filter(
+              (estimate) =>
+                Number.isFinite(estimate.totalPrice) &&
+                estimate.totalPrice >= 0
+            )
+            .sort((a, b) => a.totalPrice - b.totalPrice)[0];
+
+          if (!cheapest) {
+            throw new Error("OMS returned no available shipping service");
+          }
+          productCode = cheapest.productCode;
+          estimatedProductName = cheapest.productName;
         }
 
         const createParams = mapGiftOrderToEccangParams(
           order,
           giftSegment,
-          cheapest.productCode
+          productCode
         );
         const omsOrder = await createOrder(createParams);
         let trackingNumber = omsOrder.serverNo || null;
@@ -126,8 +168,8 @@ export async function POST(
             errorMessage: null,
             omsOrderNo: omsOrder.orderNo,
             trackingNumber,
-            carrier: omsOrder.productName || cheapest.productName,
-            service: omsOrder.productCode || cheapest.productCode,
+            carrier: omsOrder.productName || estimatedProductName || productCode,
+            service: omsOrder.productCode || productCode,
             shippingCost: omsOrder.totalPrice,
             omsRawJson: JSON.parse(JSON.stringify(omsOrder)),
             pushedAt: new Date(),
@@ -137,7 +179,7 @@ export async function POST(
         results.push({
           orderId: order.id,
           success: true,
-          service: omsOrder.productName || cheapest.productName,
+          service: omsOrder.productName || estimatedProductName || productCode,
           cost: omsOrder.totalPrice,
         });
       } catch (error) {

@@ -15,6 +15,7 @@ import {
   Gift,
   Loader2,
   Package,
+  Pencil,
   Plus,
   Send,
   Truck,
@@ -24,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardAction,
@@ -51,6 +53,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  GiftOmsPushDialog,
+  GiftPackageEditDialog,
+} from "@/components/gift-orders/gift-oms-dialog";
 import {
   missingGiftCustomerFields,
   parseGiftCustomers,
@@ -157,7 +163,11 @@ export function GiftOrdersPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [pushingId, setPushingId] = useState<string | null>(null);
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [pushOpen, setPushOpen] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [segmentForm, setSegmentForm] = useState(initialSegmentForm);
   const [customerData, setCustomerData] = useState("");
   const [customerFileName, setCustomerFileName] = useState("");
@@ -178,8 +188,14 @@ export function GiftOrdersPage() {
   const readyCount = allOrders.filter((order) => order.status === "READY").length;
   const pushedCount = allOrders.filter((order) => order.status === "PUSHED").length;
   const failedCount = allOrders.filter((order) => order.status === "FAILED").length;
-  const pushableCount =
-    selected?.orders.filter((order) => order.status !== "PUSHED").length ?? 0;
+  const pushableOrders =
+    selected?.orders.filter((order) => order.status !== "PUSHED") ?? [];
+  const selectedOrders = pushableOrders.filter((order) =>
+    selectedOrderIds.has(order.id)
+  );
+  const allPushableSelected =
+    pushableOrders.length > 0 &&
+    pushableOrders.every((order) => selectedOrderIds.has(order.id));
   const importPreview = useMemo(() => {
     if (!customerData.trim()) {
       return { customers: [], invalidRows: [] as number[], error: null };
@@ -289,33 +305,24 @@ export function GiftOrdersPage() {
     }
   }
 
-  async function pushSegment() {
-    if (!selected || pushableCount === 0) return;
-    if (!window.confirm(t("confirmPush", { count: pushableCount }))) return;
+  function toggleOrder(orderId: string, checked: boolean) {
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(orderId);
+      else next.delete(orderId);
+      return next;
+    });
+  }
 
-    setPushingId(selected.id);
-    try {
-      const response = await fetch(`/api/gift-segments/${selected.id}/push`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || t("pushFailed"));
-      await mutate();
-      if (result.failed) {
-        toast.warning(
-          t("pushPartial", { pushed: result.pushed, failed: result.failed })
-        );
-      } else {
-        toast.success(t("pushSuccess", { count: result.pushed }));
+  function toggleAllPushable(checked: boolean) {
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      for (const order of pushableOrders) {
+        if (checked) next.add(order.id);
+        else next.delete(order.id);
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("pushFailed"));
-      await mutate();
-    } finally {
-      setPushingId(null);
-    }
+      return next;
+    });
   }
 
   if (isLoading) {
@@ -398,7 +405,10 @@ export function GiftOrdersPage() {
                 <Button
                   key={segment.id}
                   variant={segment.id === selected?.id ? "default" : "outline"}
-                  onClick={() => setSelectedId(segment.id)}
+                  onClick={() => {
+                    setSelectedId(segment.id);
+                    setSelectedOrderIds(new Set());
+                  }}
                 >
                   {segment.name}
                   <Badge
@@ -430,22 +440,20 @@ export function GiftOrdersPage() {
                   })}
                 </CardDescription>
                 <CardAction className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => setPackageOpen(true)}>
+                    <Pencil />
+                    {t("editPackage")}
+                  </Button>
                   <Button variant="outline" onClick={() => setImportOpen(true)}>
                     <Upload />
                     {t("importCustomers")}
                   </Button>
                   <Button
-                    onClick={pushSegment}
-                    disabled={pushableCount === 0 || pushingId === selected.id}
+                    onClick={() => setPushOpen(true)}
+                    disabled={selectedOrders.length === 0}
                   >
-                    {pushingId === selected.id ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      <Send />
-                    )}
-                    {pushingId === selected.id
-                      ? t("pushing")
-                      : t("pushAll", { count: pushableCount })}
+                    <Send />
+                    {t("pushSelected", { count: selectedOrders.length })}
                   </Button>
                 </CardAction>
               </CardHeader>
@@ -465,6 +473,16 @@ export function GiftOrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allPushableSelected}
+                            disabled={pushableOrders.length === 0}
+                            aria-label={t("selectAllOrders")}
+                            onCheckedChange={(checked) =>
+                              toggleAllPushable(Boolean(checked))
+                            }
+                          />
+                        </TableHead>
                         <TableHead>{t("columns.order")}</TableHead>
                         <TableHead>{t("columns.customer")}</TableHead>
                         <TableHead>{t("columns.address")}</TableHead>
@@ -477,6 +495,18 @@ export function GiftOrdersPage() {
                     <TableBody>
                       {selected.orders.map((order) => (
                         <TableRow key={order.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedOrderIds.has(order.id)}
+                              disabled={order.status === "PUSHED"}
+                              aria-label={t("selectOrder", {
+                                customer: order.customerName,
+                              })}
+                              onCheckedChange={(checked) =>
+                                toggleOrder(order.id, Boolean(checked))
+                              }
+                            />
+                          </TableCell>
                           <TableCell className="font-mono text-xs">
                             {orderNumber(order.id)}
                             {order.customerExternalId && (
@@ -786,6 +816,29 @@ export function GiftOrdersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {selected && (
+        <>
+          <GiftPackageEditDialog
+            segment={selected}
+            open={packageOpen}
+            onOpenChange={setPackageOpen}
+            onSuccess={() => {
+              void mutate();
+            }}
+          />
+          <GiftOmsPushDialog
+            segment={selected}
+            orders={selectedOrders}
+            open={pushOpen}
+            onOpenChange={setPushOpen}
+            onSuccess={() => {
+              setSelectedOrderIds(new Set());
+              void mutate();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

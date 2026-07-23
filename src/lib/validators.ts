@@ -184,17 +184,22 @@ export const giftCustomerSchema = z.object({
   shippingAddress: giftAddressSchema,
 });
 
-export const giftSegmentSchema = z.object({
-  name: z.string().trim().min(1),
-  giftTitle: z.string().trim().min(1),
-  giftSku: z.string().trim().min(1),
-  giftQuantity: z.number().int().positive(),
-  giftValue: z.number().nonnegative(),
+export const giftPackageSchema = z.object({
   weightLbs: z.number().positive(),
   lengthIn: z.number().positive(),
   widthIn: z.number().positive(),
   heightIn: z.number().positive(),
 });
+
+export const giftSegmentSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    giftTitle: z.string().trim().min(1),
+    giftSku: z.string().trim().min(1),
+    giftQuantity: z.number().int().positive(),
+    giftValue: z.number().nonnegative(),
+  })
+  .extend(giftPackageSchema.shape);
 
 export const exceptionUpdateSchema = z.object({
   status: z.enum(["INVESTIGATING", "RESOLVED"]).optional(),
