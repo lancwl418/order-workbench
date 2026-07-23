@@ -1,10 +1,17 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
 import {
   CircleAlert,
+  FileSpreadsheet,
   Gift,
   Loader2,
   Package,
@@ -44,20 +51,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  missingGiftCustomerFields,
+  parseGiftCustomers,
+  type GiftImportAddress,
+} from "@/lib/gift-orders/customer-import";
 import { cn } from "@/lib/utils";
-
-type GiftAddress = {
-  first_name?: string;
-  last_name?: string;
-  company?: string;
-  address1: string;
-  address2?: string;
-  city: string;
-  province_code: string;
-  zip: string;
-  country_code: string;
-  phone?: string;
-};
 
 type GiftOrder = {
   id: string;
@@ -65,7 +64,7 @@ type GiftOrder = {
   customerName: string;
   customerEmail: string | null;
   customerPhone: string | null;
-  shippingAddress: GiftAddress;
+  shippingAddress: GiftImportAddress;
   status: "READY" | "PUSHING" | "PUSHED" | "FAILED";
   errorMessage: string | null;
   omsOrderNo: string | null;
@@ -90,14 +89,6 @@ type GiftSegment = {
   heightIn: number;
   orders: GiftOrder[];
   _count: { orders: number };
-};
-
-type ImportCustomer = {
-  customerExternalId?: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  shippingAddress: GiftAddress;
 };
 
 const fetcher = async (url: string) => {
@@ -129,7 +120,7 @@ function statusVariant(status: GiftOrder["status"]) {
   return "outline" as const;
 }
 
-function formatAddress(address: GiftAddress) {
+function formatAddress(address: GiftImportAddress) {
   return [
     address.address1,
     address.address2,
@@ -140,117 +131,6 @@ function formatAddress(address: GiftAddress) {
   ]
     .filter(Boolean)
     .join(", ");
-}
-
-function parseDelimitedLine(line: string, delimiter: string) {
-  const values: string[] = [];
-  let value = "";
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (character === '"') {
-      if (quoted && line[index + 1] === '"') {
-        value += '"';
-        index += 1;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (character === delimiter && !quoted) {
-      values.push(value.trim());
-      value = "";
-    } else {
-      value += character;
-    }
-  }
-  values.push(value.trim());
-  return values;
-}
-
-function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-}
-
-function parseCustomers(raw: string): ImportCustomer[] {
-  const input = raw.trim();
-  if (!input) throw new Error("Paste CSV or JSON customer data first");
-
-  if (input.startsWith("[")) {
-    const parsed = JSON.parse(input);
-    if (!Array.isArray(parsed)) throw new Error("JSON must be an array");
-    return parsed.map((customer) => {
-      const address = customer.shippingAddress || customer.shipping_address || {};
-      return {
-        customerExternalId:
-          customer.customerExternalId ||
-          customer.customer_external_id ||
-          customer.customer_id ||
-          undefined,
-        customerName:
-          customer.customerName || customer.customer_name || customer.name,
-        customerEmail:
-          customer.customerEmail || customer.customer_email || customer.email,
-        customerPhone:
-          customer.customerPhone || customer.customer_phone || customer.phone,
-        shippingAddress: {
-          first_name: address.first_name || customer.first_name || "",
-          last_name: address.last_name || customer.last_name || "",
-          company: address.company || customer.company || "",
-          address1: address.address1 || customer.address1 || "",
-          address2: address.address2 || customer.address2 || "",
-          city: address.city || customer.city || "",
-          province_code:
-            address.province_code ||
-            address.state ||
-            customer.province_code ||
-            customer.state ||
-            "",
-          zip: String(address.zip || customer.zip || customer.postal_code || ""),
-          country_code:
-            address.country_code || customer.country_code || customer.country || "US",
-          phone: address.phone || customer.phone || "",
-        },
-      };
-    });
-  }
-
-  const lines = input.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) throw new Error("CSV needs a header and at least one row");
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const headers = parseDelimitedLine(lines[0], delimiter).map(normalizeHeader);
-  const find = (row: string[], aliases: string[]) => {
-    const index = headers.findIndex((header) => aliases.includes(header));
-    return index >= 0 ? row[index]?.trim() || "" : "";
-  };
-
-  return lines.slice(1).map((line) => {
-    const row = parseDelimitedLine(line, delimiter);
-    return {
-      customerExternalId:
-        find(row, ["customer_id", "external_id", "id"]) || undefined,
-      customerName: find(row, ["customer_name", "name"]) || undefined,
-      customerEmail: find(row, ["customer_email", "email"]) || undefined,
-      customerPhone: find(row, ["customer_phone", "phone"]) || undefined,
-      shippingAddress: {
-        first_name: find(row, ["first_name", "firstname"]),
-        last_name: find(row, ["last_name", "lastname"]),
-        company: find(row, ["company"]),
-        address1: find(row, ["address1", "address", "address_1"]),
-        address2: find(row, ["address2", "address_2"]),
-        city: find(row, ["city"]),
-        province_code: find(row, [
-          "province_code",
-          "state",
-          "state_code",
-          "province",
-        ]),
-        zip: find(row, ["zip", "postal_code", "zipcode"]),
-        country_code:
-          find(row, ["country_code", "country"])?.toUpperCase() || "US",
-        phone: find(row, ["customer_phone", "phone"]),
-      },
-    };
-  });
 }
 
 export function GiftOrdersPage() {
@@ -268,6 +148,7 @@ export function GiftOrdersPage() {
   const [pushingId, setPushingId] = useState<string | null>(null);
   const [segmentForm, setSegmentForm] = useState(initialSegmentForm);
   const [customerData, setCustomerData] = useState("");
+  const [customerFileName, setCustomerFileName] = useState("");
 
   useEffect(() => {
     if (!segments.length) {
@@ -287,6 +168,29 @@ export function GiftOrdersPage() {
   const failedCount = allOrders.filter((order) => order.status === "FAILED").length;
   const pushableCount =
     selected?.orders.filter((order) => order.status !== "PUSHED").length ?? 0;
+  const importPreview = useMemo(() => {
+    if (!customerData.trim()) {
+      return { customers: [], invalidRows: [] as number[], error: null };
+    }
+    try {
+      const customers = parseGiftCustomers(customerData);
+      const invalidRows = customers
+        .map((customer, index) =>
+          missingGiftCustomerFields(customer).length ? index : -1
+        )
+        .filter((index) => index >= 0);
+      return { customers, invalidRows, error: null };
+    } catch (previewError) {
+      return {
+        customers: [],
+        invalidRows: [] as number[],
+        error:
+          previewError instanceof Error
+            ? previewError.message
+            : t("importFailed"),
+      };
+    }
+  }, [customerData, t]);
 
   async function createSegment(event: FormEvent) {
     event.preventDefault();
@@ -326,18 +230,10 @@ export function GiftOrdersPage() {
     if (!selected) return;
     setImporting(true);
     try {
-      const customers = parseCustomers(customerData);
-      const invalidRow = customers.findIndex(
-        (customer) =>
-          !customer.shippingAddress.address1 ||
-          !customer.shippingAddress.city ||
-          !customer.shippingAddress.province_code ||
-          !customer.shippingAddress.zip ||
-          (!customer.customerName &&
-            !`${customer.shippingAddress.first_name || ""} ${
-              customer.shippingAddress.last_name || ""
-            }`.trim())
-      );
+      if (importPreview.error) throw new Error(importPreview.error);
+      const customers = importPreview.customers;
+      if (!customers.length) throw new Error(t("noImportRows"));
+      const invalidRow = importPreview.invalidRows[0] ?? -1;
       if (invalidRow >= 0) {
         throw new Error(t("invalidRow", { row: invalidRow + 2 }));
       }
@@ -351,6 +247,7 @@ export function GiftOrdersPage() {
       if (!response.ok) throw new Error(result.error || t("importFailed"));
       await mutate();
       setCustomerData("");
+      setCustomerFileName("");
       setImportOpen(false);
       toast.success(
         t("importSuccess", { created: result.created, skipped: result.skipped })
@@ -359,6 +256,24 @@ export function GiftOrdersPage() {
       toast.error(err instanceof Error ? err.message : t("importFailed"));
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function loadCustomerFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t("fileTooLarge"));
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      setCustomerData(content);
+      setCustomerFileName(file.name);
+    } catch {
+      toast.error(t("fileReadFailed"));
     }
   }
 
@@ -708,25 +623,153 @@ export function GiftOrdersPage() {
       </Dialog>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <form onSubmit={importCustomers}>
             <DialogHeader>
               <DialogTitle>{t("importTitle")}</DialogTitle>
               <DialogDescription>{t("importDescription")}</DialogDescription>
             </DialogHeader>
-            <div className="my-5 space-y-2">
-              <Label htmlFor="gift-customer-data">{t("customerData")}</Label>
+            <div className="my-5 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="gift-customer-file">
+                  {t("uploadCustomerFile")}
+                </Label>
+                <label
+                  htmlFor="gift-customer-file"
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-4 transition-colors hover:bg-muted/50"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">
+                      {customerFileName || t("chooseCsv")}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {t("shopifyCsvHint")}
+                    </span>
+                  </span>
+                  <span className="inline-flex h-7 items-center gap-1 rounded-lg border bg-background px-2.5 text-xs font-medium">
+                    <Upload />
+                    {t("browse")}
+                  </span>
+                </label>
+                <Input
+                  id="gift-customer-file"
+                  type="file"
+                  accept=".csv,.tsv,text/csv,text/tab-separated-values"
+                  className="sr-only"
+                  onChange={loadCustomerFile}
+                />
+              </div>
+
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                {t("orPaste")}
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gift-customer-data">{t("customerData")}</Label>
               <Textarea
                 id="gift-customer-data"
-                className="min-h-64 font-mono text-xs"
+                  className="min-h-36 font-mono text-xs"
                 value={customerData}
-                onChange={(event) => setCustomerData(event.target.value)}
+                  onChange={(event) => {
+                    setCustomerData(event.target.value);
+                    setCustomerFileName("");
+                  }}
                 placeholder={t("csvPlaceholder")}
-                required
               />
-              <p className="text-xs text-muted-foreground">
-                {t("csvColumns")}
-              </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("csvColumns")}
+                </p>
+              </div>
+
+              {importPreview.error && (
+                <div className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  {importPreview.error}
+                </div>
+              )}
+
+              {importPreview.customers.length > 0 && (
+                <div className="overflow-hidden rounded-lg border">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
+                    <span className="font-medium">{t("preview")}</span>
+                    <div className="flex gap-2">
+                      <Badge variant="secondary">
+                        {t("validRows", {
+                          count:
+                            importPreview.customers.length -
+                            importPreview.invalidRows.length,
+                        })}
+                      </Badge>
+                      {importPreview.invalidRows.length > 0 && (
+                        <Badge variant="destructive">
+                          {t("invalidRows", {
+                            count: importPreview.invalidRows.length,
+                          })}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t("columns.customer")}</TableHead>
+                        <TableHead>{t("columns.address")}</TableHead>
+                        <TableHead>{t("previewStatus")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importPreview.customers
+                        .slice(0, 5)
+                        .map((customer, index) => {
+                          const missing = missingGiftCustomerFields(customer);
+                          const address = customer.shippingAddress;
+                          const name =
+                            customer.customerName ||
+                            `${address.first_name || ""} ${
+                              address.last_name || ""
+                            }`.trim();
+                          return (
+                            <TableRow key={customer.customerExternalId || index}>
+                              <TableCell>
+                                <div className="font-medium">{name || "—"}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {customer.customerEmail || "—"}
+                                </div>
+                              </TableCell>
+                              <TableCell className="max-w-80 truncate">
+                                {formatAddress(address) || "—"}
+                              </TableCell>
+                              <TableCell>
+                                {missing.length ? (
+                                  <Badge
+                                    variant="destructive"
+                                    title={missing.join(", ")}
+                                  >
+                                    {t("missingFields")}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline">{t("ready")}</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                  {importPreview.customers.length > 5 && (
+                    <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+                      {t("previewMore", {
+                        count: importPreview.customers.length - 5,
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button
@@ -736,7 +779,15 @@ export function GiftOrdersPage() {
               >
                 {t("cancel")}
               </Button>
-              <Button type="submit" disabled={importing}>
+              <Button
+                type="submit"
+                disabled={
+                  importing ||
+                  !importPreview.customers.length ||
+                  Boolean(importPreview.error) ||
+                  importPreview.invalidRows.length > 0
+                }
+              >
                 {importing && <Loader2 className="animate-spin" />}
                 {t("import")}
               </Button>
