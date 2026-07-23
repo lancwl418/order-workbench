@@ -109,6 +109,18 @@ const initialSegmentForm = {
   heightIn: "2",
 };
 
+const segmentNumberConstraints: Record<
+  string,
+  { min: string; step: string }
+> = {
+  giftQuantity: { min: "1", step: "1" },
+  giftValue: { min: "0", step: "0.01" },
+  weightLbs: { min: "0.01", step: "0.01" },
+  lengthIn: { min: "0.01", step: "0.01" },
+  widthIn: { min: "0.01", step: "0.01" },
+  heightIn: { min: "0.01", step: "0.01" },
+};
+
 function orderNumber(id: string) {
   return `GIFT-${id.slice(-12).toUpperCase()}`;
 }
@@ -569,30 +581,9 @@ export function GiftOrdersPage() {
                   <Input
                     id={`gift-${field}`}
                     required
-                    min={
-                      [
-                        "giftQuantity",
-                        "weightLbs",
-                        "lengthIn",
-                        "widthIn",
-                        "heightIn",
-                      ].includes(field)
-                        ? "0.01"
-                        : undefined
-                    }
-                    step={field === "giftQuantity" ? "1" : "0.01"}
-                    type={
-                      [
-                        "giftQuantity",
-                        "giftValue",
-                        "weightLbs",
-                        "lengthIn",
-                        "widthIn",
-                        "heightIn",
-                      ].includes(field)
-                        ? "number"
-                        : "text"
-                    }
+                    min={segmentNumberConstraints[field]?.min}
+                    step={segmentNumberConstraints[field]?.step}
+                    type={segmentNumberConstraints[field] ? "number" : "text"}
                     value={segmentForm[field as keyof typeof segmentForm]}
                     placeholder={placeholder}
                     onChange={(event) =>
@@ -671,16 +662,16 @@ export function GiftOrdersPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="gift-customer-data">{t("customerData")}</Label>
-              <Textarea
-                id="gift-customer-data"
+                <Textarea
+                  id="gift-customer-data"
                   className="min-h-36 font-mono text-xs"
-                value={customerData}
+                  value={customerData}
                   onChange={(event) => {
                     setCustomerData(event.target.value);
                     setCustomerFileName("");
                   }}
-                placeholder={t("csvPlaceholder")}
-              />
+                  placeholder={t("csvPlaceholder")}
+                />
                 <p className="text-xs text-muted-foreground">
                   {t("csvColumns")}
                 </p>
