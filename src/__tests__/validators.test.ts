@@ -5,6 +5,7 @@ import {
   bulkUpdateSchema,
   shipmentCreateSchema,
   exceptionQuerySchema,
+  giftPackageSchema,
 } from "@/lib/validators";
 
 describe("orderQuerySchema", () => {
@@ -170,4 +171,37 @@ describe("exceptionQuerySchema", () => {
     const result = exceptionQuerySchema.parse({ category: "shipment" });
     expect(result.category).toBe("shipment");
   });
+});
+
+describe("giftPackageSchema", () => {
+  it("accepts positive package dimensions and weight", () => {
+    expect(
+      giftPackageSchema.parse({
+        weightLbs: 1.25,
+        lengthIn: 10,
+        widthIn: 8,
+        heightIn: 2,
+      })
+    ).toEqual({
+      weightLbs: 1.25,
+      lengthIn: 10,
+      widthIn: 8,
+      heightIn: 2,
+    });
+  });
+
+  it.each(["weightLbs", "lengthIn", "widthIn", "heightIn"])(
+    "rejects a non-positive %s",
+    (field) => {
+      expect(() =>
+        giftPackageSchema.parse({
+          weightLbs: 1,
+          lengthIn: 10,
+          widthIn: 8,
+          heightIn: 2,
+          [field]: 0,
+        })
+      ).toThrow();
+    }
+  );
 });
