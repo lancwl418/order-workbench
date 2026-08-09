@@ -23,7 +23,7 @@ export async function GET(
     where: { id: orderId },
     include: {
       orderItems: true,
-      supplierPushes: { include: { supplier: { select: { key: true, name: true } } } },
+      supplierPushes: { include: { supplier: { select: { key: true, name: true, adapterType: true } } } },
     },
   });
   if (!order) {
@@ -33,10 +33,10 @@ export async function GET(
   const blankItems = order.orderItems.filter((i) => i.itemType === "other");
   const { groups, unroutable } = await resolveSupplierGroups(blankItems);
 
-  const supplierByItemId = new Map<string, { id: string; key: string; name: string }>();
+  const supplierByItemId = new Map<string, { id: string; key: string; name: string; adapterType: string }>();
   for (const g of groups) {
     for (const item of g.items) {
-      supplierByItemId.set(item.id, { id: g.supplier.id, key: g.supplier.key, name: g.supplier.name });
+      supplierByItemId.set(item.id, { id: g.supplier.id, key: g.supplier.key, name: g.supplier.name, adapterType: g.supplier.adapterType });
     }
   }
   const unroutableById = new Map(unroutable.map((u) => [u.itemId, u.reason]));
@@ -96,6 +96,7 @@ export async function GET(
       platformOid: p.platformOid,
       supplierKey: p.supplier.key,
       supplierName: p.supplier.name,
+      supplierAdapterType: p.supplier.adapterType,
       itemIds: p.itemIds,
       placedAt: p.placedAt,
       pushedAt: p.pushedAt,

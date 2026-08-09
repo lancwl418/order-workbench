@@ -68,7 +68,7 @@ interface BlanksOrderRow {
     supplierPushedAt: string | null;
   }[];
   supplierPushes: (Omit<BlanksPush, "supplierKey" | "supplierName"> & {
-    supplier: { id: string; key: string; name: string };
+    supplier: { id: string; key: string; name: string; adapterType: string };
   })[];
 }
 
@@ -257,18 +257,23 @@ export function BlanksPage() {
                         <div key={p.id} className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-medium">{p.supplier.name}</span>
                           <SupplierPushStatusBadge push={p} />
-                          {!p.pushedAt && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 text-[11px] px-2"
-                              disabled={busy}
-                              onClick={() => handleRePush(p.id)}
-                            >
-                              <Send className="h-3 w-3 mr-1" />
-                              推送
-                            </Button>
-                          )}
+                          {!p.pushedAt &&
+                            (p.supplier.adapterType === "linmiao" ? (
+                              <span className="text-[11px] text-amber-700">
+                                待上传 label（linmiao 后台推送）
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[11px] px-2"
+                                disabled={busy}
+                                onClick={() => handleRePush(p.id)}
+                              >
+                                <Send className="h-3 w-3 mr-1" />
+                                推送
+                              </Button>
+                            ))}
                         </div>
                       ))}
                     </div>

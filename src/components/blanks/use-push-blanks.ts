@@ -19,7 +19,7 @@ export interface BlanksItem {
   normalizedVendor: string | null;
   designFileUrl: string | null;
   printEnabled: boolean;
-  supplier: { id: string; key: string; name: string } | null;
+  supplier: { id: string; key: string; name: string; adapterType: string } | null;
   unroutableReason: "no_vendor" | "unmapped_vendor" | null;
   prefill: {
     factorySku: string;
@@ -37,6 +37,7 @@ export interface BlanksPush {
   platformOid: string;
   supplierKey: string;
   supplierName: string;
+  supplierAdapterType?: string;
   itemIds: string[];
   placedAt: string;
   pushedAt: string | null;

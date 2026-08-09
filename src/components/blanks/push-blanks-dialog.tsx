@@ -115,12 +115,13 @@ export function PushBlanksDialog({
 
   const groups = useMemo(() => {
     if (!data) return [];
-    const bySupplier = new Map<string, { key: string; name: string; items: BlanksItem[] }>();
+    const bySupplier = new Map<string, { key: string; name: string; adapterType: string; items: BlanksItem[] }>();
     for (const item of data.items) {
       if (!item.supplier) continue;
       const g = bySupplier.get(item.supplier.id) ?? {
         key: item.supplier.key,
         name: item.supplier.name,
+        adapterType: item.supplier.adapterType,
         items: [],
       };
       g.items.push(item);
@@ -251,18 +252,23 @@ export function PushBlanksDialog({
                     <span className="font-medium">{p.supplierName}</span>
                     <span className="font-mono text-muted-foreground">{p.platformOid}</span>
                     <SupplierPushStatusBadge push={p} />
-                    {!p.pushedAt && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-[11px] px-2"
-                        disabled={busy}
-                        onClick={() => handleRePush(p.id)}
-                      >
-                        <Send className="h-3 w-3 mr-1" />
-                        推送工厂
-                      </Button>
-                    )}
+                    {!p.pushedAt &&
+                      (p.supplierAdapterType === "linmiao" ? (
+                        <span className="text-amber-700">
+                          待上传 label → linmiao 后台推送
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[11px] px-2"
+                          disabled={busy}
+                          onClick={() => handleRePush(p.id)}
+                        >
+                          <Send className="h-3 w-3 mr-1" />
+                          推送工厂
+                        </Button>
+                      ))}
                     {p.lastError && (
                       <span className="text-red-600 w-full">{p.lastError}</span>
                     )}
@@ -318,6 +324,11 @@ export function PushBlanksDialog({
                     <span className="text-xs text-muted-foreground">
                       {group.items.length} item{group.items.length > 1 ? "s" : ""}
                     </span>
+                    {group.adapterType === "linmiao" && (
+                      <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                        建单后需上传 label 到订单才能推送（linmiao 后台）
+                      </span>
+                    )}
                     {groupResult && (
                       <span
                         className={
@@ -505,15 +516,15 @@ export function PushBlanksDialog({
             {/* Actions: place only vs place + push */}
             {groups.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={() => handlePush("place")} disabled={busy}>
+                <Button onClick={() => handlePush("place")} disabled={busy}>
                   {pendingAction === "place" ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Factory className="h-4 w-4 mr-2" />
                   )}
-                  仅建单
+                  建单
                 </Button>
-                <Button onClick={() => handlePush("place_and_push")} disabled={busy}>
+                <Button variant="outline" onClick={() => handlePush("place_and_push")} disabled={busy}>
                   {pendingAction === "place_and_push" ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (

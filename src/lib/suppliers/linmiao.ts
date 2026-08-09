@@ -99,6 +99,9 @@ export function buildLinmiaoCreateOrderParams(
   };
 }
 
+export const LINMIAO_PUSH_HINT =
+  "linmiao 无推送 API：请在 linmiao 后台上传 label 到该订单后推送";
+
 export class LinmiaoAdapter implements SupplierAdapter {
   readonly supplier: Supplier;
 
@@ -108,23 +111,29 @@ export class LinmiaoAdapter implements SupplierAdapter {
 
   async placeOrder(
     input: SupplierOrderInput,
-    _opts: { push: boolean }
+    opts: { push: boolean }
   ): Promise<SupplierOrderResult> {
-    // linmiao has no separate push step — creating the order sends it to the
-    // factory, so a "place only" request still results in pushed=true.
+    // linmiao orders sit in "待推送" after creation: the shipping label must
+    // be uploaded to the order (in the linmiao console — no API for it, and
+    // update-order doesn't accept waybill fields) before it can be pushed.
     const params = buildLinmiaoCreateOrderParams(input, this.supplier.platformType);
     const result = await createOrder(params);
     return {
       platformOid: input.platformOid,
       traceId: result.traceId,
-      pushed: true,
+      pushed: false,
+      pushError: opts.push ? LINMIAO_PUSH_HINT : undefined,
       raw: result.data,
     };
   }
 
   async pushToFactory(platformOids: string[]): Promise<SupplierPushToFactoryResult> {
-    // Orders are already at the factory the moment they're created.
-    return { succeeded: [...platformOids], failed: [] };
+    // No push API — pushing happens in the linmiao console after the label
+    // is uploaded to the order.
+    return {
+      succeeded: [],
+      failed: platformOids.map((platformOid) => ({ platformOid, reason: LINMIAO_PUSH_HINT })),
+    };
   }
 
   async queryStatus(platformOids: string[]): Promise<SupplierOrderStatus[]> {
