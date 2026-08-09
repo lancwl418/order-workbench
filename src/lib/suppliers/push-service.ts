@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { OrderItem, Supplier, SupplierPush } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getVariantImageUrl } from "@/lib/shopify/product-images";
 import { getAdapter } from "./registry";
 import {
   normalizeVendor,
@@ -138,6 +139,31 @@ function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrder
   };
 }
 
+/**
+ * linmiao requires a non-empty effect image even for no-print blanks. When
+ * the operator leaves it blank, borrow the Shopify variant/product image;
+ * as a last resort use the configurable placeholder.
+ */
+async function resolveAutoEffectImage(
+  shopifyRawJson: unknown,
+  item: OrderItem
+): Promise<string> {
+  const lineItems = (
+    shopifyRawJson as { line_items?: { id?: number | string; product_id?: number | string | null; variant_id?: number | string | null }[] } | null
+  )?.line_items;
+  const lineItem = Array.isArray(lineItems)
+    ? lineItems.find((l) => l && String(l.id) === item.shopifyLineItemId)
+    : undefined;
+  if (lineItem?.product_id) {
+    const url = await getVariantImageUrl(
+      String(lineItem.product_id),
+      lineItem.variant_id ? String(lineItem.variant_id) : null
+    );
+    if (url) return url;
+  }
+  return process.env.BLANKS_PLACEHOLDER_IMAGE_URL ?? "https://placehold.co/200x200.png";
+}
+
 async function upsertSkuMappings(
   tx: Prisma.TransactionClient,
   supplierId: string,
@@ -242,10 +268,15 @@ export async function pushBlanksForOrder(opts: {
   for (const group of groups) {
     const { supplier } = group;
     const platformOid = `${order.shopifyOrderNumber}-${supplier.key}`;
-    const itemInputs = group.items.map((item) => ({
-      item,
-      input: toSupplierItemInput(item, inputByItemId.get(item.id)!),
-    }));
+    const itemInputs = await Promise.all(
+      group.items.map(async (item) => {
+        const input = toSupplierItemInput(item, inputByItemId.get(item.id)!);
+        if (!input.shouldPrint && input.effectImageUrls.length === 0) {
+          input.effectImageUrls = [await resolveAutoEffectImage(order.shopifyRawJson, item)];
+        }
+        return { item, input };
+      })
+    );
     const base = {
       supplierId: supplier.id,
       supplierKey: supplier.key,
