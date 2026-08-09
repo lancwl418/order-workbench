@@ -22,6 +22,7 @@ const itemSchema = z.object({
 const pushSchema = z.object({
   mode: z.enum(["place", "place_and_push"]).default("place_and_push"),
   sellerRemark: z.string().optional(),
+  replace: z.boolean().default(false),
   items: z.array(itemSchema).min(1),
 });
 
@@ -48,6 +49,7 @@ export async function POST(
     mode: parsed.data.mode,
     items: parsed.data.items,
     sellerRemark: parsed.data.sellerRemark,
+    replace: parsed.data.replace,
     userId: session.user?.id,
   });
 
