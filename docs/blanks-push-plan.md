@@ -134,6 +134,13 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 3. ~~确认 linmiao 接口~~ ✅ **已确认**（2026-08-08 读了 linmiao OPEN_API 飞书文档，见下节）：端点/签名/字段与现有 `factory/client.ts` 完全一致。
 4. ~~纯白板（不打印）如何下单~~ ✅ **已解决**：linmiao 文档有专门"不打印场景"章节——type=1 传一张 `imageCode="[不打印]"` 的占位打印图（imageUrl 可空）+ type=2 效果图（文档标必传、最多 2 张）。riin 的 imageCode 字符集明确允许英文 `[]` 和中文（正是为该标记设计），故 riin adapter 采用同一约定。**用户决定（2026-08-08）：我们侧不强制效果图**；**实测 linmiao 强制效果图非空（"效果图不能为空"），故推送时自动补图（2026-08-09）**：不打印且效果图留空 → 服务端从 Shopify 抓该 variant 的图（variant 无图退产品主图）作效果图，抓不到用 `BLANKS_PLACEHOLDER_IMAGE_URL` 占位图。
 
+## 推送工作流（2026-08-09 用户确认）
+
+- **大部分订单只建单不直接推送**——"建单"是弹窗主按钮，"建单并推送"次要。
+- **linmiao 没有推送 API**：建单后订单在 linmiao 处于待推送，需在 **linmiao 后台**把 label 上传到订单后手动推送（UI 已在 linmiao 分组/推送记录处标注）。LinmiaoAdapter.placeOrder 恒为 pushed=false。
+- **面单 API 现状**：linmiao/riin 都只有**下单时**可带面单（linmiao: `selfWaybillTag`+`waybill`(URL)+`addressId`；riin: `selfWaybillFlag`+`waybill`+`addressId`，且要求 deliveryCourier/courierNumber）；**改单接口都不支持补传面单**。
+- **未来可做**：订单已有 label（Shipment.labelUrl）时建单自动带 `selfWaybillTag+waybill`，实现"先出 label 再建单"一步到位（需先接 queryShipAddress 拿 addressId）。
+
 ## linmiao OPEN_API 文档要点（飞书: qcnnzr6psjrw.feishu.cn/docx/IRUkdw8Iroxt1xxxAKqcttv4nPd，访客可看）
 
 - 端点：`trade/v1/openapi/` + `create-order` / `update-order` / `update-order-status` / `query-order-status`(入 `{orderIdList}` 出 `data:[{pfOrderId,orderStatus,orderStateStr,childOrderStatus:[{pfSubOrderId,subOrderSatus,subOrderStatusStr}],reason}]`) / `query-order-info`。签名同 riin：header `secretKey` + `sign=md5(报文+"::"+key)`。

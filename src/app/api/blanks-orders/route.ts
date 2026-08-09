@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
             orderStatusStr: true,
             statusSyncedAt: true,
             lastError: true,
-            supplier: { select: { id: true, key: true, name: true } },
+            supplier: { select: { id: true, key: true, name: true, adapterType: true } },
           },
           orderBy: { createdAt: "asc" },
         },
