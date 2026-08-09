@@ -111,6 +111,20 @@ export function normalizeVendor(vendor: string): string {
   return vendor.trim().toLowerCase();
 }
 
+/**
+ * The "[不打印]" marker still needs a non-empty, fetchable imageUrl (linmiao
+ * rejects empty ones with "图片url不能为空"). Prefer the item's own images;
+ * fall back to a configurable placeholder.
+ */
+export function noPrintMarkerUrl(item: { effectImageUrls: string[]; printImageUrls: string[] }): string {
+  return (
+    item.effectImageUrls[0] ??
+    item.printImageUrls[0] ??
+    process.env.BLANKS_PLACEHOLDER_IMAGE_URL ??
+    "https://placehold.co/200x200.png"
+  );
+}
+
 /** yyyy-MM-dd HH:mm:ss — the timestamp format both supplier APIs expect. */
 export function formatOrderTime(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

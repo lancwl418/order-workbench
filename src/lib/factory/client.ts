@@ -29,20 +29,31 @@ export interface FactoryResponse<T = unknown> {
   traceId: string;
 }
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function post<T>(path: string, payload: Record<string, unknown>): Promise<FactoryResponse<T>> {
   const key = secretKey();
   const body = JSON.stringify(payload);
   const url = baseUrl() + path.replace(/^\//, "");
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      secretKey: key,
-      sign: sign(body, key),
-    },
-    body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        secretKey: key,
+        sign: sign(body, key),
+      },
+      body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      throw new Error(`Factory API timed out after ${REQUEST_TIMEOUT_MS / 1000}s (${path})`);
+    }
+    throw new Error(`Factory API unreachable: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   const text = await res.text();
   if (!res.ok) {

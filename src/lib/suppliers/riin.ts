@@ -3,6 +3,7 @@ import { RiinClient, RiinApiError } from "./riin-client";
 import type { RiinGoodsItem, RiinImage, RiinPlaceOrderParams } from "./riin-client";
 import {
   formatOrderTime,
+  noPrintMarkerUrl,
   type SupplierAdapter,
   type SupplierOrderInput,
   type SupplierOrderResult,
@@ -32,7 +33,7 @@ export function buildRiinPlaceOrderParams(
         });
       }
     } else {
-      imageList.push({ type: 1, imageUrl: "", imageCode: "[不打印]", imageName: "noprint" });
+      imageList.push({ type: 1, imageUrl: noPrintMarkerUrl(item), imageCode: "[不打印]", imageName: "noprint" });
     }
     for (const [i, url] of item.effectImageUrls.slice(0, 2).entries()) {
       imageList.push({

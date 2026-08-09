@@ -115,15 +115,25 @@ export class RiinClient {
     const body = JSON.stringify(payload);
     const url = this.baseUrl + path.replace(/^\//, "");
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        secretKey: this.secretKey,
-        sign: this.sign(body),
-      },
-      body,
-    });
+    const REQUEST_TIMEOUT_MS = 30_000;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          secretKey: this.secretKey,
+          sign: this.sign(body),
+        },
+        body,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (e) {
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        throw new RiinApiError(`riin API timed out after ${REQUEST_TIMEOUT_MS / 1000}s (${path})`);
+      }
+      throw new RiinApiError(`riin API unreachable: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     const text = await res.text();
     if (!res.ok) {
