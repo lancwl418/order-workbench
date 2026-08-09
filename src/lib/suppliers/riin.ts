@@ -12,8 +12,9 @@ import {
 
 /**
  * Build the riin placeOrder payload from the unified input. Pure — exported
- * for tests. Blanks default to no printing: only effect images (type 2) are
- * sent then; print images (type 1, png only) are added when shouldPrint.
+ * for tests. No-print blanks use the protocol's "[不打印]" type-1 marker plus
+ * up to two effect images — image codes allow only letters, digits,
+ * underscores, [] and Chinese, hence the underscore separators.
  */
 export function buildRiinPlaceOrderParams(
   input: SupplierOrderInput,
@@ -26,17 +27,19 @@ export function buildRiinPlaceOrderParams(
         imageList.push({
           type: 1,
           imageUrl: url,
-          imageCode: `${item.orderItemId}-print-${i}`,
-          imageName: `${item.orderItemId}-print-${i}`,
+          imageCode: `${item.orderItemId}_print_${i}`,
+          imageName: `${item.orderItemId}_print_${i}`,
         });
       }
+    } else {
+      imageList.push({ type: 1, imageUrl: "", imageCode: "[不打印]", imageName: "noprint" });
     }
-    for (const [i, url] of item.effectImageUrls.entries()) {
+    for (const [i, url] of item.effectImageUrls.slice(0, 2).entries()) {
       imageList.push({
         type: 2,
         imageUrl: url,
-        imageCode: `${item.orderItemId}-effect-${i}`,
-        imageName: `${item.orderItemId}-effect-${i}`,
+        imageCode: `${item.orderItemId}_effect_${i}`,
+        imageName: `${item.orderItemId}_effect_${i}`,
       });
     }
 

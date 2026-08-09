@@ -29,11 +29,12 @@ export function buildLinmiaoCreateOrderParams(
     let printPosition: string | undefined;
     if (item.shouldPrint) {
       printPosition = item.printPosition;
+      // Image codes must not contain "-", "+", "&" or spaces (OPEN_API doc)
       imageList = item.printImageUrls.map((url, i) => ({
         type: 1 as const,
         imageUrl: url,
-        imageCode: `${item.orderItemId}-print-${i}`,
-        imageName: `${item.orderItemId}-print-${i}`,
+        imageCode: `${item.orderItemId}_print_${i}`,
+        imageName: `${item.orderItemId}_print_${i}`,
       }));
     } else {
       imageList = [
@@ -41,8 +42,8 @@ export function buildLinmiaoCreateOrderParams(
         ...item.effectImageUrls.slice(0, 2).map((url, i) => ({
           type: 2 as const,
           imageUrl: url,
-          imageCode: `${item.orderItemId}-effect-${i}`,
-          imageName: `${item.orderItemId}-effect-${i}`,
+          imageCode: `${item.orderItemId}_effect_${i}`,
+          imageName: `${item.orderItemId}_effect_${i}`,
         })),
       ];
     }
