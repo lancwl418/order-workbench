@@ -152,10 +152,6 @@ export function PushBlanksDialog({
         toast.error("打印的 item 需要打印图 URL");
         return null;
       }
-      if (!f.shouldPrint && splitUrls(f.effectImageUrlsText).length === 0) {
-        toast.error("不打印的 item 需要至少一张效果图");
-        return null;
-      }
     }
     return selected.map((f) => ({
       orderItemId: f.orderItemId,
@@ -468,18 +464,18 @@ export function PushBlanksDialog({
                               ) : (
                                 <div className="md:col-span-4">
                                   <label className="text-[11px] text-muted-foreground">
-                                    效果图 URLs（逗号分隔）*
+                                    效果图 URLs（可选，最多 2 张，逗号分隔）
                                   </label>
                                   <Input
                                     value={f.effectImageUrlsText}
                                     onChange={(e) =>
                                       updateForm(item.id, { effectImageUrlsText: e.target.value })
                                     }
-                                    placeholder="https://xxx.com/image.jpg"
+                                    placeholder="https://xxx.com/image.jpg（可留空）"
                                     className="h-8 text-sm"
                                   />
                                   <p className="text-[10px] text-muted-foreground mt-1">
-                                    纯白板：提供效果图，工厂按成品直接发货
+                                    纯白板可不传；若工厂要求效果图导致推送失败，补上后重推即可
                                   </p>
                                 </div>
                               )}

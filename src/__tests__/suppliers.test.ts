@@ -98,6 +98,15 @@ describe("buildRiinPlaceOrderParams", () => {
     expect(params.goodsList[0].printPosition).toBeUndefined();
   });
 
+  it("sends only the [不打印] marker when a blank has no effect images", () => {
+    const input = makeInput();
+    input.items[0].effectImageUrls = [];
+    const params = buildRiinPlaceOrderParams(input, 15);
+    expect(params.goodsList[0].imageList).toEqual([
+      { type: 1, imageUrl: "", imageCode: "[不打印]", imageName: "noprint" },
+    ]);
+  });
+
   it("keeps image codes free of forbidden characters (- + & space)", () => {
     const input = makeInput();
     input.items[0].shouldPrint = true;
