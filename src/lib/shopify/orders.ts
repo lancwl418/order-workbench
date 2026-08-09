@@ -198,6 +198,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         title: lineItem.title,
         variantTitle: lineItem.variant_title || null,
         sku: lineItem.sku || null,
+        vendor: lineItem.vendor || null,
         quantity: lineItem.quantity,
         price: lineItem.price,
         designFileUrl,

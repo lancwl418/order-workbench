@@ -27,6 +27,7 @@
   "nav": {
     "title": "DTF Workbench",
     "orders": "Orders",
+    "blanks": "Blanks",
     "giftOrders": "Gift Orders",
     "printQueue": "Print Queue",
     "shipping": "Shipping",

@@ -37,6 +37,7 @@ export interface ShopifyLineItem {
   title: string;
   variant_title?: string;
   sku?: string;
+  vendor?: string | null;
   quantity: number;
   price: string;
   product_id?: number;
@@ -137,6 +138,7 @@ export interface MappedOrderItem {
   title: string;
   variantTitle: string | null;
   sku: string | null;
+  vendor: string | null;
   quantity: number;
   price: string; // Decimal as string for Prisma
   designFileUrl: string | null;

@@ -238,7 +238,10 @@ export async function POST(
     return NextResponse.json({ error: message, traceId: errTraceId, errorCode }, { status: 502 });
   }
 
-  // Persist per-item factory fields + upsert SkuMapping records
+  // Persist per-item factory fields + upsert SkuMapping records.
+  // This legacy route always pushes to linmiao; mappings are stored under that
+  // supplier (falling back to legacy null-supplier rows if seed hasn't run).
+  const linmiaoSupplier = await prisma.supplier.findUnique({ where: { key: "linmiao" } });
   await prisma.$transaction(async (tx) => {
     for (const m of items) {
       const item = itemById.get(m.orderItemId)!;
@@ -254,31 +257,35 @@ export async function POST(
         },
       });
       if (item.sku) {
-        await tx.skuMapping.upsert({
+        const mappingValues = {
+          factorySku: m.factorySku,
+          factorySize: m.sizeCode || null,
+          factoryColor: m.colorCode || null,
+          factoryStyle: m.styleCode || null,
+          factoryCraftType: resolvedCraftType,
+        };
+        const existingMapping = await tx.skuMapping.findFirst({
           where: {
-            ourSku_variantTitle: {
-              ourSku: item.sku,
-              variantTitle: item.variantTitle ?? "",
-            },
-          },
-          update: {
-            factorySku: m.factorySku,
-            factorySize: m.sizeCode || null,
-            factoryColor: m.colorCode || null,
-            factoryStyle: m.styleCode || null,
-            factoryCraftType: resolvedCraftType,
-            lastUsedAt: new Date(),
-          },
-          create: {
             ourSku: item.sku,
             variantTitle: item.variantTitle ?? "",
-            factorySku: m.factorySku,
-            factorySize: m.sizeCode || null,
-            factoryColor: m.colorCode || null,
-            factoryStyle: m.styleCode || null,
-            factoryCraftType: resolvedCraftType,
+            supplierId: linmiaoSupplier?.id ?? null,
           },
         });
+        if (existingMapping) {
+          await tx.skuMapping.update({
+            where: { id: existingMapping.id },
+            data: { ...mappingValues, lastUsedAt: new Date() },
+          });
+        } else {
+          await tx.skuMapping.create({
+            data: {
+              ourSku: item.sku,
+              variantTitle: item.variantTitle ?? "",
+              supplierId: linmiaoSupplier?.id ?? null,
+              ...mappingValues,
+            },
+          });
+        }
       }
     }
 

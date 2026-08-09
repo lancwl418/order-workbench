@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
+import { PushBlanksDialog } from "@/components/blanks/push-blanks-dialog";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { CsSummaryPanel } from "@/components/cs/cs-summary-panel";
 
@@ -124,6 +125,7 @@ export default function OrdersPage() {
   // OMS Push dialog state
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
   const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
+  const [blanksPushOrderId, setBlanksPushOrderId] = useState<string | null>(null);
   const [splitOrder, setSplitOrder] = useState<OrderListItem | null>(null);
 
   const handleStatusChange = useCallback(
@@ -307,6 +309,7 @@ export default function OrdersPage() {
           setOmsPushGroup(fulfillmentOrderId);
           setOmsPushOrderId(orderId);
         },
+        onBlanksPush: (orderId) => setBlanksPushOrderId(orderId),
         onSplit: (order) => setSplitOrder(order),
         onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
@@ -472,6 +475,18 @@ export default function OrdersPage() {
             setOmsPushGroup(undefined);
             refresh();
           }}
+        />
+      )}
+
+      {/* Blanks Push Dialog (shared component — same one as detail page & blanks page) */}
+      {blanksPushOrderId && (
+        <PushBlanksDialog
+          orderId={blanksPushOrderId}
+          open={!!blanksPushOrderId}
+          onOpenChange={(open) => {
+            if (!open) setBlanksPushOrderId(null);
+          }}
+          onSuccess={() => refresh()}
         />
       )}
 

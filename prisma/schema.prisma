@@ -198,6 +198,7 @@ model Order {
   exceptions      OrderException[]
   printGroupItems PrintGroupItem[]
   csComments      CsComment[]
+  supplierPushes  SupplierPush[]
 
   @@index([internalStatus])
   @@index([printStatus])
@@ -249,14 +250,28 @@ model OrderItem {
   factoryStyle String? @map("factory_style")
   factoryCraftType Int? @map("factory_craft_type")
 
+  // Shopify product vendor — routes blank items to a supplier via VendorMapping
+  vendor String?
+
+  // Blanks are unprinted by default; enabling adds print image/position fields
+  printEnabled Boolean @default(false) @map("print_enabled")
+
+  // Supplier push state (multi-supplier successor of the factory* fields)
+  supplierId       String?   @map("supplier_id")
+  supplierPushedAt DateTime? @map("supplier_pushed_at")
+  supplierOrderNo  String?   @map("supplier_order_no")
+  supplierTraceId  String?   @map("supplier_trace_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
 
   @@index([orderId])
   @@index([sku])
   @@index([shopifyFulfillmentOrderId])
+  @@index([vendor])
   @@map("order_items")
 }
 
@@ -560,13 +575,90 @@ model SkuMapping {
   factoryColor String?  @map("factory_color")
   factoryStyle String?  @map("factory_style")
   factoryCraftType Int? @map("factory_craft_type")
+  // Mappings are per supplier (same SKU can map differently at each factory).
+  // Null = legacy rows created before multi-supplier; treated as linmiao.
+  supplierId   String?  @map("supplier_id")
   lastUsedAt   DateTime @default(now()) @map("last_used_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@unique([ourSku, variantTitle])
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([ourSku, variantTitle, supplierId])
   @@index([ourSku])
+  @@index([supplierId])
   @@map("sku_mappings")
+}
+
+// A POD factory we can push blank-garment orders to. secretKeyEnv holds the
+// NAME of the env var containing the API secret — keys never live in the DB.
+// Multiple suppliers can share adapterType "riin" (same protocol, different
+// tenant keys); baseUrl null means the adapter's default env URL is used.
+model Supplier {
+  id           String   @id @default(cuid())
+  key          String   @unique // "linmiao" | "jjspromo" | "xinfeiyang" | ...
+  name         String
+  adapterType  String   @map("adapter_type") // "linmiao" | "riin"
+  baseUrl      String?  @map("base_url")
+  secretKeyEnv String   @map("secret_key_env")
+  platformType Int      @default(15) @map("platform_type")
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendorMappings VendorMapping[]
+  pushes         SupplierPush[]
+  orderItems     OrderItem[]
+  skuMappings    SkuMapping[]
+
+  @@map("suppliers")
+}
+
+// Routes a Shopify product vendor (normalized) to the supplier that produces it.
+model VendorMapping {
+  id         String   @id @default(cuid())
+  vendor     String   @unique
+  supplierId String   @map("supplier_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@map("vendor_mappings")
+}
+
+// One row per supplier-group push of an order's blank items. platformOid is
+// the order number we generated on the supplier side. pushedAt null = order
+// placed at the supplier but not yet pushed to the factory (riin two-step).
+model SupplierPush {
+  id             String    @id @default(cuid())
+  orderId        String    @map("order_id")
+  supplierId     String    @map("supplier_id")
+  platformOid    String    @unique @map("platform_oid")
+  itemIds        String[]  @default([]) @map("item_ids")
+  placedAt       DateTime  @default(now()) @map("placed_at")
+  pushedAt       DateTime? @map("pushed_at")
+  // riin orderStatus enum: 1 store audit, 2 pending push, 3 sent back by
+  // factory, 4 factory audit, 5 in production, 12 shipped, 13 closed,
+  // 14 refunding, 15 refunded. Null until first status sync.
+  orderStatus    Int?      @map("order_status")
+  orderStatusStr String?   @map("order_status_str")
+  statusSyncedAt DateTime? @map("status_synced_at")
+  lastError      String?   @map("last_error") @db.Text
+  requestPayload Json?     @map("request_payload")
+  traceId        String?   @map("trace_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([orderId])
+  @@index([supplierId])
+  @@index([orderStatus])
+  @@index([pushedAt])
+  @@map("supplier_pushes")
 }
 
 model ExceptionResponse {

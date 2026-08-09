@@ -33,7 +33,9 @@ import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/ty
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
 import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
-import { PushFactoryDialog } from "@/components/orders/push-factory-dialog";
+import { PushBlanksDialog } from "@/components/blanks/push-blanks-dialog";
+import { SupplierPushStatusBadge } from "@/components/blanks/supplier-push-status-badge";
+import { useBlanksData } from "@/components/blanks/use-push-blanks";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
 import {
@@ -131,6 +133,11 @@ export default function OrderDetailPage() {
   const { data: shipments, mutate: mutateShipments } = useSWR<ShipmentEntry[]>(
     order ? `/api/shipments?orderId=${order.id}` : null,
     fetcher
+  );
+
+  // Supplier push state for blank items (shared hook with the blanks page)
+  const { data: blanksData, mutate: mutateBlanks } = useBlanksData(
+    order && order.orderItems.some((i) => i.itemType === "other") ? order.id : null
   );
 
   const [notes, setNotes] = useState("");
@@ -640,7 +647,7 @@ export default function OrderDetailPage() {
               );
             })()}
 
-            {/* Factory Push — shown when order has blank (itemType=other) items */}
+            {/* Blanks push — shown when order has blank (itemType=other) items */}
             {order.orderItems.some((i) => i.itemType === "other") && (
               <div>
                 <Button
@@ -650,8 +657,14 @@ export default function OrderDetailPage() {
                   onClick={() => setPushFactoryOpen(true)}
                 >
                   <Package className="h-3.5 w-3.5 mr-1" />
-                  {order.factoryPushedAt ? "Re-push to Factory" : "Push to Factory"}
+                  {blanksData?.pushes?.length ? "推 Blanks（已有推送）" : "推 Blanks"}
                 </Button>
+                {(blanksData?.pushes ?? []).map((p) => (
+                  <div key={p.id} className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground flex-wrap">
+                    <span>{p.supplierName}</span>
+                    <SupplierPushStatusBadge push={p} />
+                  </div>
+                ))}
                 {order.factoryPushedAt && (
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Last pushed {timeAgo(order.factoryPushedAt)}
@@ -1077,15 +1090,14 @@ export default function OrderDetailPage() {
           }}
         />
 
-        {/* Factory Push Dialog */}
-        <PushFactoryDialog
+        {/* Blanks Push Dialog (shared component — same one as the Blanks page) */}
+        <PushBlanksDialog
           orderId={order.id}
-          items={order.orderItems}
           open={pushFactoryOpen}
           onOpenChange={setPushFactoryOpen}
           onSuccess={() => {
-            setPushFactoryOpen(false);
             mutate();
+            mutateBlanks();
           }}
         />
 

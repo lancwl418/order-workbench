@@ -1,0 +1,479 @@
+import { Prisma } from "@prisma/client";
+import type { OrderItem, Supplier, SupplierPush } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getAdapter } from "./registry";
+import {
+  normalizeVendor,
+  REJECTED_ORDER_STATUS,
+  TERMINAL_ORDER_STATUSES,
+  type SupplierConsignee,
+  type SupplierOrderInput,
+  type SupplierOrderItemInput,
+} from "./types";
+
+// Single implementation of the blanks push flow, shared by every entry point
+// (order list, order detail, blanks page, cron): place orders per supplier
+// group, re-push placed-but-unpushed orders, and sync statuses.
+
+// ─── Input shapes (validated by the routes' zod schemas) ────────
+
+export interface BlanksItemInput {
+  orderItemId: string;
+  factorySku: string;
+  sizeCode?: string;
+  sizeName?: string;
+  colorCode?: string;
+  colorName?: string;
+  styleCode?: string;
+  styleName?: string;
+  craftType?: 1 | 2;
+  shouldPrint?: boolean;
+  printPosition?: "1" | "2" | "1,2";
+  imageUrls?: string[];
+  effectImageUrls?: string[];
+}
+
+export type BlanksPushMode = "place" | "place_and_push";
+
+export interface BlanksGroupResult {
+  supplierId: string;
+  supplierKey: string;
+  supplierName: string;
+  platformOid: string | null;
+  itemIds: string[];
+  status: "pushed" | "placed" | "failed";
+  error?: string;
+  pushError?: string;
+  traceId?: string;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+export function buildSupplierConsignee(
+  shippingAddress: Record<string, unknown> | null | undefined,
+  customerName: string | null
+): SupplierConsignee | null {
+  if (!shippingAddress) return null;
+  const a = shippingAddress as Record<string, string | undefined>;
+  const name = [a.first_name, a.last_name].filter(Boolean).join(" ").trim() || customerName || "";
+  const phone = a.phone || "";
+  const address = a.address1 || "";
+  const province = a.province_code || a.province || "";
+  const city = a.city || "";
+  const country = a.country_code || a.country || "";
+  if (!name || !phone || !address || !province || !city || !country) return null;
+  return {
+    name,
+    phone,
+    address,
+    addressOptional: a.address2 || undefined,
+    country,
+    province,
+    city,
+    postCode: a.zip || a.postal_code || undefined,
+  };
+}
+
+/**
+ * Resolve which supplier each blank item routes to via its vendor. Returns
+ * per-supplier groups plus the items that cannot be routed (no vendor, or
+ * vendor not mapped) — callers surface those instead of pushing.
+ */
+export async function resolveSupplierGroups(items: OrderItem[]): Promise<{
+  groups: { supplier: Supplier; items: OrderItem[] }[];
+  unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" }[];
+}> {
+  const vendors = [...new Set(
+    items.map((i) => (i.vendor ? normalizeVendor(i.vendor) : null)).filter((v): v is string => !!v)
+  )];
+  const mappings = vendors.length
+    ? await prisma.vendorMapping.findMany({
+        where: { vendor: { in: vendors } },
+        include: { supplier: true },
+      })
+    : [];
+  const supplierByVendor = new Map(mappings.map((m) => [m.vendor, m.supplier]));
+
+  const bySupplier = new Map<string, { supplier: Supplier; items: OrderItem[] }>();
+  const unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" }[] = [];
+
+  for (const item of items) {
+    const vendor = item.vendor ? normalizeVendor(item.vendor) : null;
+    if (!vendor) {
+      unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "no_vendor" });
+      continue;
+    }
+    const supplier = supplierByVendor.get(vendor);
+    if (!supplier) {
+      unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "unmapped_vendor" });
+      continue;
+    }
+    const group = bySupplier.get(supplier.id) ?? { supplier, items: [] };
+    group.items.push(item);
+    bySupplier.set(supplier.id, group);
+  }
+
+  return { groups: [...bySupplier.values()], unroutable };
+}
+
+function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrderItemInput {
+  return {
+    orderItemId: item.id,
+    title: item.title,
+    quantity: item.quantity,
+    price: Number(item.price),
+    ourSku: item.sku,
+    factorySku: m.factorySku,
+    sizeCode: m.sizeCode || "",
+    sizeName: m.sizeName || m.sizeCode || "",
+    colorCode: m.colorCode || "",
+    colorName: m.colorName || m.colorCode || "",
+    styleCode: m.styleCode || m.factorySku,
+    styleName: m.styleName || m.styleCode || m.factorySku,
+    craftType: m.craftType ?? 1,
+    shouldPrint: m.shouldPrint ?? false,
+    printPosition: m.printPosition,
+    printImageUrls: m.imageUrls ?? [],
+    effectImageUrls: m.effectImageUrls ?? (item.designFileUrl ? [item.designFileUrl] : []),
+  };
+}
+
+async function upsertSkuMappings(
+  tx: Prisma.TransactionClient,
+  supplierId: string,
+  items: { item: OrderItem; input: SupplierOrderItemInput }[]
+) {
+  for (const { item, input } of items) {
+    if (!item.sku) continue;
+    const values = {
+      factorySku: input.factorySku,
+      factorySize: input.sizeCode || null,
+      factoryColor: input.colorCode || null,
+      factoryStyle: input.styleCode || null,
+      factoryCraftType: input.craftType,
+    };
+    const existing = await tx.skuMapping.findFirst({
+      where: { ourSku: item.sku, variantTitle: item.variantTitle ?? "", supplierId },
+    });
+    if (existing) {
+      await tx.skuMapping.update({
+        where: { id: existing.id },
+        data: { ...values, lastUsedAt: new Date() },
+      });
+    } else {
+      await tx.skuMapping.create({
+        data: { ourSku: item.sku, variantTitle: item.variantTitle ?? "", supplierId, ...values },
+      });
+    }
+  }
+}
+
+// ─── Place (and optionally push) blanks per supplier group ──────
+
+export async function pushBlanksForOrder(opts: {
+  orderId: string;
+  mode: BlanksPushMode;
+  items: BlanksItemInput[];
+  sellerRemark?: string;
+  userId?: string;
+}): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
+  const { orderId, mode, items, sellerRemark, userId } = opts;
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { orderItems: true },
+  });
+  if (!order) return { results: [], error: "Order not found", status: 404 };
+  if (!order.shopifyOrderNumber) {
+    return { results: [], error: "Order is missing Shopify order number", status: 400 };
+  }
+
+  const consignee = buildSupplierConsignee(
+    order.shippingAddress as Record<string, unknown> | null,
+    order.customerName
+  );
+  if (!consignee) {
+    return {
+      results: [],
+      error: "Order shipping address is incomplete — need name, phone, address, city, province, country",
+      status: 400,
+    };
+  }
+
+  const itemById = new Map(order.orderItems.map((i) => [i.id, i]));
+  const inputByItemId = new Map<string, BlanksItemInput>();
+  for (const m of items) {
+    const item = itemById.get(m.orderItemId);
+    if (!item) {
+      return { results: [], error: `Item ${m.orderItemId} does not belong to this order`, status: 400 };
+    }
+    if (item.itemType !== "other") {
+      return { results: [], error: `Item "${item.title}" is not a blank (itemType=${item.itemType})`, status: 400 };
+    }
+    inputByItemId.set(m.orderItemId, m);
+  }
+
+  const selectedItems = [...inputByItemId.keys()].map((id) => itemById.get(id)!);
+  // Server-side routing — the client's grouping is never trusted.
+  const { groups, unroutable } = await resolveSupplierGroups(selectedItems);
+  if (unroutable.length > 0) {
+    const detail = unroutable
+      .map((u) => `"${u.title}" (${u.reason === "no_vendor" ? "no vendor" : `vendor "${u.vendor}" not mapped`})`)
+      .join(", ");
+    return { results: [], error: `Cannot route items to a supplier: ${detail}`, status: 400 };
+  }
+
+  // Validate images up front so one group doesn't fail after another placed.
+  for (const group of groups) {
+    for (const item of group.items) {
+      const m = inputByItemId.get(item.id)!;
+      const input = toSupplierItemInput(item, m);
+      if (input.shouldPrint && input.printImageUrls.length === 0) {
+        return { results: [], error: `Item "${item.title}" is set to print but has no print image`, status: 400 };
+      }
+      if (!input.shouldPrint && input.effectImageUrls.length === 0) {
+        return { results: [], error: `Item "${item.title}" needs at least one effect image (效果图) when not printing`, status: 400 };
+      }
+    }
+  }
+
+  const results: BlanksGroupResult[] = [];
+
+  for (const group of groups) {
+    const { supplier } = group;
+    const platformOid = `${order.shopifyOrderNumber}-${supplier.key}`;
+    const itemInputs = group.items.map((item) => ({
+      item,
+      input: toSupplierItemInput(item, inputByItemId.get(item.id)!),
+    }));
+    const base = {
+      supplierId: supplier.id,
+      supplierKey: supplier.key,
+      supplierName: supplier.name,
+      itemIds: group.items.map((i) => i.id),
+    };
+
+    const existing = await prisma.supplierPush.findUnique({ where: { platformOid } });
+    if (existing) {
+      results.push({
+        ...base,
+        platformOid,
+        status: "failed",
+        error: existing.pushedAt
+          ? "Already placed and pushed to this supplier"
+          : "Already placed at this supplier — use re-push instead of placing again",
+      });
+      continue;
+    }
+
+    const orderInput: SupplierOrderInput = {
+      platformOid,
+      sourceOrderId: order.id,
+      consignee,
+      orderTime: order.shopifyCreatedAt ?? order.createdAt,
+      sellerRemark,
+      items: itemInputs.map((x) => x.input),
+    };
+
+    try {
+      const adapter = getAdapter(supplier);
+      const result = await adapter.placeOrder(orderInput, { push: mode === "place_and_push" });
+
+      await prisma.$transaction(async (tx) => {
+        await tx.supplierPush.create({
+          data: {
+            orderId: order.id,
+            supplierId: supplier.id,
+            platformOid,
+            itemIds: base.itemIds,
+            pushedAt: result.pushed ? new Date() : null,
+            lastError: result.pushError ?? null,
+            traceId: result.traceId ?? null,
+            requestPayload: JSON.parse(JSON.stringify(orderInput)) as Prisma.InputJsonValue,
+          },
+        });
+        for (const { item, input } of itemInputs) {
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: {
+              supplierId: supplier.id,
+              supplierOrderNo: platformOid,
+              supplierTraceId: result.traceId ?? null,
+              supplierPushedAt: result.pushed ? new Date() : null,
+              printEnabled: input.shouldPrint,
+              factorySku: input.factorySku,
+              factorySize: input.sizeCode || null,
+              factoryColor: input.colorCode || null,
+              factoryStyle: input.styleCode || null,
+              factoryCraftType: input.craftType,
+            },
+          });
+        }
+        await upsertSkuMappings(tx, supplier.id, itemInputs);
+        await tx.orderLog.create({
+          data: {
+            orderId: order.id,
+            userId,
+            action: "blanks_push",
+            toValue: result.pushed ? "pushed" : "placed",
+            message: `${supplier.name}: ${result.pushed ? "placed and pushed to factory" : "order placed (not pushed yet)"}${result.pushError ? ` — push failed: ${result.pushError}` : ""}`,
+            metadata: { platformOid, supplierKey: supplier.key, traceId: result.traceId, itemIds: base.itemIds },
+          },
+        });
+      });
+
+      results.push({
+        ...base,
+        platformOid,
+        status: result.pushed ? "pushed" : "placed",
+        pushError: result.pushError,
+        traceId: result.traceId,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Supplier push failed";
+      const traceId = (e as Error & { traceId?: string }).traceId;
+      await prisma.orderLog.create({
+        data: {
+          orderId: order.id,
+          userId,
+          action: "blanks_push_failed",
+          message: `${supplier.name}: ${message}`.slice(0, 500),
+          metadata: { platformOid, supplierKey: supplier.key, traceId, itemIds: base.itemIds },
+        },
+      });
+      results.push({ ...base, platformOid, status: "failed", error: message, traceId });
+    }
+  }
+
+  return { results };
+}
+
+// ─── Re-push a placed-but-unpushed order to the factory ─────────
+
+export async function pushPlacedSupplierPush(
+  pushId: string,
+  userId?: string
+): Promise<{ push?: SupplierPush; error?: string; status?: number }> {
+  const push = await prisma.supplierPush.findUnique({
+    where: { id: pushId },
+    include: { supplier: true },
+  });
+  if (!push) return { error: "Supplier push not found", status: 404 };
+  if (push.pushedAt) return { error: "Already pushed to the factory", status: 400 };
+
+  const adapter = getAdapter(push.supplier);
+  const result = await adapter.pushToFactory([push.platformOid]);
+  const failure = result.failed.find((f) => f.platformOid === push.platformOid);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.supplierPush.update({
+      where: { id: push.id },
+      data: failure
+        ? { lastError: failure.reason }
+        : { pushedAt: new Date(), lastError: null },
+    });
+    if (!failure) {
+      await tx.orderItem.updateMany({
+        where: { id: { in: push.itemIds } },
+        data: { supplierPushedAt: new Date() },
+      });
+    }
+    await tx.orderLog.create({
+      data: {
+        orderId: push.orderId,
+        userId,
+        action: failure ? "blanks_push_failed" : "blanks_push",
+        toValue: failure ? undefined : "pushed",
+        message: failure
+          ? `${push.supplier.name}: push to factory failed — ${failure.reason}`.slice(0, 500)
+          : `${push.supplier.name}: pushed to factory`,
+        metadata: { platformOid: push.platformOid, supplierKey: push.supplier.key, traceId: result.traceId },
+      },
+    });
+    return row;
+  });
+
+  if (failure) return { push: updated, error: failure.reason, status: 502 };
+  return { push: updated };
+}
+
+// ─── Status sync (cron + manual refresh share this) ─────────────
+
+const STATUS_BATCH = 100;
+
+export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Promise<{
+  checked: number;
+  updated: number;
+  rejected: number;
+  errors: string[];
+}> {
+  const pushes = await prisma.supplierPush.findMany({
+    where: {
+      ...(opts.orderId ? { orderId: opts.orderId } : {}),
+      OR: [{ orderStatus: null }, { orderStatus: { notIn: TERMINAL_ORDER_STATUSES } }],
+    },
+    include: { supplier: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  let updated = 0;
+  let rejected = 0;
+  const errors: string[] = [];
+
+  const bySupplier = new Map<string, { supplier: Supplier; pushes: (SupplierPush & { supplier: Supplier })[] }>();
+  for (const p of pushes) {
+    const g = bySupplier.get(p.supplierId) ?? { supplier: p.supplier, pushes: [] };
+    g.pushes.push(p);
+    bySupplier.set(p.supplierId, g);
+  }
+
+  for (const { supplier, pushes: group } of bySupplier.values()) {
+    let adapter;
+    try {
+      adapter = getAdapter(supplier);
+    } catch (e) {
+      errors.push(`${supplier.key}: ${e instanceof Error ? e.message : "adapter unavailable"}`);
+      continue;
+    }
+
+    for (let i = 0; i < group.length; i += STATUS_BATCH) {
+      const batch = group.slice(i, i + STATUS_BATCH);
+      try {
+        const statuses = await adapter.queryStatus(batch.map((p) => p.platformOid));
+        const byOid = new Map(statuses.map((s) => [s.platformOid, s]));
+        for (const push of batch) {
+          const status = byOid.get(push.platformOid);
+          if (!status || status.orderStatus === null) continue;
+          const changed = status.orderStatus !== push.orderStatus;
+          await prisma.supplierPush.update({
+            where: { id: push.id },
+            data: {
+              orderStatus: status.orderStatus,
+              orderStatusStr: status.orderStatusStr,
+              statusSyncedAt: new Date(),
+            },
+          });
+          if (changed) {
+            updated++;
+            if (status.orderStatus === REJECTED_ORDER_STATUS) {
+              rejected++;
+              await prisma.orderLog.create({
+                data: {
+                  orderId: push.orderId,
+                  action: "blanks_rejected",
+                  toValue: String(status.orderStatus),
+                  message: `${supplier.name}: order ${push.platformOid} sent back by the factory (反审回电商)`,
+                  metadata: { platformOid: push.platformOid, supplierKey: supplier.key },
+                },
+              });
+            }
+          }
+        }
+      } catch (e) {
+        errors.push(`${supplier.key}: ${e instanceof Error ? e.message : "status query failed"}`);
+      }
+    }
+  }
+
+  return { checked: pushes.length, updated, rejected, errors };
+}

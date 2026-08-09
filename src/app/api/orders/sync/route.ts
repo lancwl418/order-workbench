@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
               title: item.title,
               variantTitle: item.variantTitle,
               sku: item.sku,
+              vendor: item.vendor,
               quantity: item.quantity,
               price: item.price,
               designFileUrl: item.designFileUrl,

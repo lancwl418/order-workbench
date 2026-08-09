@@ -104,7 +104,7 @@ async function handleOrderCreate(
     await prisma.orderItem.upsert({
       where: { shopifyLineItemId: item.shopifyLineItemId },
       create: { ...item, orderId: upsertedOrder.id },
-      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, quantity: item.quantity, price: item.price, itemType: item.itemType },
+      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType },
     });
   }
 
@@ -235,7 +235,7 @@ async function handleOrderUpdated(
     await prisma.orderItem.upsert({
       where: { shopifyLineItemId: item.shopifyLineItemId },
       create: { ...item, orderId: upsertedOrder.id },
-      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, quantity: item.quantity, price: item.price, itemType: item.itemType },
+      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType },
     });
   }
 
