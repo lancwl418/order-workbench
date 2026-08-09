@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import { PushBlanksDialog } from "./push-blanks-dialog";
 import { SupplierPushStatusBadge } from "./supplier-push-status-badge";
+import { SupplierOrderLink } from "./supplier-order-link";
 import { usePushBlanks, type BlanksPush } from "./use-push-blanks";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -68,7 +69,7 @@ interface BlanksOrderRow {
     supplierPushedAt: string | null;
   }[];
   supplierPushes: (Omit<BlanksPush, "supplierKey" | "supplierName"> & {
-    supplier: { id: string; key: string; name: string; adapterType: string };
+    supplier: { id: string; key: string; name: string; adapterType: string; consoleUrl: string | null };
   })[];
 }
 
@@ -256,6 +257,11 @@ export function BlanksPage() {
                       {order.supplierPushes.map((p) => (
                         <div key={p.id} className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-medium">{p.supplier.name}</span>
+                          <SupplierOrderLink
+                            platformOid={p.platformOid}
+                            consoleUrl={p.supplier.consoleUrl}
+                            className="text-xs"
+                          />
                           <SupplierPushStatusBadge push={p} />
                           {!p.pushedAt &&
                             (p.supplier.adapterType === "linmiao" ? (

@@ -600,6 +600,8 @@ model Supplier {
   name         String
   adapterType  String   @map("adapter_type") // "linmiao" | "riin"
   baseUrl      String?  @map("base_url")
+  // Supplier console/admin URL — supplier order numbers in the UI link here
+  consoleUrl   String?  @map("console_url")
   secretKeyEnv String   @map("secret_key_env")
   platformType Int      @default(15) @map("platform_type")
   enabled      Boolean  @default(true)

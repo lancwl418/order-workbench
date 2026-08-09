@@ -50,18 +50,21 @@ async function main() {
       name: "Linmiao",
       adapterType: "linmiao",
       secretKeyEnv: "FACTORY_API_SECRET_KEY",
+      consoleUrl: "https://linmiao.online/",
     },
     {
       key: "jjspromo",
       name: "JJSPROMO",
       adapterType: "riin",
       secretKeyEnv: "RIIN_JJSPROMO_SECRET_KEY",
+      consoleUrl: "https://tshirt.riin.com/",
     },
     {
       key: "xinfeiyang",
       name: "Xinfeiyang",
       adapterType: "riin",
       secretKeyEnv: "RIIN_XINFEIYANG_SECRET_KEY",
+      consoleUrl: "https://tshirt.riin.com/",
     },
   ];
 

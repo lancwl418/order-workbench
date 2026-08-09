@@ -35,6 +35,7 @@ import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import { PushBlanksDialog } from "@/components/blanks/push-blanks-dialog";
 import { SupplierPushStatusBadge } from "@/components/blanks/supplier-push-status-badge";
+import { SupplierOrderLink } from "@/components/blanks/supplier-order-link";
 import { useBlanksData, usePushBlanks } from "@/components/blanks/use-push-blanks";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
@@ -663,6 +664,7 @@ export default function OrderDetailPage() {
                 {(blanksData?.pushes ?? []).map((p) => (
                   <div key={p.id} className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground flex-wrap">
                     <span>{p.supplierName}</span>
+                    <SupplierOrderLink platformOid={p.platformOid} consoleUrl={p.supplierConsoleUrl} />
                     <SupplierPushStatusBadge push={p} />
                   </div>
                 ))}
