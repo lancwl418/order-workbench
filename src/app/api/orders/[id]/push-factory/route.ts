@@ -154,8 +154,8 @@ export async function POST(
       imageList = urls.map((url, i) => ({
         type: 1 as const,
         imageUrl: url,
-        imageCode: `${item.id}-print-${i}`,
-        imageName: `${item.id}-print-${i}`,
+        imageCode: `${item.id}_print_${i}`,
+        imageName: `${item.id}_print_${i}`,
       }));
     } else {
       // 不打印: type=1 with "[不打印]" marker + type=2 effect images
@@ -174,8 +174,8 @@ export async function POST(
         ...effectUrls.slice(0, 2).map((url, i) => ({
           type: 2 as const,
           imageUrl: url,
-          imageCode: `${item.id}-effect-${i}`,
-          imageName: `${item.id}-effect-${i}`,
+          imageCode: `${item.id}_effect_${i}`,
+          imageName: `${item.id}_effect_${i}`,
         })),
       ];
     }

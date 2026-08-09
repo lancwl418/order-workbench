@@ -90,12 +90,23 @@ describe("buildRiinPlaceOrderParams", () => {
     ]);
   });
 
-  it("sends only effect images when not printing (blank default)", () => {
+  it("uses the [不打印] marker plus effect images when not printing (blank default)", () => {
     const params = buildRiinPlaceOrderParams(makeInput(), 15);
     const images = params.goodsList[0].imageList;
-    expect(images).toHaveLength(1);
-    expect(images[0].type).toBe(2);
+    expect(images[0]).toMatchObject({ type: 1, imageUrl: "", imageCode: "[不打印]" });
+    expect(images[1].type).toBe(2);
     expect(params.goodsList[0].printPosition).toBeUndefined();
+  });
+
+  it("keeps image codes free of forbidden characters (- + & space)", () => {
+    const input = makeInput();
+    input.items[0].shouldPrint = true;
+    input.items[0].printImageUrls = ["https://cdn.example.com/print.png"];
+    const params = buildRiinPlaceOrderParams(input, 15);
+    for (const img of params.goodsList[0].imageList) {
+      expect(img.imageCode).not.toMatch(/[-+& ]/);
+      expect(img.imageName).not.toMatch(/[-+& ]/);
+    }
   });
 
   it("adds print images with position when printing", () => {
@@ -109,11 +120,13 @@ describe("buildRiinPlaceOrderParams", () => {
     expect(params.goodsList[0].printPosition).toBe("1");
   });
 
-  it("keeps image codes unique across items", () => {
+  it("keeps real image codes unique across items (fixed [不打印] marker may repeat)", () => {
     const input = makeInput();
     input.items = [input.items[0], { ...input.items[0], orderItemId: "item2" }];
     const params = buildRiinPlaceOrderParams(input, 15);
-    const codes = params.goodsList.flatMap((g) => g.imageList.map((i) => i.imageCode));
+    const codes = params.goodsList
+      .flatMap((g) => g.imageList.map((i) => i.imageCode))
+      .filter((c) => c !== "[不打印]");
     expect(new Set(codes).size).toBe(codes.length);
   });
 });

@@ -130,9 +130,16 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 ## 待用户提供 / 确认（开工前不阻塞前 3 个 Phase）
 
 1. **各 riin 系工厂的 `secretKey`**（jjspromo、xinfeiyang 各一个）+ 先接测试还是生产环境 → 填 `.env` 的 `RIIN_JJSPROMO_SECRET_KEY` / `RIIN_XINFEIYANG_SECRET_KEY` / `RIIN_API_URL`。
-2. **vendor→供应商实际映射**：哪些 Shopify vendor 走 JJSPROMO、哪些走 linmiao（给 1~2 个真实 vendor 名用于 seed/测试）。
-3. **确认现有 `factory/client.ts`(linmiao.online) 即为要用的 linmiao 接口**；Feishu 文档需登录抓不到，若为新版本请贴出。
-4. **纯白板（不打印）如何下单**：接口文档里 `imageList` 标必填（type1 打印图仅 png）。需与 riin 确认：不打印时 imageList 传空数组/只传效果图/传占位图哪种可行；craftType 是否仍必填 1。拿到答案前，实现按"开关关闭 → 不传打印图"写，字段留好兜底。
+2. **vendor→供应商实际映射**：blank items 上实际出现的 vendor（2026-08-08 统计）：marco(693)、JJSPROMO(455)、Idea Max(12)、linmiao(5)、jmall(1)。JJSPROMO/linmiao 归属明确，**marco / Idea Max / jmall 走哪家待定**。
+3. ~~确认 linmiao 接口~~ ✅ **已确认**（2026-08-08 读了 linmiao OPEN_API 飞书文档，见下节）：端点/签名/字段与现有 `factory/client.ts` 完全一致。
+4. ~~纯白板（不打印）如何下单~~ ✅ **已解决**：linmiao 文档有专门"不打印场景"章节——type=1 传一张 `imageCode="[不打印]"` 的占位打印图（imageUrl 可空）+ type=2 效果图必传且最多 2 张。riin 的 imageCode 字符集明确允许英文 `[]` 和中文（正是为该标记设计），故 riin adapter 采用同一约定。
+
+## linmiao OPEN_API 文档要点（飞书: qcnnzr6psjrw.feishu.cn/docx/IRUkdw8Iroxt1xxxAKqcttv4nPd，访客可看）
+
+- 端点：`trade/v1/openapi/` + `create-order` / `update-order` / `update-order-status` / `query-order-status`(入 `{orderIdList}` 出 `data:[{pfOrderId,orderStatus,orderStateStr,childOrderStatus:[{pfSubOrderId,subOrderSatus,subOrderStatusStr}],reason}]`) / `query-order-info`。签名同 riin：header `secretKey` + `sign=md5(报文+"::"+key)`。
+- **imageCode/imageName 不能包含 `-`、`+`、`&`、空格**（riin 同样只允许字母数字下划线英文[]中文）→ 图片编码用 `_` 分隔（已修）。
+- 不打印校验规则：`[不打印]` 打印图只能 1 张；效果图必传、最多 2 张。
+- 订单状态枚举（riin 的超集，编号兼容）：1 店铺审核中 / 2 店铺推送中 / 3 反审回电商 / 4 工厂审核 / 5 生产中 / 6 分批排产 / 7 已拣货 / 8 已打印 / 9 已裁切 / 10 已烫印 / 11 已包装 / 12 已发货 / 13 已关闭 / 14 退款中 / 15 已退款 / 20 外部订单 / 负数为分销中间态。共享状态徽章按 orderStatusStr 展示即可。
 
 ## 环境变量（新增）
 ```
