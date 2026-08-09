@@ -27,6 +27,7 @@
   "nav": {
     "title": "DTF 工作台",
     "orders": "订单",
+    "blanks": "白板推送",
     "giftOrders": "赠礼订单",
     "printQueue": "打印队列",
     "shipping": "发货",

@@ -13,6 +13,11 @@
 2. **blank 判定**：复用现有 `itemType === "other"`。
 3. **推送 UX**：**一个弹窗**，按供应商自动分组，分别推送到各自 API。
 4. **与现有 push-factory(linmiao) 的关系**：**统一**——linmiao 也作为 Supplier 注册表里的一条；现有 push-factory 收编/改造进新流程。
+5. **工艺**：目前全是白板，**craftType 默认 1（白墨烫画）**，UI 不需要突出选择（保留可改）。
+6. **是否打印**：每个 item 有"打印/不打印"开关，**默认不打印**（纯白板）。不打印时不传打印图/printPosition（见"待确认"#4：imageList 接口标必填，纯白板怎么传需与 riin 确认）。
+7. **推送模式**：两种——**仅 placeOrder（建单不推送）** 和 **placeOrder + pushOrder（建单并推送工厂）**，弹窗里可选；已建单未推送的订单可后续单独 push。
+8. **状态同步**：**自动轮询 `queryOrderStatus`** 回写本地（重点捕捉"反审回电商"），订单列表/详情/新菜单页展示状态徽章；另提供手动刷新。
+9. **入口**：**两处**——现有 order list / order detail 的推送按钮 + **新增一个专门菜单页**（只列含 blank 即需推工厂的订单），两处都能推。
 
 ## 核心洞察
 
@@ -31,40 +36,64 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 
 ## 实施 Phase（TODO）
 
-### Phase 1 — 数据层（Prisma schema + 迁移 + seed）
-- [ ] 新增 `Supplier` 表：`key`(唯一)、`name`、`adapterType`("linmiao"|"riin")、`baseUrl?`、`secretKeyEnv`(**存环境变量名，密钥不落库**)、`platformType?`(默认15)、`enabled`(默认true)。
-  - 一个 `adapterType="riin"` 可挂多条 Supplier（JJSPROMO 现在，其他以后），各自 secretKey 不同。
-- [ ] 新增 `VendorMapping` 表：`vendor`(唯一, Shopify vendor 规范化) → `supplierId`(FK Supplier)。
-- [ ] `OrderItem` 增字段：`vendor String?`；推送状态 `supplierId?`、`supplierPushedAt?`、`supplierOrderNo?`、`supplierTraceId?`（沿用现有 `factory*` 字段思路）。
-- [ ] `SkuMapping` 增 `supplierId`，复合唯一改为 `ourSku + variantTitle + supplierId`（映射按供应商区分）。
-- [ ] 迁移 + `prisma/seed.ts`：写入 linmiao、jjspromo 两条 Supplier。
+### Phase 1 — 数据层（Prisma schema + 迁移 + seed）✅ 完成（branch agent/blanks-push）
+- [x] 新增 `Supplier` 表：`key`(唯一)、`name`、`adapterType`("linmiao"|"riin")、`baseUrl?`、`secretKeyEnv`(**存环境变量名，密钥不落库**)、`platformType?`(默认15)、`enabled`(默认true)。
+  - 一个 `adapterType="riin"` 挂多条 Supplier，**各自 secretKey 不同**（已确认的 riin 系工厂：**jjspromo、xinfeiyang**，后续还可能加）；baseUrl 都是 riin 的（同一系统）。
+- [x] 新增 `VendorMapping` 表：`vendor`(唯一, Shopify vendor 规范化) → `supplierId`(FK Supplier)。
+- [x] `OrderItem` 增字段：`vendor String?`；推送状态 `supplierId?`、`supplierPushedAt?`、`supplierOrderNo?`、`supplierTraceId?`；`printEnabled Boolean @default(false)`。
+- [x] `SupplierPush` 表（含 `itemIds`、`requestPayload`、`traceId`）。
+- [x] `SkuMapping` 增 `supplierId`(可空，null=历史行)，复合唯一改为 `ourSku + variantTitle + supplierId`；seed 里把历史行回填到 linmiao；旧 push-factory 路由的 upsert 改为 supplier 感知的 findFirst+update/create。
+- [x] 迁移 SQL `20260808000000_blanks_suppliers` + seed 写入 linmiao、jjspromo、xinfeiyang 三条 Supplier。
 
-### Phase 2 — vendor 采集（补现有缺口：目前 mapper 未采集 vendor）
-- [ ] `src/lib/shopify/types.ts`：`ShopifyLineItem` 加 `vendor?: string`；`MappedOrderItem` 加 `vendor`。
-- [ ] `src/lib/shopify/orders.ts`（~L196 map）：`vendor: lineItem.vendor || null`。
-- [ ] `src/lib/shopify/webhooks.ts`：upsert/create OrderItem 三处（约 L107、L238、L358 附近）带上 `vendor`。
-- [ ] 回填脚本 `scripts/`：遍历现有订单 `shopifyRawJson.line_items[].vendor` 补 `OrderItem.vendor`。
+### Phase 2 — vendor 采集 ✅ 完成
+- [x] `src/lib/shopify/types.ts`：`ShopifyLineItem.vendor?`、`MappedOrderItem.vendor`。
+- [x] `src/lib/shopify/orders.ts` mapper：`vendor: lineItem.vendor || null`。
+- [x] OrderItem 写入点补 vendor：`webhooks.ts` 两处 upsert + `api/orders/sync/route.ts`（create 走 `...item` 展开自动带上，update 子句显式加）。
+- [x] 回填脚本 `scripts/backfill-item-vendor.mjs`（幂等，只填 vendor 为 null 的行；**部署后需手动跑一次**）。
 
-### Phase 3 — 对接层（`src/lib/suppliers/`）
-- [ ] `types.ts`：`SupplierAdapter` 接口 + 统一 `SupplierOrderInput`（consignee 扁平化字段、items 数组），`SupplierOrderResult`（externalOrderNo/traceId/raw）。
-- [ ] `linmiao.ts`：包一层现有 `factory/client.ts`，把统一 input 映射成 `FactoryCreateOrderParams`（嵌套 consignee、pfOrderId/pfSubOrderId）。
-- [ ] `riin.ts`：**新 client**，对接 `/trade/api/interface/placeOrder`，扁平 consignee、`platformOid/platformOllId`；备用 `queryOrderStatus`、`queryOrderDelivery`、`queryProduct/Style/Color/Size`。`sign = md5(body + "::" + secretKey)`（secretKey 走 header）。限流每接口 10 次/秒。env：`RIIN_API_URL`、`RIIN_API_SECRET_KEY`。
-- [ ] `registry.ts`：按 `supplier.adapterType` + Supplier 配置（baseUrl / secretKeyEnv）返回 adapter 实例。
+### Phase 3 — 对接层（`src/lib/suppliers/`）✅ 完成
+- [x] `types.ts`：`SupplierAdapter`（placeOrder/pushToFactory/queryStatus）+ `SupplierOrderInput`/`SupplierOrderResult`/`SupplierOrderStatus`；riin 状态枚举、终态列表、`REJECTED_ORDER_STATUS=3`、`normalizeVendor`、`formatOrderTime`。
+- [x] `linmiao.ts`：`buildLinmiaoCreateOrderParams`（纯函数可测）+ `LinmiaoAdapter` 包现有 `factory/client.ts`；不打印沿用 `[不打印]` 标记惯例；linmiao 无二段推送（place 即 pushed）。
+- [x] `riin-client.ts`：按实例持 key 的 raw client（placeOrder/pushOrder/queryOrderStatus/queryOrderDelivery/closeOrder/query 基础数据）。
+- [x] `riin.ts`：`buildRiinPlaceOrderParams` + `RiinAdapter`；place 后可选 pushOrder，push 失败不算 place 失败（返回 pushError 可重推）；不打印时只传效果图。
+- [x] `registry.ts`：按 adapterType 实例化，riin 的 secretKey 从 `supplier.secretKeyEnv` 指向的环境变量读。
+- [x] vitest：签名、时间格式、riin/linmiao payload 映射、子单号序号、图片 code 唯一性（10 个用例）。
 
-### Phase 4 — API 路由
-- [ ] `POST /api/orders/[id]/push-blanks`：取该单 `itemType='other'` items → 按 `item.vendor` 查 VendorMapping 定供应商（**服务端重算，不信任前端**）→ 按供应商分组 → 各调 adapter 下单 → **部分成功**分组返回（A 成 B 败可单独重推）；每组写 `OrderLog`、回写 item 供应商字段、按供应商 upsert `SkuMapping`；未映射 vendor 的 item 拦截报错。
-- [ ] `GET/POST /api/suppliers`、`PATCH/DELETE /api/suppliers/[id]`。
-- [ ] `GET/POST /api/vendor-mappings`、`DELETE /api/vendor-mappings/[id]`。
+### Phase 4 — API 路由 ✅ 完成
+- [x] 核心逻辑集中在 `src/lib/suppliers/push-service.ts`（复用原则）：`pushBlanksForOrder`（分组/建单/推送/落库）、`pushPlacedSupplierPush`、`syncSupplierStatuses`、`resolveSupplierGroups`、`buildSupplierConsignee`。
+- [x] `POST /api/orders/[id]/push-blanks`：mode place|place_and_push；服务端重算路由；部分成功 200 + 各组状态；全败 502。
+- [x] `GET /api/orders/[id]/blanks`：推送弹窗唯一数据源（items+vendor+解析供应商+按供应商 SkuMapping 预填+已有 pushes）。
+- [x] `POST /api/supplier-pushes/[id]/push`：单独 pushOrder，失败写 lastError。
+- [x] `POST /api/supplier-pushes/sync-status`（登录态，支持 orderId 单单刷新）+ `GET|POST /api/cron/sync-supplier-status`（CRON_SECRET bearer，沿用 scan-exceptions 模式；**Render Cron Job 定时调**）。状态变为 3(反审回电商) 时写 OrderLog `blanks_rejected`。
+- [x] `GET /api/blanks-orders`：分页 + q 搜索 + filter(all/unpushed/placed/pushed/rejected)。
+- [x] `GET/POST /api/suppliers`（含 secretConfigured 检查，不回传密钥）、`PATCH/DELETE /api/suppliers/[id]`（有推送记录只能停用不能删）。
+- [x] `GET/POST /api/vendor-mappings`（GET 附 unmappedVendors 提示）、`DELETE /api/vendor-mappings/[id]`。
 
 ### Phase 5 — UI
-- [ ] `src/components/orders/push-blanks-dialog.tsx`（取代 push-factory-dialog）：拉取 `other` items + vendor + 解析出的供应商，**按供应商分组展示**；每行复用 SKU/尺码/颜色/款号/工艺/打印字段，从 SkuMapping 预填；未映射 vendor 的 item 高亮提示去配置；按组推送并显示各组结果。
-- [ ] 供应商 & 映射管理页（`src/app/(dashboard)/` 下）：CRUD Supplier 和 vendor→supplier 映射。
-- [ ] 订单入口：把 push-factory 按钮替换为"推 Blanks"（有 `other` item 时可用）。
-- [ ] i18n 文案（`messages/`）。
+
+> **复用原则（用户明确要求）**：推送功能只实现一份，所有入口共享，不散开做。
+> - `src/components/blanks/push-blanks-dialog.tsx` —— 唯一的推送弹窗，order list、order detail、新菜单页三处都打开这同一个组件（只传 orderId）。
+> - `src/components/blanks/supplier-push-status-badge.tsx` —— 唯一的状态徽章，三处列表/详情共用。
+> - `src/components/blanks/use-push-blanks.ts`（或 lib）—— 推送/单独 push/刷新状态的请求逻辑集中一处，弹窗和行操作按钮都调它。
+> - 表单行组件尽量复用现有 push-factory-dialog 里的字段行；能改造复用的现有 component 一律复用，不新写。
+
+- [x] `src/components/blanks/push-blanks-dialog.tsx`（**全局唯一推送弹窗**，只收 orderId 自取数据）：按供应商分组、SkuMapping 预填、工艺默认白墨烫画、打印开关默认关、**仅建单 / 建单并推送**两个动作、未映射 vendor 高亮 + 链到设置页、已建单 item 禁选、组内结果展示（含 pushError）、已有推送记录区（badge + 单独推送 + 刷新状态）。
+- [x] `supplier-push-status-badge.tsx`（唯一状态徽章：反审回红色、已发货绿色、已建单未推送琥珀色）+ `use-push-blanks.ts`（唯一请求逻辑：useBlanksData/pushBlanks/rePush/refreshStatus）。
+- [x] **新菜单页 `/blanks`**（sidebar+header 入口，i18n key nav.blanks）：搜索 + filter(全部/未推送/已建单未推送/已推送/被反审)、items/vendor/打印徽章、每供应商状态徽章、行操作（共享弹窗/单独推送/刷新全部状态）、分页；`/blanks/settings` 供应商 & vendor 映射管理（含未映射 vendor 提示一键填入、密钥环境变量已配置检查）。
+- [x] 订单入口：order detail 按钮换成"推 Blanks"+ 状态徽章（共享 hook/badge）；order list items 列的 Blanks 徽章可点击打开**同一个共享弹窗**。
+- [x] i18n：nav.blanks（en/zh）；页面文案与现有代码风格一致采用中英混排。
 
 ### Phase 6 — 测试 & 清理
-- [ ] vitest：adapter 映射、分组路由、部分成功、md5 签名。
-- [ ] 确认无误后下线旧 `push-factory` 路由/弹窗与相关 UI 入口。
+- [x] vitest：adapter 映射、md5 签名、时间格式、图片规则（`src/__tests__/suppliers.test.ts`）。
+- [ ] **待用户线上验证无误后**：删除旧 `push-factory` 路由 + `push-factory-dialog.tsx`（已无 UI 引用，仅路由保留兜底）。
+
+### 上线 checklist（代码之外）
+1. Render 环境变量：`RIIN_API_URL`、`RIIN_JJSPROMO_SECRET_KEY`、`RIIN_XINFEIYANG_SECRET_KEY`、`CRON_SECRET`（如未设）。
+2. 部署后跑一次 `npx prisma db seed`（写入 3 条 Supplier + 回填历史 SkuMapping 到 linmiao）。
+3. 跑一次 `node scripts/backfill-item-vendor.mjs`（回填历史订单 item 的 vendor）。
+4. 在 `/blanks/settings` 配置 vendor→供应商映射。
+5. Render Cron Job：定时 `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/sync-supplier-status`（建议每 30 分钟）。
+6. 和 riin 确认纯白板不打印时 imageList 的正确传法（当前实现：只传效果图）。
 
 ---
 
@@ -74,13 +103,21 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 - 每接口限流 10 次/秒；`sign = md5(请求报文 + "::" + secretKey)`，按请求参数字段顺序生成 sign。
 - header：`secretKey`、`sign`。响应统一 `{successful, message, errorCode, data}`。
 
-**端点**
-- 下单 `POST /trade/api/interface/placeOrder`
-- 改单 `POST /trade/api/interface/updateOrder`（推到工厂后不可改）
-- 预发货 `POST /trade/api/interface/preShipped`（body `{platformOid}`）
-- 查面单 `POST /trade/api/interface/queryOrderDelivery`（body `{platformOidList:[]}` ≤100，返回 `trackingNumber/waybillDataPath/shippingTime`）
-- 查订单状态 `POST /trade/api/interface/queryOrderStatus`（返回 `orderStatus`(1 店铺审核中/2 店铺推送中/3 反审回电商/4 工厂审核/5 生产中/12 已发货/13 已关闭/14 退款中/15 已退款) + `childOrderStatus[]`）
-- 查产品/款号/颜色/尺码 `queryProduct` / `queryStyle` / `queryColor` / `querySize`（分页 `{pageIndex,pageSize}`）
+**端点**（全部 POST，路径前缀 `/trade/api/interface/`）
+- 下单 `placeOrder` —— **注意：下单后订单仅处于"待推送"，须再调 `pushOrder` 才真正推到工厂**
+- **推送订单 `pushOrder`**（body `{platformOidList:[]}` ≤100，仅支持"待推送/反审回电商"状态；响应 `data:{total,failed,succeeded,errMessages:[{key:单号,value:原因}]}`，`data=null` 表示全部成功。失败原因示例："产品编码未设置适配工艺"）
+- 改单 `updateOrder`（仅待推送/反审回可改；支持加商品，不支持删商品）
+- 修改订单图片 `updatePrintImage`（body `{platformOid, goodsList:[{platformOid,platformOllId,imageList}]}`，仅待推送/反审回可改；**imageCode 相同会复用素材库旧图，改图必须换新 imageCode**）
+- 关闭订单 `closeOrder`（body `{platformOid}`）
+- 预发货 `preShipped`（body `{platformOid}`）
+- 查面单 `queryOrderDelivery`（body `{platformOidList:[]}` ≤100，返回 `trackingNumber/waybillDataPath/shippingTime`）
+- 查订单状态 `queryOrderStatus`（返回 `orderStatus`(1 店铺审核中/2 店铺推送中(待推送)/3 反审回电商/4 工厂审核/5 生产中/12 已发货/13 已关闭/14 退款中/15 已退款) + `childOrderStatus[]`(NOT_SHIPPED/SHIPPED/CLOSE/CANCEL/COMPLETE)）
+- 查订单详情 `queryOrderInfo`（body `{platformOidList:[]}` ≤100，返回收件人/物流/preShippingTime/shippingTime/addressId 等）
+- 查产品/款号/颜色/尺码 `queryProduct` / `queryStyle` / `queryColor` / `querySize`（分页 `{pageIndex,pageSize}` 默认 1/1000；`queryStyle` 返回每款适配 `craftType`（如 "1,2"）可做工艺校验；`queryProduct` 返回 productCode=款-色-码 组合及重量尺寸）
+- 查工厂发货地址 `queryShipAddress`（无 body）/ `queryProductShipAddress`（body `{productCodeList:[]}` ≤10）——自带面单时 `addressId` 从这里取
+- 已发货订单地址脱敏 `maskAddress`
+- 异常图片：`queryAbnormalImagePage` / `uploadAbnormalImage` / `syncImageToFactory`（生产中打印图异常的改图流程，后续可选接）
+- 售后：`createAfterSales`（type: 3 原快递单号补发 / 1 新快递单号补发 / 2 赔付）/ `queryAfterSalesInfo`（后续可选接）
 
 **下单 order 关键字段（true=必填）**
 `platformType(15)`、`sourcePlatformOid`、`platformOrderStatus(NOT_SHIPPED)`、`platformRefundStatus(NO_REFUND)`、`platformOid`(订单唯一)、`consigneeName`、`phone`、`address`、`addressOptional?`、`receiverCountry`、`receiverProvince`、`receiverCity`、`receiverDistrict?`、`receiverTown?`、`deliveryCourier?`、`postCode?`(海外单不能为空)、`orderTime`(yyyy-MM-dd HH:mm:ss)、`orderPayTime?`、`selfWaybillFlag?/waybill?/addressId?`(自带面单时必填)、`goodsList`。
@@ -92,13 +129,16 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 
 ## 待用户提供 / 确认（开工前不阻塞前 3 个 Phase）
 
-1. **riin/JJSPROMO 的 `secretKey`** + 先接测试还是生产环境 → 填 `.env` 的 `RIIN_API_SECRET_KEY` / `RIIN_API_URL`。
+1. **各 riin 系工厂的 `secretKey`**（jjspromo、xinfeiyang 各一个）+ 先接测试还是生产环境 → 填 `.env` 的 `RIIN_JJSPROMO_SECRET_KEY` / `RIIN_XINFEIYANG_SECRET_KEY` / `RIIN_API_URL`。
 2. **vendor→供应商实际映射**：哪些 Shopify vendor 走 JJSPROMO、哪些走 linmiao（给 1~2 个真实 vendor 名用于 seed/测试）。
 3. **确认现有 `factory/client.ts`(linmiao.online) 即为要用的 linmiao 接口**；Feishu 文档需登录抓不到，若为新版本请贴出。
+4. **纯白板（不打印）如何下单**：接口文档里 `imageList` 标必填（type1 打印图仅 png）。需与 riin 确认：不打印时 imageList 传空数组/只传效果图/传占位图哪种可行；craftType 是否仍必填 1。拿到答案前，实现按"开关关闭 → 不传打印图"写，字段留好兜底。
 
 ## 环境变量（新增）
 ```
-RIIN_API_URL=https://tshirt-test.riin.com/   # 生产切 https://tshirt.riin.com/
-RIIN_API_SECRET_KEY=<向 riin/JJSPROMO 索取>
+RIIN_API_URL=https://tshirt-test.riin.com/   # 生产切 https://tshirt.riin.com/（riin 系工厂共用）
+RIIN_JJSPROMO_SECRET_KEY=<向 JJSPROMO 索取>
+RIIN_XINFEIYANG_SECRET_KEY=<向 xinfeiyang 索取>
+# 每新增一个 riin 系工厂：加一个 RIIN_<KEY>_SECRET_KEY 环境变量 + Supplier 表加一条记录（secretKeyEnv 指向它）
 # 现有 linmiao：FACTORY_API_URL / FACTORY_API_SECRET_KEY（已存在）
 ```

@@ -22,10 +22,12 @@ import {
   Tag,
   AlertTriangle,
   Headphones,
+  Shirt,
 } from "lucide-react";
 
 const navKeys = [
   { key: "orders", href: "/orders", icon: ClipboardList },
+  { key: "blanks", href: "/blanks", icon: Shirt },
   { key: "giftOrders", href: "/gift-orders", icon: Gift },
   { key: "printQueue", href: "/print-queue", icon: Printer },
   { key: "shipping", href: "/shipping", icon: Truck },

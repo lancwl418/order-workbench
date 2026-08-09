@@ -46,6 +46,7 @@ export function createColumns(opts: {
   onCsToggle?: (orderId: string, csFlag: boolean) => Promise<void>;
   onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
   onOmsPush?: (orderId: string, fulfillmentOrderId?: string) => void;
+  onBlanksPush?: (orderId: string) => void;
   onSplit?: (order: OrderListItem) => void;
   onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
@@ -225,11 +226,30 @@ export function createColumns(opts: {
                 Transfer
               </span>
             )}
-            {hasBlanks && (
-              <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
-                Blanks
-              </span>
-            )}
+            {hasBlanks &&
+              (opts.onBlanksPush ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          opts.onBlanksPush!(row.original.id);
+                        }}
+                        className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700 ring-1 ring-purple-300 hover:bg-purple-200 cursor-pointer"
+                      >
+                        Blanks
+                      </button>
+                    }
+                  />
+                  <TooltipContent>推送 Blanks 到供应商工厂</TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
+                  Blanks
+                </span>
+              ))}
             {hasFreeSample && (
               <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-green-100 text-green-700">
                 Free Sample
