@@ -482,7 +482,7 @@ export function PushBlanksDialog({
                                     className="h-8 text-sm"
                                   />
                                   <p className="text-[10px] text-muted-foreground mt-1">
-                                    纯白板可不传；若工厂要求效果图导致推送失败，补上后重推即可
+                                    留空时自动使用 Shopify 产品/variant 图作为效果图（抓不到则用占位图）
                                   </p>
                                 </div>
                               )}

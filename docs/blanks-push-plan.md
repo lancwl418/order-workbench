@@ -132,7 +132,7 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 1. **各 riin 系工厂的 `secretKey`**（jjspromo、xinfeiyang 各一个）+ 先接测试还是生产环境 → 填 `.env` 的 `RIIN_JJSPROMO_SECRET_KEY` / `RIIN_XINFEIYANG_SECRET_KEY` / `RIIN_API_URL`。
 2. **vendor→供应商实际映射**：blank items 上实际出现的 vendor（2026-08-08 统计）：marco(693)、JJSPROMO(455)、Idea Max(12)、linmiao(5)、jmall(1)。JJSPROMO/linmiao 归属明确，**marco / Idea Max / jmall 走哪家待定**。
 3. ~~确认 linmiao 接口~~ ✅ **已确认**（2026-08-08 读了 linmiao OPEN_API 飞书文档，见下节）：端点/签名/字段与现有 `factory/client.ts` 完全一致。
-4. ~~纯白板（不打印）如何下单~~ ✅ **已解决**：linmiao 文档有专门"不打印场景"章节——type=1 传一张 `imageCode="[不打印]"` 的占位打印图（imageUrl 可空）+ type=2 效果图（文档标必传、最多 2 张）。riin 的 imageCode 字符集明确允许英文 `[]` 和中文（正是为该标记设计），故 riin adapter 采用同一约定。**用户决定（2026-08-08）：我们侧不强制效果图**——不打印时始终带 `[不打印]` 标记，效果图有则传（≤2）无则不传；若工厂校验拒单，错误显示在弹窗对应分组里，补图后重推。
+4. ~~纯白板（不打印）如何下单~~ ✅ **已解决**：linmiao 文档有专门"不打印场景"章节——type=1 传一张 `imageCode="[不打印]"` 的占位打印图（imageUrl 可空）+ type=2 效果图（文档标必传、最多 2 张）。riin 的 imageCode 字符集明确允许英文 `[]` 和中文（正是为该标记设计），故 riin adapter 采用同一约定。**用户决定（2026-08-08）：我们侧不强制效果图**；**实测 linmiao 强制效果图非空（"效果图不能为空"），故推送时自动补图（2026-08-09）**：不打印且效果图留空 → 服务端从 Shopify 抓该 variant 的图（variant 无图退产品主图）作效果图，抓不到用 `BLANKS_PLACEHOLDER_IMAGE_URL` 占位图。
 
 ## linmiao OPEN_API 文档要点（飞书: qcnnzr6psjrw.feishu.cn/docx/IRUkdw8Iroxt1xxxAKqcttv4nPd，访客可看）
 
