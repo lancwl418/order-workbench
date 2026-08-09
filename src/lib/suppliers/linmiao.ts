@@ -8,6 +8,7 @@ import {
 } from "@/lib/factory/client";
 import {
   formatOrderTime,
+  noPrintMarkerUrl,
   type SupplierAdapter,
   type SupplierOrderInput,
   type SupplierOrderResult,
@@ -38,7 +39,7 @@ export function buildLinmiaoCreateOrderParams(
       }));
     } else {
       imageList = [
-        { type: 1 as const, imageUrl: "", imageCode: "[不打印]", imageName: "noprint" },
+        { type: 1 as const, imageUrl: noPrintMarkerUrl(item), imageCode: "[不打印]", imageName: "noprint" },
         ...item.effectImageUrls.slice(0, 2).map((url, i) => ({
           type: 2 as const,
           imageUrl: url,

@@ -93,17 +93,27 @@ describe("buildRiinPlaceOrderParams", () => {
   it("uses the [不打印] marker plus effect images when not printing (blank default)", () => {
     const params = buildRiinPlaceOrderParams(makeInput(), 15);
     const images = params.goodsList[0].imageList;
-    expect(images[0]).toMatchObject({ type: 1, imageUrl: "", imageCode: "[不打印]" });
+    // Marker borrows the effect image URL — the API rejects empty imageUrl
+    expect(images[0]).toMatchObject({
+      type: 1,
+      imageUrl: "https://cdn.example.com/effect.jpg",
+      imageCode: "[不打印]",
+    });
     expect(images[1].type).toBe(2);
     expect(params.goodsList[0].printPosition).toBeUndefined();
   });
 
-  it("sends only the [不打印] marker when a blank has no effect images", () => {
+  it("falls back to a placeholder marker URL when a blank has no images at all", () => {
     const input = makeInput();
     input.items[0].effectImageUrls = [];
     const params = buildRiinPlaceOrderParams(input, 15);
     expect(params.goodsList[0].imageList).toEqual([
-      { type: 1, imageUrl: "", imageCode: "[不打印]", imageName: "noprint" },
+      {
+        type: 1,
+        imageUrl: "https://placehold.co/200x200.png",
+        imageCode: "[不打印]",
+        imageName: "noprint",
+      },
     ]);
   });
 
@@ -149,10 +159,11 @@ describe("buildLinmiaoCreateOrderParams", () => {
     expect(params.goodsList[0].pfSubOrderId).toBe("1001-jjspromo-1");
   });
 
-  it("uses the [不打印] marker convention when not printing", () => {
+  it("uses the [不打印] marker convention with a non-empty URL when not printing", () => {
     const params = buildLinmiaoCreateOrderParams(makeInput(), 15);
     const images = params.goodsList[0].imageList;
     expect(images[0]).toMatchObject({ type: 1, imageCode: "[不打印]" });
+    expect(images[0].imageUrl).not.toBe("");
     expect(images[1].type).toBe(2);
   });
 });

@@ -138,7 +138,7 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 
 - 端点：`trade/v1/openapi/` + `create-order` / `update-order` / `update-order-status` / `query-order-status`(入 `{orderIdList}` 出 `data:[{pfOrderId,orderStatus,orderStateStr,childOrderStatus:[{pfSubOrderId,subOrderSatus,subOrderStatusStr}],reason}]`) / `query-order-info`。签名同 riin：header `secretKey` + `sign=md5(报文+"::"+key)`。
 - **imageCode/imageName 不能包含 `-`、`+`、`&`、空格**（riin 同样只允许字母数字下划线英文[]中文）→ 图片编码用 `_` 分隔（已修）。
-- 不打印校验规则：`[不打印]` 打印图只能 1 张；效果图必传、最多 2 张。
+- 不打印校验规则：`[不打印]` 打印图只能 1 张；效果图必传、最多 2 张。**实测（2026-08-09）：占位打印图的 imageUrl 不能为空**（报"图片url不能为空"）——marker 的 URL 优先取效果图，其次打印图，都没有则用 `BLANKS_PLACEHOLDER_IMAGE_URL` 环境变量（默认 placehold.co）。
 - 订单状态枚举（riin 的超集，编号兼容）：1 店铺审核中 / 2 店铺推送中 / 3 反审回电商 / 4 工厂审核 / 5 生产中 / 6 分批排产 / 7 已拣货 / 8 已打印 / 9 已裁切 / 10 已烫印 / 11 已包装 / 12 已发货 / 13 已关闭 / 14 退款中 / 15 已退款 / 20 外部订单 / 负数为分销中间态。共享状态徽章按 orderStatusStr 展示即可。
 
 ## 环境变量（新增）

@@ -81,6 +81,7 @@ export function PushBlanksDialog({
   const [sellerRemark, setSellerRemark] = useState("");
   const [forms, setForms] = useState<Record<string, ItemFormState>>({});
   const [results, setResults] = useState<BlanksGroupResult[] | null>(null);
+  const [pendingAction, setPendingAction] = useState<"place" | "place_and_push" | null>(null);
 
   useEffect(() => {
     if (!open || !data) return;
@@ -173,16 +174,22 @@ export function PushBlanksDialog({
   async function handlePush(mode: "place" | "place_and_push") {
     const items = buildPayload();
     if (!items) return;
+    setPendingAction(mode);
     const res = await pushBlanks(orderId, mode, items, sellerRemark);
+    setPendingAction(null);
     if (!res) return;
     setResults(res.results);
-    const allOk = res.results.every((r) => r.status !== "failed");
-    if (allOk) {
+    const failed = res.results.filter((r) => r.status === "failed");
+    if (failed.length === 0) {
       toast.success(mode === "place" ? "已建单（未推送工厂）" : "已建单并推送工厂");
       onSuccess?.();
       onOpenChange(false);
     } else {
       // Keep the dialog open so per-group errors are visible
+      toast.error(
+        failed.map((r) => `${r.supplierName}: ${r.error ?? "推送失败"}`).join("\n"),
+        { duration: 10000 }
+      );
       mutate();
       onSuccess?.();
     }
@@ -499,7 +506,7 @@ export function PushBlanksDialog({
             {groups.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" onClick={() => handlePush("place")} disabled={busy}>
-                  {busy ? (
+                  {pendingAction === "place" ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Factory className="h-4 w-4 mr-2" />
@@ -507,7 +514,7 @@ export function PushBlanksDialog({
                   仅建单
                 </Button>
                 <Button onClick={() => handlePush("place_and_push")} disabled={busy}>
-                  {busy ? (
+                  {pendingAction === "place_and_push" ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4 mr-2" />

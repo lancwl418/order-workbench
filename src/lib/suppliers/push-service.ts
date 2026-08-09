@@ -279,6 +279,8 @@ export async function pushBlanksForOrder(opts: {
       const adapter = getAdapter(supplier);
       const result = await adapter.placeOrder(orderInput, { push: mode === "place_and_push" });
 
+      // Remote DB + several sequential writes — the default 5s interactive
+      // transaction timeout is too tight.
       await prisma.$transaction(async (tx) => {
         await tx.supplierPush.create({
           data: {
@@ -320,7 +322,7 @@ export async function pushBlanksForOrder(opts: {
             metadata: { platformOid, supplierKey: supplier.key, traceId: result.traceId, itemIds: base.itemIds },
           },
         });
-      });
+      }, { maxWait: 10_000, timeout: 30_000 });
 
       results.push({
         ...base,
@@ -391,7 +393,7 @@ export async function pushPlacedSupplierPush(
       },
     });
     return row;
-  });
+  }, { maxWait: 10_000, timeout: 30_000 });
 
   if (failure) return { push: updated, error: failure.reason, status: 502 };
   return { push: updated };
