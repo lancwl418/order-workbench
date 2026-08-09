@@ -92,7 +92,7 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 2. 部署后跑一次 `npx prisma db seed`（写入 3 条 Supplier + 回填历史 SkuMapping 到 linmiao）。
 3. 跑一次 `node scripts/backfill-item-vendor.mjs`（回填历史订单 item 的 vendor）。
 4. 在 `/blanks/settings` 配置 vendor→供应商映射。
-5. Render Cron Job：定时 `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/sync-supplier-status`（建议每 30 分钟）。
+5. ~~Render Cron Job~~ → **已改为应用内置定时**（`src/instrumentation.ts`）：服务启动后每 2 小时自动同步（可用 `SUPPLIER_STATUS_SYNC_INTERVAL_MINUTES` 调整、`SUPPLIER_STATUS_SYNC_DISABLED=1` 关闭）；终态（已发货/已关闭/已退款）自动跳过，重点捕捉反审。`/api/cron/sync-supplier-status`（CRON_SECRET）保留作为外部触发备用。
 6. 和 riin 确认纯白板不打印时 imageList 的正确传法（当前实现：只传效果图）。
 
 ---
