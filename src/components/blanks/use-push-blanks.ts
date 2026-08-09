@@ -98,14 +98,20 @@ export function usePushBlanks() {
     orderId: string,
     mode: "place" | "place_and_push",
     items: PushBlanksItemPayload[],
-    sellerRemark?: string
+    sellerRemark?: string,
+    replace?: boolean
   ): Promise<{ results: BlanksGroupResult[] } | null> {
     setBusy(true);
     try {
       const res = await fetch(`/api/orders/${orderId}/push-blanks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, items, sellerRemark: sellerRemark || undefined }),
+        body: JSON.stringify({
+          mode,
+          items,
+          sellerRemark: sellerRemark || undefined,
+          replace: replace || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok && !Array.isArray(data.results)) {

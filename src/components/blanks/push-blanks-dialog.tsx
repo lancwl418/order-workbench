@@ -173,11 +173,18 @@ export function PushBlanksDialog({
     }));
   }
 
+  // Re-place mode: any selected item that already has a supplier order means
+  // the group will be placed again under a sequential order number.
+  const isReplacing = useMemo(() => {
+    if (!data) return false;
+    return data.items.some((item) => item.supplierOrderNo && forms[item.id]?.selected);
+  }, [data, forms]);
+
   async function handlePush(mode: "place" | "place_and_push") {
     const items = buildPayload();
     if (!items) return;
     setPendingAction(mode);
-    const res = await pushBlanks(orderId, mode, items, sellerRemark);
+    const res = await pushBlanks(orderId, mode, items, sellerRemark, isReplacing);
     setPendingAction(null);
     if (!res) return;
     setResults(res.results);
@@ -357,7 +364,6 @@ export function PushBlanksDialog({
                           <div className="flex items-start gap-3">
                             <Checkbox
                               checked={f.selected}
-                              disabled={alreadyPlaced}
                               onCheckedChange={(v) => updateForm(item.id, { selected: !!v })}
                               className="mt-1"
                             />
@@ -372,7 +378,7 @@ export function PushBlanksDialog({
                                 )}
                                 {alreadyPlaced && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                                    已建单 {item.supplierOrderNo}
+                                    已建单 {item.supplierOrderNo}（勾选可重新建单）
                                   </span>
                                 )}
                               </div>
@@ -383,7 +389,7 @@ export function PushBlanksDialog({
                             </div>
                           </div>
 
-                          {f.selected && !alreadyPlaced && (
+                          {f.selected && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pl-7">
                               <div className="col-span-2">
                                 <label className="text-[11px] text-muted-foreground">Factory SKU *</label>
@@ -515,6 +521,12 @@ export function PushBlanksDialog({
             )}
 
             {/* Actions: place only vs place + push */}
+            {isReplacing && (
+              <div className="border border-amber-300 bg-amber-50 rounded-lg p-2.5 text-xs text-amber-800">
+                包含已建单的 item——将以<strong>顺延单号重新建单</strong>（原单号后加 -1 / -2 …）。
+                原供应商订单不会自动作废，请到供应商后台关闭。
+              </div>
+            )}
             {groups.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 <Button onClick={() => handlePush("place")} disabled={busy}>

@@ -206,8 +206,11 @@ export async function pushBlanksForOrder(opts: {
   items: BlanksItemInput[];
   sellerRemark?: string;
   userId?: string;
+  /** Allow placing again for a supplier that already has a push — the new
+   * order gets a sequential suffix (#3940-linmiao-1, -2, …). */
+  replace?: boolean;
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
-  const { orderId, mode, items, sellerRemark, userId } = opts;
+  const { orderId, mode, items, sellerRemark, userId, replace } = opts;
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -271,7 +274,38 @@ export async function pushBlanksForOrder(opts: {
 
   for (const group of groups) {
     const { supplier } = group;
-    const platformOid = `${order.shopifyOrderNumber}-${supplier.key}`;
+    const baseOid = `${order.shopifyOrderNumber}-${supplier.key}`;
+
+    // Sequential platformOid: first place uses the base, re-places append
+    // -1, -2, … (only when the caller explicitly asked to replace).
+    const priorCount = await prisma.supplierPush.count({
+      where: { orderId: order.id, supplierId: supplier.id },
+    });
+    if (priorCount > 0 && !replace) {
+      const prior = await prisma.supplierPush.findFirst({
+        where: { orderId: order.id, supplierId: supplier.id },
+        orderBy: { createdAt: "desc" },
+      });
+      results.push({
+        supplierId: supplier.id,
+        supplierKey: supplier.key,
+        supplierName: supplier.name,
+        itemIds: group.items.map((i) => i.id),
+        platformOid: prior?.platformOid ?? baseOid,
+        status: "failed",
+        error: prior?.pushedAt
+          ? "Already placed and pushed to this supplier"
+          : "Already placed at this supplier — use re-push, or re-place with a new sequential order number",
+      });
+      continue;
+    }
+    let suffix = priorCount;
+    let platformOid = suffix === 0 ? baseOid : `${baseOid}-${suffix}`;
+    while (await prisma.supplierPush.findUnique({ where: { platformOid } })) {
+      suffix += 1;
+      platformOid = `${baseOid}-${suffix}`;
+    }
+
     const itemInputs = await Promise.all(
       group.items.map(async (item) => {
         const input = toSupplierItemInput(item, inputByItemId.get(item.id)!);
@@ -287,19 +321,6 @@ export async function pushBlanksForOrder(opts: {
       supplierName: supplier.name,
       itemIds: group.items.map((i) => i.id),
     };
-
-    const existing = await prisma.supplierPush.findUnique({ where: { platformOid } });
-    if (existing) {
-      results.push({
-        ...base,
-        platformOid,
-        status: "failed",
-        error: existing.pushedAt
-          ? "Already placed and pushed to this supplier"
-          : "Already placed at this supplier — use re-push instead of placing again",
-      });
-      continue;
-    }
 
     const orderInput: SupplierOrderInput = {
       platformOid,
