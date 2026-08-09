@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHash } from "crypto";
 import { buildRiinPlaceOrderParams } from "@/lib/suppliers/riin";
 import { buildLinmiaoCreateOrderParams } from "@/lib/suppliers/linmiao";
-import { formatOrderTime, normalizeVendor } from "@/lib/suppliers/types";
+import { deriveStyleCode, formatOrderTime, normalizeVendor } from "@/lib/suppliers/types";
 import type { SupplierOrderInput } from "@/lib/suppliers/types";
 
 function makeInput(overrides: Partial<SupplierOrderInput> = {}): SupplierOrderInput {
@@ -61,6 +61,27 @@ describe("formatOrderTime", () => {
 describe("normalizeVendor", () => {
   it("trims and lowercases", () => {
     expect(normalizeVendor("  JJSPROMO ")).toBe("jjspromo");
+  });
+});
+
+describe("deriveStyleCode", () => {
+  it("strips a trailing color-size suffix from the SKU", () => {
+    expect(deriveStyleCode("T001-Dark Blue-M", "Dark Blue", "M")).toBe("T001");
+  });
+
+  it("strips size-color and single-token suffixes", () => {
+    expect(deriveStyleCode("T001-M-Dark Blue", "Dark Blue", "M")).toBe("T001");
+    expect(deriveStyleCode("T001-M", "", "M")).toBe("T001");
+    expect(deriveStyleCode("T001-Black", "Black", "")).toBe("T001");
+  });
+
+  it("is case-insensitive and leaves non-matching SKUs untouched", () => {
+    expect(deriveStyleCode("T001-dark blue-m", "Dark Blue", "M")).toBe("T001");
+    expect(deriveStyleCode("DG004", "BL01", "XL")).toBe("DG004");
+  });
+
+  it("never returns an empty style code", () => {
+    expect(deriveStyleCode("-M", "", "M")).toBe("-M");
   });
 });
 

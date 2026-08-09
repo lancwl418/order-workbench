@@ -112,6 +112,30 @@ export function normalizeVendor(vendor: string): string {
 }
 
 /**
+ * Factories compose their product code as styleCode-colorCode-sizeCode. When
+ * no explicit style code is given we fall back to the factory SKU — but SKUs
+ * like "T001-Dark Blue-M" already end in color/size, which the factory would
+ * duplicate ("T001-Dark Blue-M-Dark Blue-M"). Strip a trailing color/size
+ * suffix so the fallback is just the style part.
+ */
+export function deriveStyleCode(factorySku: string, colorCode: string, sizeCode: string): string {
+  const sku = factorySku.trim();
+  const lower = sku.toLowerCase();
+  const candidates = [
+    colorCode && sizeCode ? `-${colorCode}-${sizeCode}` : null,
+    colorCode && sizeCode ? `-${sizeCode}-${colorCode}` : null,
+    sizeCode ? `-${sizeCode}` : null,
+    colorCode ? `-${colorCode}` : null,
+  ].filter((s): s is string => !!s);
+  for (const suffix of candidates) {
+    if (lower.endsWith(suffix.toLowerCase()) && sku.length > suffix.length) {
+      return sku.slice(0, sku.length - suffix.length);
+    }
+  }
+  return sku;
+}
+
+/**
  * The "[不打印]" marker still needs a non-empty, fetchable imageUrl (linmiao
  * rejects empty ones with "图片url不能为空"). Prefer the item's own images;
  * fall back to a configurable placeholder.

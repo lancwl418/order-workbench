@@ -404,7 +404,7 @@ export function PushBlanksDialog({
                                 <Input
                                   value={f.styleCode}
                                   onChange={(e) => updateForm(item.id, { styleCode: e.target.value })}
-                                  placeholder="默认用 Factory SKU"
+                                  placeholder="留空自动取 SKU 去掉颜色/尺码"
                                   className="h-8 text-sm"
                                 />
                               </div>

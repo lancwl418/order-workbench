@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getVariantImageUrl } from "@/lib/shopify/product-images";
 import { getAdapter } from "./registry";
 import {
+  deriveStyleCode,
   normalizeVendor,
   REJECTED_ORDER_STATUS,
   TERMINAL_ORDER_STATUSES,
@@ -118,6 +119,9 @@ export async function resolveSupplierGroups(items: OrderItem[]): Promise<{
 }
 
 function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrderItemInput {
+  const sizeCode = m.sizeCode || "";
+  const colorCode = m.colorCode || "";
+  const styleCode = m.styleCode || deriveStyleCode(m.factorySku, colorCode, sizeCode);
   return {
     orderItemId: item.id,
     title: item.title,
@@ -125,12 +129,12 @@ function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrder
     price: Number(item.price),
     ourSku: item.sku,
     factorySku: m.factorySku,
-    sizeCode: m.sizeCode || "",
-    sizeName: m.sizeName || m.sizeCode || "",
-    colorCode: m.colorCode || "",
-    colorName: m.colorName || m.colorCode || "",
-    styleCode: m.styleCode || m.factorySku,
-    styleName: m.styleName || m.styleCode || m.factorySku,
+    sizeCode,
+    sizeName: m.sizeName || sizeCode,
+    colorCode,
+    colorName: m.colorName || colorCode,
+    styleCode,
+    styleName: m.styleName || styleCode,
     craftType: m.craftType ?? 1,
     shouldPrint: m.shouldPrint ?? false,
     printPosition: m.printPosition,
