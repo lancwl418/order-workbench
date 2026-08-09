@@ -103,6 +103,10 @@ export function BlanksPage() {
     if (await refreshStatus()) mutate();
   }
 
+  async function handleRefreshOrder(orderId: string) {
+    if (await refreshStatus(orderId)) mutate();
+  }
+
   async function handleRePush(pushId: string) {
     if (await rePush(pushId)) mutate();
   }
@@ -336,14 +340,28 @@ export function BlanksPage() {
                     : "—"}
                 </TableCell>
                 <TableCell className="align-top text-right">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setDialogOrderId(order.id)}
-                  >
-                    <Factory className="h-3.5 w-3.5 mr-1" />
-                    推送
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    {order.supplierPushes.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
+                        title="刷新该订单状态"
+                        disabled={busy}
+                        onClick={() => handleRefreshOrder(order.id)}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDialogOrderId(order.id)}
+                    >
+                      <Factory className="h-3.5 w-3.5 mr-1" />
+                      推送
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

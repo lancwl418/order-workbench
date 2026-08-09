@@ -35,7 +35,7 @@ import { MentionInput } from "@/components/cs/mention-input";
 import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import { PushBlanksDialog } from "@/components/blanks/push-blanks-dialog";
 import { SupplierPushStatusBadge } from "@/components/blanks/supplier-push-status-badge";
-import { useBlanksData } from "@/components/blanks/use-push-blanks";
+import { useBlanksData, usePushBlanks } from "@/components/blanks/use-push-blanks";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
 import { getFulfillmentGroups } from "@/lib/orders/groups";
 import {
@@ -139,6 +139,7 @@ export default function OrderDetailPage() {
   const { data: blanksData, mutate: mutateBlanks } = useBlanksData(
     order && order.orderItems.some((i) => i.itemType === "other") ? order.id : null
   );
+  const { busy: blanksBusy, refreshStatus: refreshBlanksStatus } = usePushBlanks();
 
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -665,6 +666,17 @@ export default function OrderDetailPage() {
                     <SupplierPushStatusBadge push={p} />
                   </div>
                 ))}
+                {(blanksData?.pushes?.length ?? 0) > 0 && (
+                  <button
+                    className="text-[11px] text-primary hover:underline mt-1 disabled:opacity-50"
+                    disabled={blanksBusy}
+                    onClick={async () => {
+                      if (await refreshBlanksStatus(order.id)) mutateBlanks();
+                    }}
+                  >
+                    {blanksBusy ? "刷新中…" : "刷新工厂状态"}
+                  </button>
+                )}
                 {order.factoryPushedAt && (
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Last pushed {timeAgo(order.factoryPushedAt)}
