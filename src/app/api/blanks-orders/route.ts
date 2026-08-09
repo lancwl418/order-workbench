@@ -49,15 +49,20 @@ export async function GET(req: NextRequest) {
       take: pageSize,
       select: {
         id: true,
+        shopifyOrderId: true,
         shopifyOrderNumber: true,
         customerName: true,
         internalStatus: true,
+        labelStatus: true,
+        trackingNumber: true,
+        carrier: true,
         shopifyCreatedAt: true,
         orderItems: {
           where: { itemType: "other" },
           select: {
             id: true,
             title: true,
+            variantTitle: true,
             sku: true,
             quantity: true,
             vendor: true,
