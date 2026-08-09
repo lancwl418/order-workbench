@@ -224,15 +224,15 @@ export async function pushBlanksForOrder(opts: {
   }
 
   // Validate images up front so one group doesn't fail after another placed.
+  // Effect images are optional for no-print blanks — the "[不打印]" marker is
+  // always sent; if a factory insists on an effect image the per-group error
+  // surfaces in the dialog and the group can be retried with one.
   for (const group of groups) {
     for (const item of group.items) {
       const m = inputByItemId.get(item.id)!;
       const input = toSupplierItemInput(item, m);
       if (input.shouldPrint && input.printImageUrls.length === 0) {
         return { results: [], error: `Item "${item.title}" is set to print but has no print image`, status: 400 };
-      }
-      if (!input.shouldPrint && input.effectImageUrls.length === 0) {
-        return { results: [], error: `Item "${item.title}" needs at least one effect image (效果图) when not printing`, status: 400 };
       }
     }
   }
