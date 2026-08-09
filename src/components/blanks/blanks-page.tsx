@@ -5,16 +5,26 @@ import useSWR from "swr";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
+  ChevronDown,
+  ExternalLink,
   Factory,
   Loader2,
   RefreshCw,
   Send,
   Settings,
   Shirt,
+  Tag,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { StatusBadge } from "@/components/orders/status-badge";
+import { OmsPushDialog } from "@/components/orders/oms-push-dialog";
 import {
   Select,
   SelectContent,
@@ -38,13 +48,18 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface BlanksOrderRow {
   id: string;
+  shopifyOrderId: string | null;
   shopifyOrderNumber: string | null;
   customerName: string | null;
   internalStatus: string;
+  labelStatus: string;
+  trackingNumber: string | null;
+  carrier: string | null;
   shopifyCreatedAt: string | null;
   orderItems: {
     id: string;
     title: string;
+    variantTitle: string | null;
     sku: string | null;
     quantity: number;
     vendor: string | null;
@@ -71,6 +86,7 @@ export function BlanksPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [dialogOrderId, setDialogOrderId] = useState<string | null>(null);
+  const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
 
   const { busy, rePush, refreshStatus } = usePushBlanks();
 
@@ -163,8 +179,10 @@ export function BlanksPage() {
           <TableHeader>
             <TableRow>
               <TableHead>订单</TableHead>
+              <TableHead>订单状态</TableHead>
               <TableHead>Blank Items</TableHead>
               <TableHead>供应商 / 状态</TableHead>
+              <TableHead>Label / 物流</TableHead>
               <TableHead>状态同步</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
@@ -172,14 +190,14 @@ export function BlanksPage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">
+                <TableCell colSpan={7} className="text-center py-10">
                   <Loader2 className="h-5 w-5 animate-spin inline text-muted-foreground" />
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && (data?.orders ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-sm text-muted-foreground">
                   没有符合条件的订单
                 </TableCell>
               </TableRow>
@@ -201,10 +219,16 @@ export function BlanksPage() {
                   </div>
                 </TableCell>
                 <TableCell className="align-top">
+                  <StatusBadge status={order.internalStatus} className="text-[11px]" />
+                </TableCell>
+                <TableCell className="align-top">
                   <div className="space-y-0.5">
                     {order.orderItems.map((item) => (
                       <div key={item.id} className="text-xs flex items-center gap-1.5 flex-wrap">
                         <span className="truncate max-w-[220px]">{item.title}</span>
+                        {item.variantTitle && (
+                          <span className="font-medium text-purple-700">{item.variantTitle}</span>
+                        )}
                         <span className="text-muted-foreground">× {item.quantity}</span>
                         {item.vendor && (
                           <Badge variant="outline" className="text-[10px] px-1 py-0">
@@ -244,6 +268,57 @@ export function BlanksPage() {
                         </div>
                       ))}
                     </div>
+                  )}
+                </TableCell>
+                <TableCell className="align-top">
+                  {order.trackingNumber ? (
+                    <div className="space-y-0.5">
+                      {order.carrier && (
+                        <span className="text-xs font-medium text-muted-foreground block">
+                          {order.carrier}
+                        </span>
+                      )}
+                      <span className="text-xs font-mono block max-w-[140px] truncate">
+                        {order.trackingNumber}
+                      </span>
+                    </div>
+                  ) : (
+                    <Popover>
+                      <PopoverTrigger
+                        render={
+                          <Button variant="outline" size="sm" className="gap-1 text-xs h-7">
+                            <Tag className="h-3 w-3" />
+                            创建 Label
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        }
+                      />
+                      <PopoverContent className="w-44 p-1" align="start">
+                        <button
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                          onClick={() => {
+                            const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
+                            if (domain && order.shopifyOrderId) {
+                              window.open(
+                                `https://${domain}/admin/orders/${order.shopifyOrderId}`,
+                                "_blank"
+                              );
+                            }
+                          }}
+                          disabled={!process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || !order.shopifyOrderId}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Shopify
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+                          onClick={() => setOmsPushOrderId(order.id)}
+                        >
+                          <Tag className="h-3.5 w-3.5" />
+                          OMS
+                        </button>
+                      </PopoverContent>
+                    </Popover>
                   )}
                 </TableCell>
                 <TableCell className="align-top text-xs text-muted-foreground">
@@ -308,6 +383,21 @@ export function BlanksPage() {
             if (!open) setDialogOrderId(null);
           }}
           onSuccess={() => mutate()}
+        />
+      )}
+
+      {/* OMS label dialog — same shared component as the orders page */}
+      {omsPushOrderId && (
+        <OmsPushDialog
+          orderId={omsPushOrderId}
+          open={!!omsPushOrderId}
+          onOpenChange={(open) => {
+            if (!open) setOmsPushOrderId(null);
+          }}
+          onSuccess={() => {
+            setOmsPushOrderId(null);
+            mutate();
+          }}
         />
       )}
     </div>
