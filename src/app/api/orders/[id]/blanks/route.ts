@@ -23,7 +23,7 @@ export async function GET(
     where: { id: orderId },
     include: {
       orderItems: true,
-      supplierPushes: { include: { supplier: { select: { key: true, name: true, adapterType: true } } } },
+      supplierPushes: { include: { supplier: { select: { key: true, name: true, adapterType: true, consoleUrl: true } } } },
     },
   });
   if (!order) {
@@ -97,6 +97,7 @@ export async function GET(
       supplierKey: p.supplier.key,
       supplierName: p.supplier.name,
       supplierAdapterType: p.supplier.adapterType,
+      supplierConsoleUrl: p.supplier.consoleUrl,
       itemIds: p.itemIds,
       placedAt: p.placedAt,
       pushedAt: p.pushedAt,

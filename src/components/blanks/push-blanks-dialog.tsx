@@ -22,6 +22,7 @@ import {
 import { Loader2, Factory, Send, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SupplierPushStatusBadge } from "./supplier-push-status-badge";
+import { SupplierOrderLink } from "./supplier-order-link";
 import {
   useBlanksData,
   usePushBlanks,
@@ -250,7 +251,7 @@ export function PushBlanksDialog({
                 {data.pushes.map((p) => (
                   <div key={p.id} className="flex items-center gap-2 text-xs flex-wrap">
                     <span className="font-medium">{p.supplierName}</span>
-                    <span className="font-mono text-muted-foreground">{p.platformOid}</span>
+                    <SupplierOrderLink platformOid={p.platformOid} consoleUrl={p.supplierConsoleUrl} />
                     <SupplierPushStatusBadge push={p} />
                     {!p.pushedAt &&
                       (p.supplierAdapterType === "linmiao" ? (

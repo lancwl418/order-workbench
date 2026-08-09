@@ -38,6 +38,7 @@ export interface BlanksPush {
   supplierKey: string;
   supplierName: string;
   supplierAdapterType?: string;
+  supplierConsoleUrl?: string | null;
   itemIds: string[];
   placedAt: string;
   pushedAt: string | null;

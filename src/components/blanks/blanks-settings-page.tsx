@@ -40,6 +40,7 @@ interface Supplier {
   name: string;
   adapterType: string;
   baseUrl: string | null;
+  consoleUrl: string | null;
   secretKeyEnv: string;
   platformType: number;
   enabled: boolean;
@@ -67,6 +68,7 @@ export function BlanksSettingsPage() {
     secretKeyEnv: "",
   });
   const [newMapping, setNewMapping] = useState({ vendor: "", supplierId: "" });
+  const [consoleDrafts, setConsoleDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const suppliers = suppliersSwr.data?.suppliers ?? [];
@@ -107,6 +109,22 @@ export function BlanksSettingsPage() {
       suppliersSwr.mutate();
     } else {
       toast.error("更新失败");
+    }
+  }
+
+  async function saveConsoleUrl(s: Supplier) {
+    const value = (consoleDrafts[s.id] ?? s.consoleUrl ?? "").trim();
+    const res = await fetch(`/api/suppliers/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ consoleUrl: value || null }),
+    });
+    if (res.ok) {
+      toast.success(`${s.name} 后台链接已保存`);
+      suppliersSwr.mutate();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || "保存失败（需为完整 URL）");
     }
   }
 
@@ -172,6 +190,7 @@ export function BlanksSettingsPage() {
                 <TableHead>名称</TableHead>
                 <TableHead>协议</TableHead>
                 <TableHead>密钥环境变量</TableHead>
+                <TableHead>后台链接</TableHead>
                 <TableHead>映射数</TableHead>
                 <TableHead>启用</TableHead>
               </TableRow>
@@ -197,6 +216,29 @@ export function BlanksSettingsPage() {
                         未配置
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={consoleDrafts[s.id] ?? s.consoleUrl ?? ""}
+                        onChange={(e) =>
+                          setConsoleDrafts((d) => ({ ...d, [s.id]: e.target.value }))
+                        }
+                        placeholder="https://…"
+                        className="h-7 text-xs w-44"
+                      />
+                      {consoleDrafts[s.id] !== undefined &&
+                        consoleDrafts[s.id] !== (s.consoleUrl ?? "") && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs px-2"
+                            onClick={() => saveConsoleUrl(s)}
+                          >
+                            保存
+                          </Button>
+                        )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs">{s._count.vendorMappings}</TableCell>
                   <TableCell>
