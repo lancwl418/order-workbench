@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   Dialog,
@@ -77,6 +78,7 @@ export function PushBlanksDialog({
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }) {
+  const t = useTranslations("blanks");
   const { data, isLoading, mutate } = useBlanksData(orderId, open);
   const { busy, pushBlanks, rePush, refreshStatus } = usePushBlanks();
   const [sellerRemark, setSellerRemark] = useState("");
@@ -143,16 +145,16 @@ export function PushBlanksDialog({
   function buildPayload(): PushBlanksItemPayload[] | null {
     const selected = Object.values(forms).filter((f) => f.selected);
     if (selected.length === 0) {
-      toast.error("请至少选择一个 item / Select at least one item");
+      toast.error(t("selectAtLeastOne"));
       return null;
     }
     for (const f of selected) {
       if (!f.factorySku.trim()) {
-        toast.error("每个选中的 item 都需要 Factory SKU");
+        toast.error(t("needFactorySku"));
         return null;
       }
       if (f.shouldPrint && splitUrls(f.imageUrlsText).length === 0) {
-        toast.error("打印的 item 需要打印图 URL");
+        toast.error(t("needPrintImage"));
         return null;
       }
     }
@@ -190,13 +192,13 @@ export function PushBlanksDialog({
     setResults(res.results);
     const failed = res.results.filter((r) => r.status === "failed");
     if (failed.length === 0) {
-      toast.success(mode === "place" ? "已建单（未推送工厂）" : "已建单并推送工厂");
+      toast.success(mode === "place" ? t("toastPlaced") : t("toastPlacedPushed"));
       onSuccess?.();
       onOpenChange(false);
     } else {
       // Keep the dialog open so per-group errors are visible
       toast.error(
-        failed.map((r) => `${r.supplierName}: ${r.error ?? "推送失败"}`).join("\n"),
+        failed.map((r) => `${r.supplierName}: ${r.error ?? t("resultPlacedPushFailed", { error: "" })}`).join("\n"),
         { duration: 10000 }
       );
       mutate();
@@ -226,10 +228,10 @@ export function PushBlanksDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Factory className="h-5 w-5" />
-            推送 Blanks {data?.orderNumber ? `· #${data.orderNumber}` : ""}
+            {t("dialogTitle")} {data?.orderNumber ? `· #${data.orderNumber}` : ""}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            按供应商分组推送白板订单。默认不打印、工艺白墨烫画。
+            {t("dialogDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -243,7 +245,7 @@ export function PushBlanksDialog({
             {data.pushes.length > 0 && (
               <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium">已有推送记录</span>
+                  <span className="text-xs font-medium">{t("existingPushes")}</span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -252,7 +254,7 @@ export function PushBlanksDialog({
                     onClick={handleRefreshStatus}
                   >
                     <RefreshCw className="h-3 w-3 mr-1" />
-                    刷新状态
+                    {t("refreshStatus")}
                   </Button>
                 </div>
                 {data.pushes.map((p) => (
@@ -263,7 +265,7 @@ export function PushBlanksDialog({
                     {!p.pushedAt &&
                       (p.supplierAdapterType === "linmiao" ? (
                         <span className="text-amber-700">
-                          待上传 label → linmiao 后台推送
+                          {t("linmiaoAwaitingLabel")}
                         </span>
                       ) : (
                         <Button
@@ -274,7 +276,7 @@ export function PushBlanksDialog({
                           onClick={() => handleRePush(p.id)}
                         >
                           <Send className="h-3 w-3 mr-1" />
-                          推送工厂
+                          {t("pushToFactory")}
                         </Button>
                       ))}
                     {p.lastError && (
@@ -290,18 +292,18 @@ export function PushBlanksDialog({
               <div className="border border-amber-300 bg-amber-50 rounded-lg p-3 text-xs space-y-1">
                 <div className="flex items-center gap-1.5 font-medium text-amber-800">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  以下 item 无法路由到供应商，需先配置 vendor 映射：
+                  {t("unroutableTitle")}
                 </div>
                 {unroutable.map((item) => (
                   <div key={item.id} className="text-amber-800">
                     · {item.title} —{" "}
                     {item.unroutableReason === "no_vendor"
-                      ? "商品没有 vendor"
-                      : `vendor "${item.vendor}" 未映射`}
+                      ? t("noVendor")
+                      : t("vendorUnmapped", { vendor: item.vendor ?? "" })}
                   </div>
                 ))}
                 <Link href="/blanks/settings" className="text-amber-900 underline">
-                  去配置供应商 / vendor 映射 →
+                  {t("goConfigure")}
                 </Link>
               </div>
             )}
@@ -309,12 +311,12 @@ export function PushBlanksDialog({
             {/* Seller remark */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">
-                卖家备注（可选）
+                {t("sellerRemark")}
               </label>
               <Input
                 value={sellerRemark}
                 onChange={(e) => setSellerRemark(e.target.value)}
-                placeholder="Note for factory"
+                placeholder={t("remarkPlaceholder")}
                 className="h-9"
               />
             </div>
@@ -330,11 +332,11 @@ export function PushBlanksDialog({
                     <Factory className="h-3.5 w-3.5" />
                     <span className="text-sm font-medium">{group.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {group.items.length} item{group.items.length > 1 ? "s" : ""}
+                      {t("itemCount", { count: group.items.length })}
                     </span>
                     {group.adapterType === "linmiao" && (
                       <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                        建单后需上传 label 到订单才能推送（linmiao 后台）
+                        {t("linmiaoGroupNote")}
                       </span>
                     )}
                     {groupResult && (
@@ -345,11 +347,11 @@ export function PushBlanksDialog({
                             : "text-xs text-green-600"
                         }
                       >
-                        {groupResult.status === "pushed" && "✓ 已建单并推送"}
+                        {groupResult.status === "pushed" && t("resultPushed")}
                         {groupResult.status === "placed" &&
                           (groupResult.pushError
-                            ? `已建单，推送失败：${groupResult.pushError}`
-                            : "✓ 已建单（未推送）")}
+                            ? t("resultPlacedPushFailed", { error: groupResult.pushError })
+                            : t("resultPlaced"))}
                         {groupResult.status === "failed" && `✗ ${groupResult.error}`}
                       </span>
                     )}
@@ -378,13 +380,13 @@ export function PushBlanksDialog({
                                 )}
                                 {alreadyPlaced && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                                    已建单 {item.supplierOrderNo}（勾选可重新建单）
+                                    {t("alreadyPlacedBadge", { oid: item.supplierOrderNo ?? "" })}
                                   </span>
                                 )}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
                                 {item.variantTitle && <span>{item.variantTitle} · </span>}
-                                <span>Our SKU: {item.sku || "—"}</span>
+                                <span>{t("ourSku")} {item.sku || "—"}</span>
                               </div>
                             </div>
                           </div>
@@ -392,7 +394,7 @@ export function PushBlanksDialog({
                           {f.selected && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pl-7">
                               <div className="col-span-2">
-                                <label className="text-[11px] text-muted-foreground">Factory SKU *</label>
+                                <label className="text-[11px] text-muted-foreground">{t("factorySku")}</label>
                                 <Input
                                   value={f.factorySku}
                                   onChange={(e) => updateForm(item.id, { factorySku: e.target.value })}
@@ -400,7 +402,7 @@ export function PushBlanksDialog({
                                 />
                               </div>
                               <div>
-                                <label className="text-[11px] text-muted-foreground">Size</label>
+                                <label className="text-[11px] text-muted-foreground">{t("size")}</label>
                                 <Input
                                   value={f.sizeCode}
                                   onChange={(e) => updateForm(item.id, { sizeCode: e.target.value })}
@@ -409,7 +411,7 @@ export function PushBlanksDialog({
                                 />
                               </div>
                               <div>
-                                <label className="text-[11px] text-muted-foreground">Color</label>
+                                <label className="text-[11px] text-muted-foreground">{t("color")}</label>
                                 <Input
                                   value={f.colorCode}
                                   onChange={(e) => updateForm(item.id, { colorCode: e.target.value })}
@@ -418,16 +420,16 @@ export function PushBlanksDialog({
                                 />
                               </div>
                               <div className="md:col-span-2">
-                                <label className="text-[11px] text-muted-foreground">Style (款号)</label>
+                                <label className="text-[11px] text-muted-foreground">{t("style")}</label>
                                 <Input
                                   value={f.styleCode}
                                   onChange={(e) => updateForm(item.id, { styleCode: e.target.value })}
-                                  placeholder="留空自动取 SKU 去掉颜色/尺码"
+                                  placeholder={t("stylePlaceholder")}
                                   className="h-8 text-sm"
                                 />
                               </div>
                               <div className="md:col-span-2">
-                                <label className="text-[11px] text-muted-foreground">工艺</label>
+                                <label className="text-[11px] text-muted-foreground">{t("craft")}</label>
                                 <Select
                                   value={String(f.craftType)}
                                   onValueChange={(v) =>
@@ -438,8 +440,8 @@ export function PushBlanksDialog({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="1">白墨烫画（默认）</SelectItem>
-                                    <SelectItem value="2">白墨直喷</SelectItem>
+                                    <SelectItem value="1">{t("craftHeat")}</SelectItem>
+                                    <SelectItem value="2">{t("craftDtg")}</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -449,13 +451,13 @@ export function PushBlanksDialog({
                                   checked={f.shouldPrint}
                                   onCheckedChange={(v) => updateForm(item.id, { shouldPrint: !!v })}
                                 />
-                                <span className="text-xs">打印 Print（默认不打印）</span>
+                                <span className="text-xs">{t("printToggle")}</span>
                               </div>
 
                               {f.shouldPrint ? (
                                 <>
                                   <div className="md:col-span-2">
-                                    <label className="text-[11px] text-muted-foreground">打印位置</label>
+                                    <label className="text-[11px] text-muted-foreground">{t("printPosition")}</label>
                                     <Select
                                       value={f.printPosition}
                                       onValueChange={(v) =>
@@ -466,15 +468,15 @@ export function PushBlanksDialog({
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="1">前 Front</SelectItem>
-                                        <SelectItem value="2">后 Back</SelectItem>
-                                        <SelectItem value="1,2">前后 Both</SelectItem>
+                                        <SelectItem value="1">{t("posFront")}</SelectItem>
+                                        <SelectItem value="2">{t("posBack")}</SelectItem>
+                                        <SelectItem value="1,2">{t("posBoth")}</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
                                   <div className="md:col-span-2">
                                     <label className="text-[11px] text-muted-foreground">
-                                      打印图 URLs（png，逗号分隔）*
+                                      {t("printImages")}
                                     </label>
                                     <Input
                                       value={f.imageUrlsText}
@@ -489,18 +491,18 @@ export function PushBlanksDialog({
                               ) : (
                                 <div className="md:col-span-4">
                                   <label className="text-[11px] text-muted-foreground">
-                                    效果图 URLs（可选，最多 2 张，逗号分隔）
+                                    {t("effectImages")}
                                   </label>
                                   <Input
                                     value={f.effectImageUrlsText}
                                     onChange={(e) =>
                                       updateForm(item.id, { effectImageUrlsText: e.target.value })
                                     }
-                                    placeholder="https://xxx.com/image.jpg（可留空）"
+                                    placeholder={t("effectPlaceholder")}
                                     className="h-8 text-sm"
                                   />
                                   <p className="text-[10px] text-muted-foreground mt-1">
-                                    留空时自动使用 Shopify 产品/variant 图作为效果图（抓不到则用占位图）
+                                    {t("effectHint")}
                                   </p>
                                 </div>
                               )}
@@ -516,15 +518,14 @@ export function PushBlanksDialog({
 
             {groups.length === 0 && unroutable.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                该订单没有 blank items
+                {t("noBlanks")}
               </p>
             )}
 
             {/* Actions: place only vs place + push */}
             {isReplacing && (
               <div className="border border-amber-300 bg-amber-50 rounded-lg p-2.5 text-xs text-amber-800">
-                包含已建单的 item——将以<strong>顺延单号重新建单</strong>（原单号后加 -1 / -2 …）。
-                原供应商订单不会自动作废，请到供应商后台关闭。
+                {t("replaceNotice")}
               </div>
             )}
             {groups.length > 0 && (
@@ -535,7 +536,7 @@ export function PushBlanksDialog({
                   ) : (
                     <Factory className="h-4 w-4 mr-2" />
                   )}
-                  建单
+                  {t("place")}
                 </Button>
                 <Button variant="outline" onClick={() => handlePush("place_and_push")} disabled={busy}>
                   {pendingAction === "place_and_push" ? (
@@ -543,7 +544,7 @@ export function PushBlanksDialog({
                   ) : (
                     <Send className="h-4 w-4 mr-2" />
                   )}
-                  建单并推送工厂
+                  {t("placeAndPush")}
                 </Button>
               </div>
             )}

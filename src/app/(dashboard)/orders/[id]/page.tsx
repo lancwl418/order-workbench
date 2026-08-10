@@ -123,6 +123,7 @@ export default function OrderDetailPage() {
   const tStatus = useTranslations("status");
   const tPrint = useTranslations("printStatus");
   const tException = useTranslations("exception");
+  const tBlanks = useTranslations("blanks");
   const tCommon = useTranslations("common");
   const tOms = useTranslations("oms");
 
@@ -659,7 +660,7 @@ export default function OrderDetailPage() {
                   onClick={() => setPushFactoryOpen(true)}
                 >
                   <Package className="h-3.5 w-3.5 mr-1" />
-                  {blanksData?.pushes?.length ? "推 Blanks（已有推送）" : "推 Blanks"}
+                  {blanksData?.pushes?.length ? tBlanks("pushBlanksBtnExisting") : tBlanks("pushBlanksBtn")}
                 </Button>
                 {(blanksData?.pushes ?? []).map((p) => (
                   <div key={p.id} className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground flex-wrap">
@@ -676,7 +677,7 @@ export default function OrderDetailPage() {
                       if (await refreshBlanksStatus(order.id)) mutateBlanks();
                     }}
                   >
-                    {blanksBusy ? "刷新中…" : "刷新工厂状态"}
+                    {blanksBusy ? tBlanks("refreshing") : tBlanks("refreshFactoryStatus")}
                   </button>
                 )}
                 {order.factoryPushedAt && (

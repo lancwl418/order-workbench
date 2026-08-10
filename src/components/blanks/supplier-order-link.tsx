@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 // The one supplier-order-number display: shows the platformOid returned at
 // place time and links to the supplier's console when configured.
 
@@ -12,13 +14,14 @@ export function SupplierOrderLink({
   consoleUrl?: string | null;
   className?: string;
 }) {
+  const t = useTranslations("blanks");
   if (consoleUrl) {
     return (
       <a
         href={consoleUrl}
         target="_blank"
         rel="noopener noreferrer"
-        title="打开供应商后台"
+        title={t("openSupplierConsole")}
         className={`font-mono text-primary hover:underline ${className ?? ""}`}
         onClick={(e) => e.stopPropagation()}
       >

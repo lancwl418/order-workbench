@@ -47,6 +47,7 @@ export function createColumns(opts: {
   onDeliveryMethodChange?: (orderId: string, currentMethod: string | null, newMethod: string) => void;
   onOmsPush?: (orderId: string, fulfillmentOrderId?: string) => void;
   onBlanksPush?: (orderId: string) => void;
+  blanksPushTooltip?: string;
   onSplit?: (order: OrderListItem) => void;
   onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
@@ -243,7 +244,7 @@ export function createColumns(opts: {
                       </button>
                     }
                   />
-                  <TooltipContent>推送 Blanks 到供应商工厂</TooltipContent>
+                  <TooltipContent>{opts.blanksPushTooltip ?? "Push blanks to the supplier factory"}</TooltipContent>
                 </Tooltip>
               ) : (
                 <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
