@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import useSWR from "swr";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -74,14 +75,15 @@ interface BlanksOrderRow {
 }
 
 const FILTERS = [
-  { value: "all", label: "全部" },
-  { value: "unpushed", label: "未推送" },
-  { value: "placed", label: "已建单未推送" },
-  { value: "pushed", label: "已推送" },
-  { value: "rejected", label: "被反审" },
-];
+  { value: "all", labelKey: "filterAll" },
+  { value: "unpushed", labelKey: "filterUnpushed" },
+  { value: "placed", labelKey: "filterPlaced" },
+  { value: "pushed", labelKey: "filterPushed" },
+  { value: "rejected", labelKey: "filterRejected" },
+] as const;
 
 export function BlanksPage() {
+  const t = useTranslations("blanks");
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
@@ -117,7 +119,7 @@ export function BlanksPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Shirt className="h-5 w-5" />
-          Blanks 推送
+          {t("title")}
         </h1>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleRefreshAll} disabled={busy}>
@@ -126,12 +128,12 @@ export function BlanksPage() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
             )}
-            刷新全部状态
+            {t("refreshAll")}
           </Button>
           <Link href="/blanks/settings">
             <Button size="sm" variant="ghost">
               <Settings className="h-3.5 w-3.5 mr-1" />
-              供应商设置
+              {t("supplierSettings")}
             </Button>
           </Link>
         </div>
@@ -149,11 +151,11 @@ export function BlanksPage() {
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜索订单号…"
+            placeholder={t("searchPlaceholder")}
             className="h-9 w-48"
           />
           <Button type="submit" size="sm" variant="secondary">
-            搜索
+            {t("search")}
           </Button>
         </form>
         <Select
@@ -169,13 +171,13 @@ export function BlanksPage() {
           <SelectContent>
             {FILTERS.map((f) => (
               <SelectItem key={f.value} value={f.value}>
-                {f.label}
+                {t(f.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {data && (
-          <span className="text-xs text-muted-foreground">{data.total} 单</span>
+          <span className="text-xs text-muted-foreground">{t("orderCount", { count: data.total })}</span>
         )}
       </div>
 
@@ -183,13 +185,13 @@ export function BlanksPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>订单</TableHead>
-              <TableHead>订单状态</TableHead>
-              <TableHead>Blank Items</TableHead>
-              <TableHead>供应商 / 状态</TableHead>
-              <TableHead>Label / 物流</TableHead>
-              <TableHead>状态同步</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+              <TableHead>{t("colOrder")}</TableHead>
+              <TableHead>{t("colOrderStatus")}</TableHead>
+              <TableHead>{t("colItems")}</TableHead>
+              <TableHead>{t("colSupplierStatus")}</TableHead>
+              <TableHead>{t("colLabel")}</TableHead>
+              <TableHead>{t("colStatusSync")}</TableHead>
+              <TableHead className="text-right">{t("colActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -203,7 +205,7 @@ export function BlanksPage() {
             {!isLoading && (data?.orders ?? []).length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-10 text-sm text-muted-foreground">
-                  没有符合条件的订单
+                  {t("noOrders")}
                 </TableCell>
               </TableRow>
             )}
@@ -242,7 +244,7 @@ export function BlanksPage() {
                         )}
                         {item.printEnabled && (
                           <Badge variant="outline" className="text-[10px] px-1 py-0 border-blue-300 text-blue-700">
-                            打印
+                            {t("printBadge")}
                           </Badge>
                         )}
                       </div>
@@ -251,7 +253,7 @@ export function BlanksPage() {
                 </TableCell>
                 <TableCell className="align-top">
                   {order.supplierPushes.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">未推送</span>
+                    <span className="text-xs text-muted-foreground">{t("notPushed")}</span>
                   ) : (
                     <div className="space-y-1">
                       {order.supplierPushes.map((p) => (
@@ -266,7 +268,7 @@ export function BlanksPage() {
                           {!p.pushedAt &&
                             (p.supplier.adapterType === "linmiao" ? (
                               <span className="text-[11px] text-amber-700">
-                                待上传 label（linmiao 后台推送）
+                                {t("awaitingLabel")}
                               </span>
                             ) : (
                               <Button
@@ -277,7 +279,7 @@ export function BlanksPage() {
                                 onClick={() => handleRePush(p.id)}
                               >
                                 <Send className="h-3 w-3 mr-1" />
-                                推送
+                                {t("pushBtn")}
                               </Button>
                             ))}
                         </div>
@@ -303,7 +305,7 @@ export function BlanksPage() {
                         render={
                           <Button variant="outline" size="sm" className="gap-1 text-xs h-7">
                             <Tag className="h-3 w-3" />
-                            创建 Label
+                            {t("createLabel")}
                             <ChevronDown className="h-3 w-3" />
                           </Button>
                         }
@@ -357,7 +359,7 @@ export function BlanksPage() {
                         size="sm"
                         variant="ghost"
                         className="h-8 w-8 p-0"
-                        title="刷新该订单状态"
+                        title={t("refreshOrderTitle")}
                         disabled={busy}
                         onClick={() => handleRefreshOrder(order.id)}
                       >
@@ -370,7 +372,7 @@ export function BlanksPage() {
                       onClick={() => setDialogOrderId(order.id)}
                     >
                       <Factory className="h-3.5 w-3.5 mr-1" />
-                      推送
+                      {t("pushBtn")}
                     </Button>
                   </div>
                 </TableCell>
@@ -388,7 +390,7 @@ export function BlanksPage() {
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            上一页
+            {t("prevPage")}
           </Button>
           <span className="text-xs text-muted-foreground">
             {page} / {data.totalPages}
@@ -399,7 +401,7 @@ export function BlanksPage() {
             disabled={page >= data.totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            下一页
+            {t("nextPage")}
           </Button>
         </div>
       )}

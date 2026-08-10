@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import useSWR from "swr";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
@@ -55,6 +56,7 @@ interface VendorMapping {
 }
 
 export function BlanksSettingsPage() {
+  const t = useTranslations("blanks");
   const suppliersSwr = useSWR<{ suppliers: Supplier[] }>("/api/suppliers", fetcher);
   const mappingsSwr = useSWR<{ mappings: VendorMapping[]; unmappedVendors: string[] }>(
     "/api/vendor-mappings",
@@ -77,7 +79,7 @@ export function BlanksSettingsPage() {
 
   async function createSupplier() {
     if (!newSupplier.key || !newSupplier.name || !newSupplier.secretKeyEnv) {
-      toast.error("key、名称、密钥环境变量名都必填");
+      toast.error(t("supplierCreateMissing"));
       return;
     }
     setSaving(true);
@@ -88,12 +90,12 @@ export function BlanksSettingsPage() {
         body: JSON.stringify(newSupplier),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "创建失败");
-      toast.success(`供应商 ${data.supplier.name} 已创建`);
+      if (!res.ok) throw new Error(data.error || t("createFailed"));
+      toast.success(t("supplierCreated", { name: data.supplier.name }));
       setNewSupplier({ key: "", name: "", adapterType: "riin", secretKeyEnv: "" });
       suppliersSwr.mutate();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "创建失败");
+      toast.error(e instanceof Error ? e.message : t("createFailed"));
     } finally {
       setSaving(false);
     }
@@ -108,7 +110,7 @@ export function BlanksSettingsPage() {
     if (res.ok) {
       suppliersSwr.mutate();
     } else {
-      toast.error("更新失败");
+      toast.error(t("updateFailed"));
     }
   }
 
@@ -120,11 +122,11 @@ export function BlanksSettingsPage() {
       body: JSON.stringify({ consoleUrl: value || null }),
     });
     if (res.ok) {
-      toast.success(`${s.name} 后台链接已保存`);
+      toast.success(t("consoleSaved", { name: s.name }));
       suppliersSwr.mutate();
     } else {
       const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "保存失败（需为完整 URL）");
+      toast.error(data.error || t("saveFailed"));
     }
   }
 
@@ -132,7 +134,7 @@ export function BlanksSettingsPage() {
     const v = (vendor ?? newMapping.vendor).trim();
     const supplierId = newMapping.supplierId;
     if (!v || !supplierId) {
-      toast.error("vendor 和供应商都必选");
+      toast.error(t("mappingMissing"));
       return;
     }
     setSaving(true);
@@ -143,12 +145,12 @@ export function BlanksSettingsPage() {
         body: JSON.stringify({ vendor: v, supplierId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "保存失败");
-      toast.success(`vendor "${data.mapping.vendor}" → ${data.mapping.supplier.name}`);
+      if (!res.ok) throw new Error(data.error || t("saveFailed"));
+      toast.success(t("mappingSaved", { vendor: data.mapping.vendor, name: data.mapping.supplier.name }));
       setNewMapping((m) => ({ ...m, vendor: "" }));
       mappingsSwr.mutate();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存失败");
+      toast.error(e instanceof Error ? e.message : t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -159,7 +161,7 @@ export function BlanksSettingsPage() {
     if (res.ok) {
       mappingsSwr.mutate();
     } else {
-      toast.error("删除失败");
+      toast.error(t("deleteFailed"));
     }
   }
 
@@ -171,28 +173,28 @@ export function BlanksSettingsPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-xl font-semibold">供应商 & Vendor 映射</h1>
+        <h1 className="text-xl font-semibold">{t("settingsTitle")}</h1>
       </div>
 
       {/* Suppliers */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">供应商</CardTitle>
+          <CardTitle className="text-base">{t("suppliersCard")}</CardTitle>
           <CardDescription>
-            密钥不落库——每个供应商填一个环境变量名，在 Render 上配置对应的值。
+            {t("suppliersDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Key</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>协议</TableHead>
-                <TableHead>密钥环境变量</TableHead>
-                <TableHead>后台链接</TableHead>
-                <TableHead>映射数</TableHead>
-                <TableHead>启用</TableHead>
+                <TableHead>{t("colKey")}</TableHead>
+                <TableHead>{t("colName")}</TableHead>
+                <TableHead>{t("colProtocol")}</TableHead>
+                <TableHead>{t("colSecretEnv")}</TableHead>
+                <TableHead>{t("colConsole")}</TableHead>
+                <TableHead>{t("colMappingCount")}</TableHead>
+                <TableHead>{t("colEnabled")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -209,11 +211,11 @@ export function BlanksSettingsPage() {
                     {s.secretKeyEnv}{" "}
                     {s.secretConfigured ? (
                       <Badge variant="outline" className="text-[10px] border-green-300 text-green-700">
-                        已配置
+                        {t("secretConfigured")}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-[10px] border-red-300 text-red-700">
-                        未配置
+                        {t("secretMissing")}
                       </Badge>
                     )}
                   </TableCell>
@@ -235,7 +237,7 @@ export function BlanksSettingsPage() {
                             className="h-7 text-xs px-2"
                             onClick={() => saveConsoleUrl(s)}
                           >
-                            保存
+                            {t("save")}
                           </Button>
                         )}
                     </div>
@@ -251,7 +253,7 @@ export function BlanksSettingsPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end border-t pt-3">
             <div>
-              <label className="text-[11px] text-muted-foreground">Key</label>
+              <label className="text-[11px] text-muted-foreground">{t("newKeyLabel")}</label>
               <Input
                 value={newSupplier.key}
                 onChange={(e) => setNewSupplier((s) => ({ ...s, key: e.target.value }))}
@@ -260,7 +262,7 @@ export function BlanksSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">名称</label>
+              <label className="text-[11px] text-muted-foreground">{t("newNameLabel")}</label>
               <Input
                 value={newSupplier.name}
                 onChange={(e) => setNewSupplier((s) => ({ ...s, name: e.target.value }))}
@@ -269,7 +271,7 @@ export function BlanksSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">协议</label>
+              <label className="text-[11px] text-muted-foreground">{t("newProtocolLabel")}</label>
               <Select
                 value={newSupplier.adapterType}
                 onValueChange={(v) => setNewSupplier((s) => ({ ...s, adapterType: v ?? "riin" }))}
@@ -284,7 +286,7 @@ export function BlanksSettingsPage() {
               </Select>
             </div>
             <div>
-              <label className="text-[11px] text-muted-foreground">密钥环境变量名</label>
+              <label className="text-[11px] text-muted-foreground">{t("newSecretEnvLabel")}</label>
               <Input
                 value={newSupplier.secretKeyEnv}
                 onChange={(e) =>
@@ -296,7 +298,7 @@ export function BlanksSettingsPage() {
             </div>
             <Button size="sm" onClick={createSupplier} disabled={saving}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-              添加
+              {t("add")}
             </Button>
           </div>
         </CardContent>
@@ -305,16 +307,16 @@ export function BlanksSettingsPage() {
       {/* Vendor mappings */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Vendor → 供应商映射</CardTitle>
+          <CardTitle className="text-base">{t("mappingsCard")}</CardTitle>
           <CardDescription>
-            Shopify 商品 vendor（不区分大小写）路由到哪个供应商下单。
+            {t("mappingsDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {unmappedVendors.length > 0 && (
             <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 space-y-1">
               <span className="font-medium text-amber-800">
-                订单里出现过但未映射的 vendor：
+                {t("unmappedHint")}
               </span>
               <div className="flex gap-1.5 flex-wrap">
                 {unmappedVendors.map((v) => (
@@ -334,8 +336,8 @@ export function BlanksSettingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vendor</TableHead>
-                <TableHead>供应商</TableHead>
+                <TableHead>{t("colVendor")}</TableHead>
+                <TableHead>{t("colSupplier")}</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
             </TableHeader>
@@ -347,7 +349,7 @@ export function BlanksSettingsPage() {
                     {m.supplier.name}
                     {!m.supplier.enabled && (
                       <Badge variant="outline" className="ml-1.5 text-[10px] border-red-300 text-red-700">
-                        已停用
+                        {t("supplierDisabled")}
                       </Badge>
                     )}
                   </TableCell>
@@ -366,7 +368,7 @@ export function BlanksSettingsPage() {
               {mappings.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center text-sm text-muted-foreground py-6">
-                    还没有映射
+                    {t("noMappings")}
                   </TableCell>
                 </TableRow>
               )}
@@ -375,7 +377,7 @@ export function BlanksSettingsPage() {
 
           <div className="flex items-end gap-2 border-t pt-3">
             <div className="flex-1">
-              <label className="text-[11px] text-muted-foreground">Vendor</label>
+              <label className="text-[11px] text-muted-foreground">{t("colVendor")}</label>
               <Input
                 value={newMapping.vendor}
                 onChange={(e) => setNewMapping((m) => ({ ...m, vendor: e.target.value }))}
@@ -384,13 +386,13 @@ export function BlanksSettingsPage() {
               />
             </div>
             <div className="flex-1">
-              <label className="text-[11px] text-muted-foreground">供应商</label>
+              <label className="text-[11px] text-muted-foreground">{t("colSupplier")}</label>
               <Select
                 value={newMapping.supplierId}
                 onValueChange={(v) => setNewMapping((m) => ({ ...m, supplierId: v ?? "" }))}
               >
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="选择供应商" />
+                  <SelectValue placeholder={t("selectSupplier")} />
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers.filter((s) => s.enabled).map((s) => (
@@ -403,7 +405,7 @@ export function BlanksSettingsPage() {
             </div>
             <Button size="sm" onClick={() => createMapping()} disabled={saving}>
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-              添加
+              {t("add")}
             </Button>
           </div>
         </CardContent>

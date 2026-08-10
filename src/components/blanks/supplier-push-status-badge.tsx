@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { REJECTED_ORDER_STATUS } from "@/lib/suppliers/types";
 
@@ -11,14 +12,6 @@ export interface SupplierPushStatus {
   orderStatus: number | null;
   orderStatusStr: string | null;
   lastError?: string | null;
-}
-
-export function supplierPushLabel(push: SupplierPushStatus): string {
-  if (push.orderStatus !== null && push.orderStatusStr) {
-    return push.orderStatusStr;
-  }
-  if (push.orderStatus !== null) return `状态 ${push.orderStatus}`;
-  return push.pushedAt ? "已推送" : "已建单未推送";
 }
 
 function badgeClass(push: SupplierPushStatus): string {
@@ -42,6 +35,24 @@ export function SupplierPushStatusBadge({
   push: SupplierPushStatus;
   className?: string;
 }) {
+  const t = useTranslations("blanks");
+
+  let label: string;
+  if (push.orderStatus !== null) {
+    // Known status codes are translated; unknown ones fall back to the
+    // factory-provided string, then to a generic "Status N".
+    const key = `s${push.orderStatus}`.replace("-", "m");
+    if (t.has(key)) {
+      label = t(key);
+    } else if (push.orderStatusStr) {
+      label = push.orderStatusStr;
+    } else {
+      label = t("statusN", { n: push.orderStatus });
+    }
+  } else {
+    label = push.pushedAt ? t("statusPushed") : t("statusPlaced");
+  }
+
   return (
     <span
       className={cn(
@@ -51,7 +62,7 @@ export function SupplierPushStatusBadge({
       )}
       title={push.lastError ?? undefined}
     >
-      {supplierPushLabel(push)}
+      {label}
       {push.lastError && <span aria-hidden>⚠</span>}
     </span>
   );

@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 // Single home for all blanks-push request logic. The dialog, the order detail
 // page, and the blanks page all call these — no fetch() duplication.
@@ -92,6 +93,7 @@ export function useBlanksData(orderId: string | null, enabled = true) {
 }
 
 export function usePushBlanks() {
+  const t = useTranslations("blanks");
   const [busy, setBusy] = useState(false);
 
   async function pushBlanks(
@@ -133,7 +135,7 @@ export function usePushBlanks() {
       const res = await fetch(`/api/supplier-pushes/${pushId}/push`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Push to factory failed");
-      toast.success("已推送到工厂 Pushed to factory");
+      toast.success(t("toastPushedToFactory"));
       return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Push to factory failed");
@@ -154,8 +156,8 @@ export function usePushBlanks() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Status sync failed");
-      const rejected = data.rejected > 0 ? `，${data.rejected} 单被反审` : "";
-      toast.success(`状态已刷新（${data.checked} 单检查，${data.updated} 单变化${rejected}）`);
+      const rejected = data.rejected > 0 ? t("toastRejectedSuffix", { count: data.rejected }) : "";
+      toast.success(t("toastStatusRefreshed", { checked: data.checked, updated: data.updated }) + rejected);
       return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Status sync failed");

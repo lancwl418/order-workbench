@@ -83,6 +83,7 @@ export default function OrdersPage() {
   const tStatus = useTranslations("status");
   const tPrint = useTranslations("printStatus");
   const tSummary = useTranslations("summary");
+  const tBlanks = useTranslations("blanks");
   const tCS = useTranslations("csQueue");
   const tIssue = useTranslations("csIssueType");
   const tCommon = useTranslations("common");
@@ -310,6 +311,7 @@ export default function OrdersPage() {
           setOmsPushOrderId(orderId);
         },
         onBlanksPush: (orderId) => setBlanksPushOrderId(orderId),
+        blanksPushTooltip: tBlanks("blanksPushTooltip"),
         onSplit: (order) => setSplitOrder(order),
         onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
@@ -335,7 +337,7 @@ export default function OrdersPage() {
           csFlag: tOrders("csFlag"),
         },
       }),
-    [handleStatusChange, handlePrintStatusChange, handleCsToggle, handleSyncToShopify, openDeliveryConfirm, statusLoading, syncingShipmentId, tOrders, printLabels]
+    [handleStatusChange, handlePrintStatusChange, handleCsToggle, handleSyncToShopify, openDeliveryConfirm, statusLoading, syncingShipmentId, tOrders, tBlanks, printLabels]
   );
 
   async function handleSync() {
