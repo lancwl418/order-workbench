@@ -194,6 +194,17 @@ export function PushBlanksDialog({
         toast.error(t("needFactorySku"));
         return null;
       }
+      // Both factory protocols require size and color on every goods item —
+      // catch it here with the item named, instead of a group-level 400.
+      const itemTitle = data?.items.find((i) => i.id === f.orderItemId)?.title ?? f.factorySku;
+      if (!f.sizeCode.trim()) {
+        toast.error(t("needSize", { title: itemTitle }));
+        return null;
+      }
+      if (!f.colorCode.trim()) {
+        toast.error(t("needColor", { title: itemTitle }));
+        return null;
+      }
       if (f.shouldPrint && splitUrls(f.imageUrlsText).length === 0) {
         toast.error(t("needPrintImage"));
         return null;

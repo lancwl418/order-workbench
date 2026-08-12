@@ -774,6 +774,8 @@
     "catalogColor": "Color",
     "catalogSize": "Size",
     "catalogPick": "Pick…",
-    "defaultSupplier": "(default)"
+    "defaultSupplier": "(default)",
+    "needSize": "\"{title}\" needs a size",
+    "needColor": "\"{title}\" needs a color"
   }
 }

@@ -774,6 +774,8 @@
     "catalogColor": "颜色",
     "catalogSize": "尺码",
     "catalogPick": "选择…",
-    "defaultSupplier": "（默认）"
+    "defaultSupplier": "（默认）",
+    "needSize": "「{title}」缺少尺码",
+    "needColor": "「{title}」缺少颜色"
   }
 }

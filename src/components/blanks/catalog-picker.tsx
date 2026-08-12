@@ -33,11 +33,11 @@ export function CatalogPicker({
   const t = useTranslations("blanks");
   const { data } = useSupplierCatalog(supplierId);
 
+  // Only an explicit styleCode match selects a style — never default to the
+  // catalog's single style (it may be a different product entirely, e.g. a
+  // tote bag when the catalog only has the A2 tee so far).
   const styles = data?.styles ?? [];
-  const style = useMemo(
-    () => styles.find((s) => s.styleCode === styleCode) ?? (styles.length === 1 ? styles[0] : undefined),
-    [styles, styleCode]
-  );
+  const style = useMemo(() => styles.find((s) => s.styleCode === styleCode), [styles, styleCode]);
   const color = style?.colors.find((c) => c.colorName === colorCode);
 
   // Auto-match once per supplier: when the code is empty (fresh supplier
@@ -49,6 +49,8 @@ export function CatalogPicker({
     if (!data || styles.length === 0) return;
     matchedFor.current = supplierId;
     if (factorySku.trim()) return;
+    // Auto-match may consider the single style, but only fills when BOTH the
+    // item's color and size exist in it — a real product match, not a guess.
     const s = style ?? (styles.length === 1 ? styles[0] : undefined);
     if (!s) return;
     const norm = (v: string) => v.trim().toLowerCase();

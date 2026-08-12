@@ -339,6 +339,9 @@ export async function pushBlanksForOrder(opts: {
       if (input.shouldPrint && input.printImageUrls.length === 0) {
         return { results: [], error: `Item "${item.title}" is set to print but has no print image`, status: 400 };
       }
+      if (!input.sizeCode.trim() || !input.colorCode.trim()) {
+        return { results: [], error: `Item "${item.title}" needs both size and color (factory-required fields)`, status: 400 };
+      }
     }
   }
 
