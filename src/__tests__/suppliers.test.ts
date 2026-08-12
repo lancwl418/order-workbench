@@ -80,6 +80,12 @@ describe("deriveStyleCode", () => {
     expect(deriveStyleCode("DG004", "BL01", "XL")).toBe("DG004");
   });
 
+  it("is space-insensitive between the SKU segment and the size/color value", () => {
+    // Variant said "One Size" while the SKU segment is "onesize"
+    expect(deriveStyleCode("T1-White-onesize", "White", "One Size")).toBe("T1");
+    expect(deriveStyleCode("T001-DarkBlue-M", "Dark Blue", "M")).toBe("T001");
+  });
+
   it("never returns an empty style code", () => {
     expect(deriveStyleCode("-M", "", "M")).toBe("-M");
   });

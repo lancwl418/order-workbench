@@ -119,20 +119,16 @@ export function normalizeVendor(vendor: string): string {
  * suffix so the fallback is just the style part.
  */
 export function deriveStyleCode(factorySku: string, colorCode: string, sizeCode: string): string {
-  const sku = factorySku.trim();
-  const lower = sku.toLowerCase();
-  const candidates = [
-    colorCode && sizeCode ? `-${colorCode}-${sizeCode}` : null,
-    colorCode && sizeCode ? `-${sizeCode}-${colorCode}` : null,
-    sizeCode ? `-${sizeCode}` : null,
-    colorCode ? `-${colorCode}` : null,
-  ].filter((s): s is string => !!s);
-  for (const suffix of candidates) {
-    if (lower.endsWith(suffix.toLowerCase()) && sku.length > suffix.length) {
-      return sku.slice(0, sku.length - suffix.length);
-    }
+  // Segment-based, space-insensitive: "T1-White-onesize" with size "One Size"
+  // still strips down to "T1" (the variant may spell the size differently
+  // than the SKU segment).
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, "");
+  const targets = [norm(colorCode), norm(sizeCode)].filter(Boolean);
+  const parts = factorySku.trim().split("-");
+  while (parts.length > 1 && targets.includes(norm(parts[parts.length - 1]))) {
+    parts.pop();
   }
-  return sku;
+  return parts.join("-") || factorySku.trim();
 }
 
 /**
