@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import {
   Select,
@@ -20,12 +20,14 @@ export function CatalogPicker({
   styleCode,
   colorCode,
   sizeCode,
+  factorySku,
   onPick,
 }: {
   supplierId: string;
   styleCode: string;
   colorCode: string;
   sizeCode: string;
+  factorySku: string;
   onPick: (patch: { factorySku?: string; styleCode?: string; colorCode?: string; sizeCode?: string }) => void;
 }) {
   const t = useTranslations("blanks");
@@ -37,6 +39,31 @@ export function CatalogPicker({
     [styles, styleCode]
   );
   const color = style?.colors.find((c) => c.colorName === colorCode);
+
+  // Auto-match once per supplier: when the code is empty (fresh supplier
+  // switch without a stored mapping), match the current color/size against
+  // the catalog case-insensitively and fill the exact factory code.
+  const matchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (matchedFor.current === supplierId) return;
+    if (!data || styles.length === 0) return;
+    matchedFor.current = supplierId;
+    if (factorySku.trim()) return;
+    const s = style ?? (styles.length === 1 ? styles[0] : undefined);
+    if (!s) return;
+    const norm = (v: string) => v.trim().toLowerCase();
+    const c = s.colors.find((c0) => colorCode && norm(c0.colorName) === norm(colorCode));
+    if (!c) return;
+    const size = c.sizes.find((z) => sizeCode && norm(z.sizeName) === norm(sizeCode));
+    if (!size) return;
+    onPick({
+      styleCode: s.styleCode,
+      colorCode: c.colorName,
+      sizeCode: size.sizeName,
+      factorySku: size.productCode,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, supplierId]);
 
   if (styles.length === 0) return null;
 

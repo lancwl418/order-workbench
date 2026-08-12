@@ -172,7 +172,10 @@ export function PushBlanksDialog({
     updateForm(item.id, {
       supplierId,
       selected: forms[item.id]?.selected || !item.supplierOrderNo,
-      factorySku: p?.factorySku ?? item.sku ?? "",
+      // No mapping at the target supplier -> clear the code instead of
+      // carrying the previous supplier's; the catalog auto-match (or the
+      // operator) fills it for the new supplier.
+      factorySku: p?.factorySku ?? "",
       sizeCode: p?.factorySize ?? parseSizeFromVariant(item.variantTitle),
       colorCode: p?.factoryColor ?? parseColorFromVariant(item.variantTitle),
       styleCode: p?.factoryStyle ?? "",
@@ -359,6 +362,7 @@ export function PushBlanksDialog({
                     </span>
                     <Select
                       value=""
+                      items={(data?.suppliers ?? []).map((s) => ({ value: s.id, label: s.name }))}
                       onValueChange={(v) => v && switchSupplier(item, v)}
                     >
                       <SelectTrigger className="h-6 text-[11px] w-36 bg-white">
@@ -523,6 +527,7 @@ export function PushBlanksDialog({
                                 {(data?.suppliers?.length ?? 0) > 1 && (
                                   <Select
                                     value={f.supplierId}
+                                    items={(data?.suppliers ?? []).map((s) => ({ value: s.id, label: s.name }))}
                                     onValueChange={(v) => v && v !== f.supplierId && switchSupplier(item, v)}
                                   >
                                     <SelectTrigger className="h-6 text-[11px] w-32">
@@ -532,7 +537,7 @@ export function PushBlanksDialog({
                                       {(data?.suppliers ?? []).map((s) => (
                                         <SelectItem key={s.id} value={s.id}>
                                           {s.name}
-                                          {item.supplier?.id === s.id ? " ✓" : ""}
+                                          {item.supplier?.id === s.id ? ` ${t("defaultSupplier")}` : ""}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -554,6 +559,7 @@ export function PushBlanksDialog({
                                   styleCode={f.styleCode}
                                   colorCode={f.colorCode}
                                   sizeCode={f.sizeCode}
+                                  factorySku={f.factorySku}
                                   onPick={(patch) => updateForm(item.id, patch)}
                                 />
                               )}
