@@ -768,6 +768,11 @@
     "addr_city": "City",
     "addr_province": "State/Province",
     "addr_country": "Country",
-    "addr_postCode": "ZIP/Postal Code"
+    "addr_postCode": "ZIP/Postal Code",
+    "supplierSwitched": "Supplier changed — mapping prefills follow the selected supplier",
+    "catalogStyle": "Catalog: Style",
+    "catalogColor": "Color",
+    "catalogSize": "Size",
+    "catalogPick": "Pick…"
   }
 }
