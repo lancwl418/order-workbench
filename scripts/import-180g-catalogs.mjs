@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Import the 180g t-shirt catalogs:
- * - linmiao T001 (from 5.26-LM货盘资料.xlsx — active colors only; the black
- *   2XL/3XL codes are "T001-BK01-2L"/"-3L" exactly as in the factory sheet)
+ * - linmiao T001 (from 5.26-LM货盘资料.xlsx — active colors only; the sheet's
+ *   "T001-BK01-2L"/"-3L" are typos, confirmed to be 2XL/3XL)
  * - jjspromo A2 (from the JJS mapping table: A2-{Color}-{Size})
  * Idempotent: replaces each style's rows on re-run.
  */
@@ -15,9 +15,9 @@ const prisma = new PrismaClient({
 
 const SIZES = ["S", "M", "L", "XL", "2XL", "3XL"];
 
-// linmiao T001: colorName -> per-size product codes (sheet-exact)
+// linmiao T001: colorName -> per-size product codes
 const T001_COLORS = {
-  "BK01": ["T001-BK01-S", "T001-BK01-M", "T001-BK01-L", "T001-BK01-XL", "T001-BK01-2L", "T001-BK01-3L"],
+  "BK01": SIZES.map((s) => `T001-BK01-${s}`),
   "WH01": SIZES.map((s) => `T001-WH01-${s}`),
   "Dark Blue": SIZES.map((s) => `T001-Dark Blue-${s}`),
   "Red": SIZES.map((s) => `T001-Red-${s}`),
