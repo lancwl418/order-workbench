@@ -768,6 +768,7 @@
     "addr_city": "城市",
     "addr_province": "省/州",
     "addr_country": "国家",
-    "addr_postCode": "邮编"
+    "addr_postCode": "邮编",
+    "supplierSwitched": "已切换供应商——映射预填跟随所选供应商"
   }
 }

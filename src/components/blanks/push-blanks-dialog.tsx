@@ -39,6 +39,7 @@ import {
 interface ItemFormState {
   orderItemId: string;
   selected: boolean;
+  supplierId: string; // "" = unassigned (vendor unmapped, needs manual pick)
   factorySku: string;
   sizeCode: string;
   colorCode: string;
@@ -114,6 +115,7 @@ export function PushBlanksDialog({
           orderItemId: item.id,
           // Items already placed at a supplier can't be placed again
           selected: !item.supplierOrderNo && !!item.supplier,
+          supplierId: item.supplier?.id ?? "",
           factorySku: item.prefill?.factorySku ?? item.sku ?? "",
           sizeCode: item.prefill?.factorySize ?? parseSizeFromVariant(item.variantTitle),
           colorCode: item.prefill?.factoryColor ?? parseColorFromVariant(item.variantTitle),
@@ -129,30 +131,52 @@ export function PushBlanksDialog({
     });
   }, [open, data]);
 
+  // Groups follow the form's (possibly overridden) supplier choice, not the
+  // vendor mapping — switching an item's supplier moves it between groups.
   const groups = useMemo(() => {
     if (!data) return [];
+    const supplierById = new Map(data.suppliers.map((s) => [s.id, s]));
     const bySupplier = new Map<string, { key: string; name: string; adapterType: string; items: BlanksItem[] }>();
     for (const item of data.items) {
-      if (!item.supplier) continue;
-      const g = bySupplier.get(item.supplier.id) ?? {
-        key: item.supplier.key,
-        name: item.supplier.name,
-        adapterType: item.supplier.adapterType,
+      const supplierId = forms[item.id]?.supplierId || item.supplier?.id;
+      if (!supplierId) continue;
+      const s = supplierById.get(supplierId);
+      if (!s) continue;
+      const g = bySupplier.get(s.id) ?? {
+        key: s.key,
+        name: s.name,
+        adapterType: s.adapterType,
         items: [],
       };
       g.items.push(item);
-      bySupplier.set(item.supplier.id, g);
+      bySupplier.set(s.id, g);
     }
     return [...bySupplier.entries()].map(([id, g]) => ({ supplierId: id, ...g }));
-  }, [data]);
+  }, [data, forms]);
 
+  // Unassigned = no vendor route AND no manual supplier pick yet
   const unroutable = useMemo(
-    () => (data?.items ?? []).filter((i) => i.unroutableReason),
-    [data]
+    () => (data?.items ?? []).filter((i) => i.unroutableReason && !forms[i.id]?.supplierId),
+    [data, forms]
   );
 
   function updateForm(id: string, patch: Partial<ItemFormState>) {
     setForms((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  /** Switch an item to another supplier and re-prefill from that supplier's
+   * SKU mapping (falling back to variant parsing when it has none). */
+  function switchSupplier(item: BlanksItem, supplierId: string) {
+    const p = item.prefills[supplierId];
+    updateForm(item.id, {
+      supplierId,
+      selected: forms[item.id]?.selected || !item.supplierOrderNo,
+      factorySku: p?.factorySku ?? item.sku ?? "",
+      sizeCode: p?.factorySize ?? parseSizeFromVariant(item.variantTitle),
+      colorCode: p?.factoryColor ?? parseColorFromVariant(item.variantTitle),
+      styleCode: p?.factoryStyle ?? "",
+      craftType: (p?.factoryCraftType as 1 | 2 | null) ?? 1,
+    });
   }
 
   function buildPayload(): PushBlanksItemPayload[] | null {
@@ -173,6 +197,7 @@ export function PushBlanksDialog({
     }
     return selected.map((f) => ({
       orderItemId: f.orderItemId,
+      supplierId: f.supplierId || undefined,
       factorySku: f.factorySku.trim(),
       sizeCode: f.sizeCode || undefined,
       sizeName: f.sizeCode || undefined,
@@ -324,11 +349,28 @@ export function PushBlanksDialog({
                   {t("unroutableTitle")}
                 </div>
                 {unroutable.map((item) => (
-                  <div key={item.id} className="text-amber-800">
-                    · {item.title} —{" "}
-                    {item.unroutableReason === "no_vendor"
-                      ? t("noVendor")
-                      : t("vendorUnmapped", { vendor: item.vendor ?? "" })}
+                  <div key={item.id} className="text-amber-800 flex items-center gap-2 flex-wrap">
+                    <span>
+                      · {item.title} —{" "}
+                      {item.unroutableReason === "no_vendor"
+                        ? t("noVendor")
+                        : t("vendorUnmapped", { vendor: item.vendor ?? "" })}
+                    </span>
+                    <Select
+                      value=""
+                      onValueChange={(v) => v && switchSupplier(item, v)}
+                    >
+                      <SelectTrigger className="h-6 text-[11px] w-36 bg-white">
+                        <SelectValue placeholder={t("selectSupplier")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(data?.suppliers ?? []).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 ))}
                 <Link href="/blanks/settings" className="text-amber-900 underline">
@@ -474,6 +516,26 @@ export function PushBlanksDialog({
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                                     {t("alreadyPlacedBadge", { oid: item.supplierOrderNo ?? "" })}
                                   </span>
+                                )}
+                                {/* Alternate-supplier switch: moves the item to
+                                    another group and re-prefills its mapping */}
+                                {(data?.suppliers?.length ?? 0) > 1 && (
+                                  <Select
+                                    value={f.supplierId}
+                                    onValueChange={(v) => v && v !== f.supplierId && switchSupplier(item, v)}
+                                  >
+                                    <SelectTrigger className="h-6 text-[11px] w-32">
+                                      <SelectValue placeholder={t("selectSupplier")} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(data?.suppliers ?? []).map((s) => (
+                                        <SelectItem key={s.id} value={s.id}>
+                                          {s.name}
+                                          {item.supplier?.id === s.id ? " ✓" : ""}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 )}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">

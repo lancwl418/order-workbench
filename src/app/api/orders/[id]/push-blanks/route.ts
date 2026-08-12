@@ -5,6 +5,7 @@ import { pushBlanksForOrder } from "@/lib/suppliers/push-service";
 
 const itemSchema = z.object({
   orderItemId: z.string(),
+  supplierId: z.string().optional(),
   factorySku: z.string().min(1, "Factory SKU required"),
   sizeCode: z.string().optional(),
   sizeName: z.string().optional(),

@@ -43,26 +43,33 @@ export async function GET(
   }
   const unroutableById = new Map(unroutable.map((u) => [u.itemId, u.reason]));
 
-  // Per-supplier SKU mapping prefills for the items we can route
-  const mappingLookups = groups.flatMap((g) =>
-    g.items
-      .filter((i) => i.sku)
-      .map((i) => ({ ourSku: i.sku!, variantTitle: i.variantTitle ?? "", supplierId: g.supplier.id }))
-  );
+  // SKU mapping prefills across ALL suppliers, keyed per supplier — the
+  // dialog re-prefills when an item is switched to an alternate supplier.
+  const mappingLookups = blankItems
+    .filter((i) => i.sku)
+    .map((i) => ({ ourSku: i.sku!, variantTitle: i.variantTitle ?? "" }));
   const mappingRows = mappingLookups.length
     ? await prisma.skuMapping.findMany({ where: { OR: mappingLookups } })
     : [];
 
+  const toPrefill = (r: (typeof mappingRows)[number]) => ({
+    factorySku: r.factorySku,
+    factorySize: r.factorySize,
+    factoryColor: r.factoryColor,
+    factoryStyle: r.factoryStyle,
+    factoryCraftType: r.factoryCraftType,
+  });
+
   const items = blankItems.map((item) => {
     const supplier = supplierByItemId.get(item.id) ?? null;
-    const mapping = supplier
-      ? mappingRows.find(
-          (r) =>
-            r.ourSku === item.sku &&
-            r.variantTitle === (item.variantTitle ?? "") &&
-            r.supplierId === supplier.id
-        )
-      : null;
+    const itemRows = mappingRows.filter(
+      (r) => r.ourSku === item.sku && r.variantTitle === (item.variantTitle ?? "")
+    );
+    const prefills: Record<string, ReturnType<typeof toPrefill>> = {};
+    for (const r of itemRows) {
+      if (r.supplierId) prefills[r.supplierId] = toPrefill(r);
+    }
+    const mapping = supplier ? itemRows.find((r) => r.supplierId === supplier.id) : null;
     return {
       id: item.id,
       title: item.title,
@@ -75,18 +82,17 @@ export async function GET(
       printEnabled: item.printEnabled,
       supplier,
       unroutableReason: unroutableById.get(item.id) ?? null,
-      prefill: mapping
-        ? {
-            factorySku: mapping.factorySku,
-            factorySize: mapping.factorySize,
-            factoryColor: mapping.factoryColor,
-            factoryStyle: mapping.factoryStyle,
-            factoryCraftType: mapping.factoryCraftType,
-          }
-        : null,
+      prefill: mapping ? toPrefill(mapping) : null,
+      prefills,
       supplierOrderNo: item.supplierOrderNo,
       supplierPushedAt: item.supplierPushedAt,
     };
+  });
+
+  const suppliers = await prisma.supplier.findMany({
+    where: { enabled: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, key: true, name: true, adapterType: true },
   });
 
   // Consignee prefill for the dialog's editable address section. Raw field
@@ -110,6 +116,7 @@ export async function GET(
     orderNumber: order.shopifyOrderNumber,
     consignee,
     consigneeMissing,
+    suppliers,
     items,
     pushes: order.supplierPushes.map((p) => ({
       id: p.id,

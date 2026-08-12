@@ -10,6 +10,21 @@ import { useTranslations } from "next-intl";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+export interface BlanksPrefill {
+  factorySku: string;
+  factorySize: string | null;
+  factoryColor: string | null;
+  factoryStyle: string | null;
+  factoryCraftType: number | null;
+}
+
+export interface BlanksSupplierOption {
+  id: string;
+  key: string;
+  name: string;
+  adapterType: string;
+}
+
 export interface BlanksItem {
   id: string;
   title: string;
@@ -21,14 +36,11 @@ export interface BlanksItem {
   designFileUrl: string | null;
   printEnabled: boolean;
   supplier: { id: string; key: string; name: string; adapterType: string } | null;
-  unroutableReason: "no_vendor" | "unmapped_vendor" | null;
-  prefill: {
-    factorySku: string;
-    factorySize: string | null;
-    factoryColor: string | null;
-    factoryStyle: string | null;
-    factoryCraftType: number | null;
-  } | null;
+  unroutableReason: "no_vendor" | "unmapped_vendor" | "bad_supplier" | null;
+  prefill: BlanksPrefill | null;
+  /** SKU mapping prefills keyed by supplierId — used when switching an item
+   * to an alternate supplier. */
+  prefills: Record<string, BlanksPrefill>;
   supplierOrderNo: string | null;
   supplierPushedAt: string | null;
 }
@@ -65,12 +77,14 @@ export interface BlanksData {
   orderNumber: string | null;
   consignee: BlanksConsignee;
   consigneeMissing: string[];
+  suppliers: BlanksSupplierOption[];
   items: BlanksItem[];
   pushes: BlanksPush[];
 }
 
 export interface PushBlanksItemPayload {
   orderItemId: string;
+  supplierId?: string;
   factorySku: string;
   sizeCode?: string;
   sizeName?: string;

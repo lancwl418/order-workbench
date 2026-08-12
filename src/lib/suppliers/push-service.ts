@@ -21,6 +21,8 @@ import {
 
 export interface BlanksItemInput {
   orderItemId: string;
+  /** Send this item to a specific supplier instead of its vendor mapping. */
+  supplierId?: string;
   factorySku: string;
   sizeCode?: string;
   sizeName?: string;
@@ -80,10 +82,17 @@ export function buildSupplierConsignee(
  * Resolve which supplier each blank item routes to via its vendor. Returns
  * per-supplier groups plus the items that cannot be routed (no vendor, or
  * vendor not mapped) — callers surface those instead of pushing.
+ *
+ * `overrides` (itemId → supplierId) lets the operator send an item to an
+ * alternate supplier (e.g. group a linmiao-vendor tee with the order's
+ * jjspromo items); overridden items skip vendor routing entirely.
  */
-export async function resolveSupplierGroups(items: OrderItem[]): Promise<{
+export async function resolveSupplierGroups(
+  items: OrderItem[],
+  overrides?: Map<string, string>
+): Promise<{
   groups: { supplier: Supplier; items: OrderItem[] }[];
-  unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" }[];
+  unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" | "bad_supplier" }[];
 }> {
   const vendors = [...new Set(
     items.map((i) => (i.vendor ? normalizeVendor(i.vendor) : null)).filter((v): v is string => !!v)
@@ -96,19 +105,35 @@ export async function resolveSupplierGroups(items: OrderItem[]): Promise<{
     : [];
   const supplierByVendor = new Map(mappings.map((m) => [m.vendor, m.supplier]));
 
+  const overrideIds = [...new Set(overrides?.values() ?? [])];
+  const overrideSuppliers = overrideIds.length
+    ? await prisma.supplier.findMany({ where: { id: { in: overrideIds }, enabled: true } })
+    : [];
+  const supplierById = new Map(overrideSuppliers.map((s) => [s.id, s]));
+
   const bySupplier = new Map<string, { supplier: Supplier; items: OrderItem[] }>();
-  const unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" }[] = [];
+  const unroutable: { itemId: string; title: string; vendor: string | null; reason: "no_vendor" | "unmapped_vendor" | "bad_supplier" }[] = [];
 
   for (const item of items) {
-    const vendor = item.vendor ? normalizeVendor(item.vendor) : null;
-    if (!vendor) {
-      unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "no_vendor" });
-      continue;
-    }
-    const supplier = supplierByVendor.get(vendor);
-    if (!supplier) {
-      unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "unmapped_vendor" });
-      continue;
+    let supplier: Supplier | undefined;
+    const overrideId = overrides?.get(item.id);
+    if (overrideId) {
+      supplier = supplierById.get(overrideId);
+      if (!supplier) {
+        unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "bad_supplier" });
+        continue;
+      }
+    } else {
+      const vendor = item.vendor ? normalizeVendor(item.vendor) : null;
+      if (!vendor) {
+        unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "no_vendor" });
+        continue;
+      }
+      supplier = supplierByVendor.get(vendor);
+      if (!supplier) {
+        unroutable.push({ itemId: item.id, title: item.title, vendor: item.vendor, reason: "unmapped_vendor" });
+        continue;
+      }
     }
     const group = bySupplier.get(supplier.id) ?? { supplier, items: [] };
     group.items.push(item);
@@ -281,11 +306,24 @@ export async function pushBlanksForOrder(opts: {
   }
 
   const selectedItems = [...inputByItemId.keys()].map((id) => itemById.get(id)!);
-  // Server-side routing — the client's grouping is never trusted.
-  const { groups, unroutable } = await resolveSupplierGroups(selectedItems);
+  // Server-side routing — the supplier is re-resolved here; explicit per-item
+  // overrides are honored only for enabled suppliers.
+  const overrides = new Map<string, string>();
+  for (const [itemId, m] of inputByItemId) {
+    if (m.supplierId) overrides.set(itemId, m.supplierId);
+  }
+  const { groups, unroutable } = await resolveSupplierGroups(selectedItems, overrides);
   if (unroutable.length > 0) {
     const detail = unroutable
-      .map((u) => `"${u.title}" (${u.reason === "no_vendor" ? "no vendor" : `vendor "${u.vendor}" not mapped`})`)
+      .map((u) => {
+        const reason =
+          u.reason === "no_vendor"
+            ? "no vendor"
+            : u.reason === "bad_supplier"
+              ? "selected supplier unavailable"
+              : `vendor "${u.vendor}" not mapped`;
+        return `"${u.title}" (${reason})`;
+      })
       .join(", ");
     return { results: [], error: `Cannot route items to a supplier: ${detail}`, status: 400 };
   }
