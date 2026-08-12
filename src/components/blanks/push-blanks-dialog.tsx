@@ -52,18 +52,31 @@ interface ItemFormState {
   effectImageUrlsText: string;
 }
 
-const SIZE_TOKENS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "2XL", "3XL", "4XL", "5XL"];
+const SIZE_TOKENS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "2XL", "3XL", "4XL", "5XL", "ONESIZE", "OS"];
+
+// Space-insensitive so "One Size" counts as a size token, not a color
+function isSizeToken(part: string): boolean {
+  return SIZE_TOKENS.includes(part.toUpperCase().replace(/\s+/g, ""));
+}
 
 function parseSizeFromVariant(variantTitle: string | null): string {
   if (!variantTitle) return "";
   const parts = variantTitle.split("/").map((p) => p.trim());
-  return parts.find((p) => SIZE_TOKENS.includes(p.toUpperCase())) || "";
+  return parts.find((p) => isSizeToken(p)) || "";
 }
 
 function parseColorFromVariant(variantTitle: string | null): string {
   if (!variantTitle) return "";
   const parts = variantTitle.split("/").map((p) => p.trim());
-  return parts.find((p) => !SIZE_TOKENS.includes(p.toUpperCase())) || "";
+  return parts.find((p) => !isSizeToken(p)) || "";
+}
+
+/** Our SKUs follow 款号-颜色-尺码 (T1-White-onesize) — fall back to the SKU
+ * segments when the variant title parses nothing. */
+function parseSkuParts(sku: string | null): { color: string; size: string } {
+  const parts = (sku ?? "").split("-").map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) return { color: "", size: "" };
+  return { color: parts.slice(1, -1).join("-"), size: parts[parts.length - 1] };
 }
 
 function splitUrls(text: string): string[] {
@@ -118,8 +131,8 @@ export function PushBlanksDialog({
           selected: !item.supplierOrderNo && !!item.supplier,
           supplierId: item.supplier?.id ?? "",
           factorySku: item.prefill?.factorySku ?? item.sku ?? "",
-          sizeCode: item.prefill?.factorySize ?? parseSizeFromVariant(item.variantTitle),
-          colorCode: item.prefill?.factoryColor ?? parseColorFromVariant(item.variantTitle),
+          sizeCode: item.prefill?.factorySize ?? (parseSizeFromVariant(item.variantTitle) || parseSkuParts(item.sku).size),
+          colorCode: item.prefill?.factoryColor ?? (parseColorFromVariant(item.variantTitle) || parseSkuParts(item.sku).color),
           styleCode: item.prefill?.factoryStyle ?? "",
           craftType: (item.prefill?.factoryCraftType as 1 | 2 | null) ?? 1,
           shouldPrint: item.printEnabled ?? false,
@@ -176,8 +189,8 @@ export function PushBlanksDialog({
       // carrying the previous supplier's; the catalog auto-match (or the
       // operator) fills it for the new supplier.
       factorySku: p?.factorySku ?? "",
-      sizeCode: p?.factorySize ?? parseSizeFromVariant(item.variantTitle),
-      colorCode: p?.factoryColor ?? parseColorFromVariant(item.variantTitle),
+      sizeCode: p?.factorySize ?? (parseSizeFromVariant(item.variantTitle) || parseSkuParts(item.sku).size),
+      colorCode: p?.factoryColor ?? (parseColorFromVariant(item.variantTitle) || parseSkuParts(item.sku).color),
       styleCode: p?.factoryStyle ?? "",
       craftType: (p?.factoryCraftType as 1 | 2 | null) ?? 1,
     });
