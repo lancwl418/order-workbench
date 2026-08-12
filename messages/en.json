@@ -773,6 +773,7 @@
     "catalogStyle": "Catalog: Style",
     "catalogColor": "Color",
     "catalogSize": "Size",
-    "catalogPick": "Pick…"
+    "catalogPick": "Pick…",
+    "defaultSupplier": "(default)"
   }
 }
