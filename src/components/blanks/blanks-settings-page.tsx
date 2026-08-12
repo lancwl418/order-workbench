@@ -389,6 +389,7 @@ export function BlanksSettingsPage() {
               <label className="text-[11px] text-muted-foreground">{t("colSupplier")}</label>
               <Select
                 value={newMapping.supplierId}
+                items={suppliers.filter((s) => s.enabled).map((s) => ({ value: s.id, label: s.name }))}
                 onValueChange={(v) => setNewMapping((m) => ({ ...m, supplierId: v ?? "" }))}
               >
                 <SelectTrigger className="h-8 text-sm">
