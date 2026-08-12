@@ -19,10 +19,22 @@ const itemSchema = z.object({
   effectImageUrls: z.array(z.string().url()).optional(),
 });
 
+const consigneeSchema = z.object({
+  name: z.string(),
+  phone: z.string(),
+  address: z.string(),
+  addressOptional: z.string().optional(),
+  country: z.string(),
+  province: z.string(),
+  city: z.string(),
+  postCode: z.string().optional(),
+});
+
 const pushSchema = z.object({
   mode: z.enum(["place", "place_and_push"]).default("place_and_push"),
   sellerRemark: z.string().optional(),
   replace: z.boolean().default(false),
+  consignee: consigneeSchema.optional(),
   items: z.array(itemSchema).min(1),
 });
 
@@ -50,6 +62,7 @@ export async function POST(
     items: parsed.data.items,
     sellerRemark: parsed.data.sellerRemark,
     replace: parsed.data.replace,
+    consignee: parsed.data.consignee,
     userId: session.user?.id,
   });
 

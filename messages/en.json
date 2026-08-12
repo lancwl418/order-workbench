@@ -758,6 +758,16 @@
     "noMappings": "No mappings yet",
     "selectSupplier": "Select supplier",
     "mappingSaved": "vendor \"{vendor}\" → {name}",
-    "mappingMissing": "Vendor and supplier are both required"
+    "mappingMissing": "Vendor and supplier are both required",
+    "shippingAddress": "Shipping Address",
+    "consigneeMissing": "Missing: {fields}",
+    "addr_name": "Name",
+    "addr_phone": "Phone",
+    "addr_address": "Address",
+    "addr_addressOptional": "Address 2",
+    "addr_city": "City",
+    "addr_province": "State/Province",
+    "addr_country": "Country",
+    "addr_postCode": "ZIP/Postal Code"
   }
 }

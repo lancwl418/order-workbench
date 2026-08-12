@@ -49,9 +49,22 @@ export interface BlanksPush {
   lastError: string | null;
 }
 
+export interface BlanksConsignee {
+  name: string;
+  phone: string;
+  address: string;
+  addressOptional: string;
+  city: string;
+  province: string;
+  country: string;
+  postCode: string;
+}
+
 export interface BlanksData {
   orderId: string;
   orderNumber: string | null;
+  consignee: BlanksConsignee;
+  consigneeMissing: string[];
   items: BlanksItem[];
   pushes: BlanksPush[];
 }
@@ -101,7 +114,8 @@ export function usePushBlanks() {
     mode: "place" | "place_and_push",
     items: PushBlanksItemPayload[],
     sellerRemark?: string,
-    replace?: boolean
+    replace?: boolean,
+    consignee?: BlanksConsignee
   ): Promise<{ results: BlanksGroupResult[] } | null> {
     setBusy(true);
     try {
@@ -113,6 +127,7 @@ export function usePushBlanks() {
           items,
           sellerRemark: sellerRemark || undefined,
           replace: replace || undefined,
+          consignee,
         }),
       });
       const data = await res.json();

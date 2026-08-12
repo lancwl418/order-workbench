@@ -209,6 +209,9 @@ export async function pushBlanksForOrder(opts: {
   /** Allow placing again for a supplier that already has a push — the new
    * order gets a sequential suffix (#3940-linmiao-1, -2, …). */
   replace?: boolean;
+  /** Edited consignee from the dialog — used for this push and persisted
+   * back onto the order's shipping address. */
+  consignee?: SupplierConsignee;
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
   const { orderId, mode, items, sellerRemark, userId, replace } = opts;
 
@@ -221,16 +224,47 @@ export async function pushBlanksForOrder(opts: {
     return { results: [], error: "Order is missing Shopify order number", status: 400 };
   }
 
-  const consignee = buildSupplierConsignee(
-    order.shippingAddress as Record<string, unknown> | null,
-    order.customerName
-  );
-  if (!consignee) {
+  const consignee =
+    opts.consignee ??
+    buildSupplierConsignee(
+      order.shippingAddress as Record<string, unknown> | null,
+      order.customerName
+    );
+  const missing = consignee
+    ? (["name", "phone", "address", "city", "province", "country"] as const).filter(
+        (k) => !consignee[k]?.trim()
+      )
+    : ["name", "phone", "address", "city", "province", "country"];
+  if (!consignee || missing.length > 0) {
     return {
       results: [],
-      error: "Order shipping address is incomplete — need name, phone, address, city, province, country",
+      error: `Order shipping address is incomplete — missing: ${missing.join(", ")}. Edit the address in the dialog.`,
       status: 400,
     };
+  }
+
+  // Persist dialog edits so the fix sticks for later pushes/re-pushes.
+  if (opts.consignee) {
+    const existing = (order.shippingAddress as Record<string, unknown> | null) ?? {};
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        shippingAddress: {
+          ...existing,
+          first_name: consignee.name,
+          last_name: "",
+          phone: consignee.phone,
+          address1: consignee.address,
+          address2: consignee.addressOptional ?? null,
+          city: consignee.city,
+          province: consignee.province,
+          province_code: consignee.province,
+          country: consignee.country,
+          country_code: consignee.country,
+          zip: consignee.postCode ?? null,
+        } as Prisma.InputJsonValue,
+      },
+    });
   }
 
   const itemById = new Map(order.orderItems.map((i) => [i.id, i]));
