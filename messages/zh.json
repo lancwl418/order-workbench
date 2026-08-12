@@ -758,6 +758,16 @@
     "noMappings": "还没有映射",
     "selectSupplier": "选择供应商",
     "mappingSaved": "vendor \"{vendor}\" → {name}",
-    "mappingMissing": "vendor 和供应商都必选"
+    "mappingMissing": "vendor 和供应商都必选",
+    "shippingAddress": "收件地址",
+    "consigneeMissing": "缺少：{fields}",
+    "addr_name": "收件人",
+    "addr_phone": "电话",
+    "addr_address": "地址",
+    "addr_addressOptional": "地址 2",
+    "addr_city": "城市",
+    "addr_province": "省/州",
+    "addr_country": "国家",
+    "addr_postCode": "邮编"
   }
 }

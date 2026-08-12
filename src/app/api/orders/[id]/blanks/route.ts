@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { resolveSupplierGroups } from "@/lib/suppliers/push-service";
 import { normalizeVendor } from "@/lib/suppliers/types";
 
+const REQUIRED_CONSIGNEE_FIELDS = ["name", "phone", "address", "city", "province", "country"] as const;
+
 /**
  * GET /api/orders/[id]/blanks — single data source for the push dialog:
  * the order's blank items with their resolved supplier, per-supplier SKU
@@ -87,9 +89,27 @@ export async function GET(
     };
   });
 
+  // Consignee prefill for the dialog's editable address section. Raw field
+  // access (not buildSupplierConsignee) so partially-filled addresses still
+  // prefill what they have.
+  const a = (order.shippingAddress as Record<string, string | undefined> | null) ?? {};
+  const consignee = {
+    name: [a.first_name, a.last_name].filter(Boolean).join(" ").trim() || order.customerName || "",
+    phone: a.phone || order.customerPhone || "",
+    address: a.address1 || "",
+    addressOptional: a.address2 || "",
+    city: a.city || "",
+    province: a.province_code || a.province || "",
+    country: a.country_code || a.country || "",
+    postCode: a.zip || a.postal_code || "",
+  };
+  const consigneeMissing = REQUIRED_CONSIGNEE_FIELDS.filter((k) => !consignee[k]?.trim());
+
   return NextResponse.json({
     orderId: order.id,
     orderNumber: order.shopifyOrderNumber,
+    consignee,
+    consigneeMissing,
     items,
     pushes: order.supplierPushes.map((p) => ({
       id: p.id,

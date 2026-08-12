@@ -27,6 +27,7 @@ import { SupplierOrderLink } from "./supplier-order-link";
 import {
   useBlanksData,
   usePushBlanks,
+  type BlanksConsignee,
   type BlanksItem,
   type BlanksGroupResult,
   type PushBlanksItemPayload,
@@ -85,10 +86,22 @@ export function PushBlanksDialog({
   const [forms, setForms] = useState<Record<string, ItemFormState>>({});
   const [results, setResults] = useState<BlanksGroupResult[] | null>(null);
   const [pendingAction, setPendingAction] = useState<"place" | "place_and_push" | null>(null);
+  const [consignee, setConsignee] = useState<BlanksConsignee | null>(null);
+  const [addressOpen, setAddressOpen] = useState(false);
 
   useEffect(() => {
-    if (!open || !data) return;
+    if (!open) {
+      // Reset per-open state so a reopen prefills fresh data
+      setConsignee(null);
+      setAddressOpen(false);
+      return;
+    }
+    if (!data) return;
     setResults(null);
+    // Prefill the editable consignee once per dialog open; auto-expand when
+    // required fields are missing so the operator sees what to fix.
+    setConsignee((prev) => prev ?? data.consignee);
+    if (data.consigneeMissing.length > 0) setAddressOpen(true);
     setForms((prev) => {
       const next: Record<string, ItemFormState> = {};
       for (const item of data.items) {
@@ -182,11 +195,27 @@ export function PushBlanksDialog({
     return data.items.some((item) => item.supplierOrderNo && forms[item.id]?.selected);
   }, [data, forms]);
 
+  const consigneeMissing = useMemo(() => {
+    if (!consignee) return [];
+    return (["name", "phone", "address", "city", "province", "country"] as const).filter(
+      (k) => !consignee[k]?.trim()
+    );
+  }, [consignee]);
+
+  function updateConsignee(patch: Partial<BlanksConsignee>) {
+    setConsignee((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
   async function handlePush(mode: "place" | "place_and_push") {
+    if (consigneeMissing.length > 0) {
+      setAddressOpen(true);
+      toast.error(t("consigneeMissing", { fields: consigneeMissing.join(", ") }));
+      return;
+    }
     const items = buildPayload();
     if (!items) return;
     setPendingAction(mode);
-    const res = await pushBlanks(orderId, mode, items, sellerRemark, isReplacing);
+    const res = await pushBlanks(orderId, mode, items, sellerRemark, isReplacing, consignee ?? undefined);
     setPendingAction(null);
     if (!res) return;
     setResults(res.results);
@@ -305,6 +334,69 @@ export function PushBlanksDialog({
                 <Link href="/blanks/settings" className="text-amber-900 underline">
                   {t("goConfigure")}
                 </Link>
+              </div>
+            )}
+
+            {/* Shipping address (editable — pushed orders use these values) */}
+            {consignee && (
+              <div
+                className={
+                  consigneeMissing.length > 0
+                    ? "border border-red-300 bg-red-50/50 rounded-lg"
+                    : "border rounded-lg"
+                }
+              >
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 flex items-center justify-between text-xs"
+                  onClick={() => setAddressOpen((v) => !v)}
+                >
+                  <span className="font-medium flex items-center gap-1.5">
+                    {t("shippingAddress")}
+                    {consigneeMissing.length > 0 && (
+                      <span className="text-red-600 font-normal">
+                        {t("consigneeMissing", { fields: consigneeMissing.join(", ") })}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {addressOpen
+                      ? "▲"
+                      : `${consignee.name} · ${consignee.address} ${consignee.city} ▼`}
+                  </span>
+                </button>
+                {addressOpen && (
+                  <div className="px-3 pb-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {(
+                      [
+                        ["name", true],
+                        ["phone", true],
+                        ["address", true],
+                        ["addressOptional", false],
+                        ["city", true],
+                        ["province", true],
+                        ["country", true],
+                        ["postCode", false],
+                      ] as const
+                    ).map(([field, required]) => (
+                      <div key={field} className={field === "address" ? "col-span-2" : ""}>
+                        <label className="text-[11px] text-muted-foreground">
+                          {t(`addr_${field}`)}
+                          {required ? " *" : ""}
+                        </label>
+                        <Input
+                          value={consignee[field]}
+                          onChange={(e) => updateConsignee({ [field]: e.target.value })}
+                          className={
+                            required && !consignee[field]?.trim()
+                              ? "h-8 text-sm border-red-400"
+                              : "h-8 text-sm"
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
