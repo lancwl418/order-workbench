@@ -612,8 +612,29 @@ model Supplier {
   pushes         SupplierPush[]
   orderItems     OrderItem[]
   skuMappings    SkuMapping[]
+  catalogItems   SupplierCatalogItem[]
 
   @@map("suppliers")
+}
+
+// A supplier's product catalog: one row per style+color+size combination,
+// imported from the factory's spreadsheet. Drives the picker in the push
+// dialog (select style/color/size → codes fill themselves).
+model SupplierCatalogItem {
+  id          String   @id @default(cuid())
+  supplierId  String   @map("supplier_id")
+  styleCode   String   @map("style_code")
+  styleName   String?  @map("style_name")
+  colorName   String   @map("color_name")
+  sizeName    String   @map("size_name")
+  productCode String   @map("product_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, styleCode, colorName, sizeName])
+  @@index([supplierId, styleCode])
+  @@map("supplier_catalog_items")
 }
 
 // Routes a Shopify product vendor (normalized) to the supplier that produces it.

@@ -119,6 +119,28 @@ export function useBlanksData(orderId: string | null, enabled = true) {
   );
 }
 
+export interface CatalogSize {
+  sizeName: string;
+  productCode: string;
+}
+export interface CatalogColor {
+  colorName: string;
+  sizes: CatalogSize[];
+}
+export interface CatalogStyle {
+  styleCode: string;
+  styleName: string | null;
+  colors: CatalogColor[];
+}
+
+/** Fetch a supplier's imported factory catalog (style/color/size picker). */
+export function useSupplierCatalog(supplierId: string | null) {
+  return useSWR<{ styles: CatalogStyle[] }>(
+    supplierId ? `/api/suppliers/${supplierId}/catalog` : null,
+    fetcher
+  );
+}
+
 export function usePushBlanks() {
   const t = useTranslations("blanks");
   const [busy, setBusy] = useState(false);

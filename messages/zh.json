@@ -769,6 +769,10 @@
     "addr_province": "省/州",
     "addr_country": "国家",
     "addr_postCode": "邮编",
-    "supplierSwitched": "已切换供应商——映射预填跟随所选供应商"
+    "supplierSwitched": "已切换供应商——映射预填跟随所选供应商",
+    "catalogStyle": "目录：款号",
+    "catalogColor": "颜色",
+    "catalogSize": "尺码",
+    "catalogPick": "选择…"
   }
 }

@@ -24,6 +24,7 @@ import { Loader2, Factory, Send, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SupplierPushStatusBadge } from "./supplier-push-status-badge";
 import { SupplierOrderLink } from "./supplier-order-link";
+import { CatalogPicker } from "./catalog-picker";
 import {
   useBlanksData,
   usePushBlanks,
@@ -547,6 +548,15 @@ export function PushBlanksDialog({
 
                           {f.selected && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pl-7">
+                              {f.supplierId && (
+                                <CatalogPicker
+                                  supplierId={f.supplierId}
+                                  styleCode={f.styleCode}
+                                  colorCode={f.colorCode}
+                                  sizeCode={f.sizeCode}
+                                  onPick={(patch) => updateForm(item.id, patch)}
+                                />
+                              )}
                               <div className="col-span-2">
                                 <label className="text-[11px] text-muted-foreground">{t("factorySku")}</label>
                                 <Input
