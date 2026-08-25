@@ -361,6 +361,18 @@ export function PushBlanksDialog({
                           {t("pushToFactory")}
                         </Button>
                       ))}
+                    {p.trackingNumber && (
+                      <span className="text-muted-foreground">
+                        {p.carrier ? `${p.carrier} ` : ""}
+                        {p.waybillUrl ? (
+                          <a href={p.waybillUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-primary hover:underline">
+                            {p.trackingNumber}
+                          </a>
+                        ) : (
+                          <span className="font-mono">{p.trackingNumber}</span>
+                        )}
+                      </span>
+                    )}
                     {p.lastError && (
                       <span className="text-red-600 w-full">{p.lastError}</span>
                     )}

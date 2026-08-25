@@ -173,7 +173,9 @@ export class RiinClient {
     return this.post("trade/api/interface/queryOrderStatus", { platformOidList });
   }
 
-  queryOrderDelivery(platformOidList: string[]): Promise<RiinResponse<unknown>> {
+  queryOrderDelivery(
+    platformOidList: string[]
+  ): Promise<RiinResponse<{ platformOid: string; trackingNumber?: string; waybillDataPath?: string; shippingTime?: string }[]>> {
     return this.post("trade/api/interface/queryOrderDelivery", { platformOidList });
   }
 

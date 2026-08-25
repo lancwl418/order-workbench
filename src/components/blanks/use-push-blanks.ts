@@ -58,6 +58,10 @@ export interface BlanksPush {
   orderStatus: number | null;
   orderStatusStr: string | null;
   statusSyncedAt: string | null;
+  trackingNumber: string | null;
+  carrier: string | null;
+  waybillUrl: string | null;
+  shippedAt: string | null;
   lastError: string | null;
 }
 
