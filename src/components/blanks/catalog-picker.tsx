@@ -48,12 +48,36 @@ export function CatalogPicker({
     if (matchedFor.current === supplierId) return;
     if (!data || styles.length === 0) return;
     matchedFor.current = supplierId;
-    if (factorySku.trim()) return;
-    // Auto-match may consider the single style, but only fills when BOTH the
-    // item's color and size exist in it — a real product match, not a guess.
+    const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, "");
+
+    // 1) Exact product-code match: our SKUs often ARE the factory catalog
+    //    code (T001-BK01-L). Align style/color/size to the catalog entry so
+    //    the color field carries the factory's color code (BK01, not Black)
+    //    and the composed factory code never duplicates.
+    if (factorySku.trim()) {
+      for (const s of styles) {
+        for (const c of s.colors) {
+          const entry = c.sizes.find((z) => norm(z.productCode) === norm(factorySku));
+          if (entry) {
+            if (styleCode !== s.styleCode || colorCode !== c.colorName || sizeCode !== entry.sizeName) {
+              onPick({
+                styleCode: s.styleCode,
+                colorCode: c.colorName,
+                sizeCode: entry.sizeName,
+                factorySku: entry.productCode,
+              });
+            }
+            return;
+          }
+        }
+      }
+      return;
+    }
+
+    // 2) Color+size match (single style only) — a real product match, not a
+    //    guess, used after a supplier switch cleared the code.
     const s = style ?? (styles.length === 1 ? styles[0] : undefined);
     if (!s) return;
-    const norm = (v: string) => v.trim().toLowerCase();
     const c = s.colors.find((c0) => colorCode && norm(c0.colorName) === norm(colorCode));
     if (!c) return;
     const size = c.sizes.find((z) => sizeCode && norm(z.sizeName) === norm(sizeCode));
