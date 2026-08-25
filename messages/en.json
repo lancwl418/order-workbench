@@ -568,7 +568,9 @@
     "shopifySync": "Shopify Sync",
     "synced": "Synced",
     "syncFailed": "Sync Failed",
-    "notSynced": "Not Synced"
+    "notSynced": "Not Synced",
+    "duplicatePrompt": "This order (or group) already has an OMS order. Create another one? The OMS number gets the next suffix (-2, -3, …).",
+    "duplicateConfirm": "Create another OMS order"
   },
   "csQueue": {
     "title": "CS Queue",

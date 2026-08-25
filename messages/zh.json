@@ -568,7 +568,9 @@
     "shopifySync": "Shopify同步",
     "synced": "已同步",
     "syncFailed": "同步失败",
-    "notSynced": "未同步"
+    "notSynced": "未同步",
+    "duplicatePrompt": "该订单（或分组）已推送过 OMS。要再建一单吗？OMS 单号会自动顺延后缀（-2、-3…）。",
+    "duplicateConfirm": "再建一个 OMS 订单"
   },
   "csQueue": {
     "title": "客服队列",

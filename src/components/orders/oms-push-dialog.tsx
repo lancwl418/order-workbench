@@ -101,6 +101,7 @@ export function OmsPushDialog({
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [estimating, setEstimating] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [duplicatePrompt, setDuplicatePrompt] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState("");
 
   // Split fulfillment groups and which already have an OMS shipment.
@@ -211,7 +212,7 @@ export function OmsPushDialog({
     }
   }
 
-  async function handlePush() {
+  async function handlePush(force = false) {
     if (!selectedProduct) return;
     setPushing(true);
     setStep("pushing");
@@ -219,12 +220,20 @@ export function OmsPushDialog({
       const res = await fetch("/api/oms/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg, addressOverride: addr, shopifyFulfillmentOrderId: selectedGroup || undefined }),
+        body: JSON.stringify({ orderId, productCode: selectedProduct, packageInfo: pkg, addressOverride: addr, shopifyFulfillmentOrderId: selectedGroup || undefined, force }),
       });
+      if (res.status === 409) {
+        // Already pushed — offer an explicit re-push; the OMS number gets
+        // the next sequence suffix so it never collides.
+        setDuplicatePrompt(true);
+        setStep("estimate");
+        return;
+      }
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Push failed");
       }
+      setDuplicatePrompt(false);
       const data = await res.json();
       const parts = [t("pushSuccess")];
       if (data.omsOrder.serverNo) parts.push(data.omsOrder.serverNo);
@@ -704,9 +713,23 @@ export function OmsPushDialog({
               <p className="text-sm text-muted-foreground">{t("noProducts")}</p>
             )}
 
+            {duplicatePrompt && (
+              <div className="border border-amber-300 bg-amber-50 rounded-lg p-2.5 text-xs text-amber-800 space-y-2">
+                <p>{t("duplicatePrompt")}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-amber-400"
+                  onClick={() => handlePush(true)}
+                  disabled={pushing}
+                >
+                  {t("duplicateConfirm")}
+                </Button>
+              </div>
+            )}
             <Button
               className="w-full"
-              onClick={handlePush}
+              onClick={() => handlePush(false)}
               disabled={!selectedProduct || pushing}
             >
               {pushing ? (
