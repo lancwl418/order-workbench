@@ -69,7 +69,21 @@ export async function GET(req: NextRequest) {
             printEnabled: true,
             supplierOrderNo: true,
             supplierPushedAt: true,
+            shopifyFulfillmentOrderId: true,
           },
+        },
+        // Our own labels (OMS/manual). The UI keeps only those covering the
+        // blanks' fulfillment group so the transfer label stays out.
+        shipments: {
+          select: {
+            id: true,
+            trackingNumber: true,
+            carrier: true,
+            providerName: true,
+            shopifyFulfillmentOrderId: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "asc" },
         },
         supplierPushes: {
           select: {

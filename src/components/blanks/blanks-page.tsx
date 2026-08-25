@@ -68,10 +68,38 @@ interface BlanksOrderRow {
     printEnabled: boolean;
     supplierOrderNo: string | null;
     supplierPushedAt: string | null;
+    shopifyFulfillmentOrderId: string | null;
+  }[];
+  shipments: {
+    id: string;
+    trackingNumber: string | null;
+    carrier: string | null;
+    providerName: string | null;
+    shopifyFulfillmentOrderId: string | null;
+    createdAt: string;
   }[];
   supplierPushes: (Omit<BlanksPush, "supplierKey" | "supplierName"> & {
     supplier: { id: string; key: string; name: string; adapterType: string; consoleUrl: string | null };
   })[];
+}
+
+/** Our labels covering the blanks group: shipments scoped to a blanks
+ * fulfillment group, or unscoped (whole order) when the blanks aren't split
+ * into their own group. Excludes the transfer group's label on split orders,
+ * and drops trackings the factory already reports (dedupe). */
+function blanksOwnLabels(order: BlanksOrderRow) {
+  const blankFoIds = new Set(
+    order.orderItems.map((i) => i.shopifyFulfillmentOrderId).filter((v): v is string => !!v)
+  );
+  const factoryTrackings = new Set(
+    order.supplierPushes.map((p) => p.trackingNumber).filter(Boolean)
+  );
+  return order.shipments.filter(
+    (sh) =>
+      sh.trackingNumber &&
+      !factoryTrackings.has(sh.trackingNumber) &&
+      (sh.shopifyFulfillmentOrderId === null || blankFoIds.has(sh.shopifyFulfillmentOrderId))
+  );
 }
 
 const FILTERS = [
@@ -313,6 +341,16 @@ export function BlanksPage() {
                           )}
                         </div>
                       ))}
+                    {blanksOwnLabels(order).map((sh) => (
+                      <div key={sh.id} className="space-y-0.5">
+                        <span className="text-[11px] text-muted-foreground block">
+                          Label{sh.carrier ? ` · ${sh.carrier}` : ""}
+                        </span>
+                        <span className="text-xs font-mono block max-w-[140px] truncate">
+                          {sh.trackingNumber}
+                        </span>
+                      </div>
+                    ))}
                     {/* Always available — linmiao needs our label created
                         before the factory ships */}
                     <Popover>
