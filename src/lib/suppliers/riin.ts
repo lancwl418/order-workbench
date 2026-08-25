@@ -5,6 +5,7 @@ import {
   formatOrderTime,
   noPrintMarkerUrl,
   type SupplierAdapter,
+  type SupplierDelivery,
   type SupplierOrderInput,
   type SupplierOrderResult,
   type SupplierOrderStatus,
@@ -162,5 +163,19 @@ export class RiinAdapter implements SupplierAdapter {
       orderStatus: r.orderStatus ?? null,
       orderStatusStr: r.orderStateStr ?? null,
     }));
+  }
+
+  async queryDelivery(platformOids: string[]): Promise<SupplierDelivery[]> {
+    const res = await this.client.queryOrderDelivery(platformOids);
+    return (res.data ?? []).map((r) => {
+      const shipping = r.shippingTime ? new Date(r.shippingTime) : null;
+      return {
+        platformOid: r.platformOid,
+        trackingNumber: r.trackingNumber || null,
+        carrier: null,
+        waybillUrl: r.waybillDataPath || null,
+        shippedAt: shipping && !isNaN(shipping.getTime()) ? shipping : null,
+      };
+    });
   }
 }

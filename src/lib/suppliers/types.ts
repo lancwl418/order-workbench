@@ -70,6 +70,14 @@ export interface SupplierOrderStatus {
   orderStatusStr: string | null;
 }
 
+export interface SupplierDelivery {
+  platformOid: string;
+  trackingNumber: string | null;
+  carrier: string | null;
+  waybillUrl: string | null;
+  shippedAt: Date | null;
+}
+
 // ─── Adapter contract ───────────────────────────────────────────
 
 export interface SupplierAdapter {
@@ -84,6 +92,8 @@ export interface SupplierAdapter {
   pushToFactory(platformOids: string[]): Promise<SupplierPushToFactoryResult>;
   /** Query current order statuses (riin enum 1..15). */
   queryStatus(platformOids: string[]): Promise<SupplierOrderStatus[]>;
+  /** Query factory-side shipment info (tracking number, waybill, ship time). */
+  queryDelivery(platformOids: string[]): Promise<SupplierDelivery[]>;
 }
 
 // ─── riin order status enum (shared by UI + sync) ───────────────
@@ -105,6 +115,9 @@ export const TERMINAL_ORDER_STATUSES = [12, 13, 15];
 
 /** Sent back by the factory — needs operator attention. */
 export const REJECTED_ORDER_STATUS = 3;
+
+/** Shipped — delivery/tracking becomes available at this status. */
+export const SHIPPED_ORDER_STATUS = 12;
 
 /** Normalized form used as the VendorMapping key. */
 export function normalizeVendor(vendor: string): string {

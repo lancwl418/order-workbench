@@ -668,6 +668,13 @@ model SupplierPush {
   orderStatus    Int?      @map("order_status")
   orderStatusStr String?   @map("order_status_str")
   statusSyncedAt DateTime? @map("status_synced_at")
+  // Factory-side shipment info (riin queryOrderDelivery / linmiao
+  // query-order-info) — each push carries its own tracking, since one order
+  // can ship from several factories
+  trackingNumber String?   @map("tracking_number")
+  carrier        String?
+  waybillUrl     String?   @map("waybill_url")
+  shippedAt      DateTime? @map("shipped_at")
   lastError      String?   @map("last_error") @db.Text
   requestPayload Json?     @map("request_payload")
   traceId        String?   @map("trace_id")

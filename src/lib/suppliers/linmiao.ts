@@ -2,6 +2,7 @@ import type { Supplier } from "@prisma/client";
 import {
   createOrder,
   queryOrderStatus as linmiaoQueryOrderStatus,
+  queryOrderInfo as linmiaoQueryOrderInfo,
   type FactoryCreateOrderParams,
   type FactoryGoodsItem,
   type FactoryImage,
@@ -10,6 +11,7 @@ import {
   formatOrderTime,
   noPrintMarkerUrl,
   type SupplierAdapter,
+  type SupplierDelivery,
   type SupplierOrderInput,
   type SupplierOrderResult,
   type SupplierOrderStatus,
@@ -150,5 +152,22 @@ export class LinmiaoAdapter implements SupplierAdapter {
             ? r.orderStatusStr
             : null,
     }));
+  }
+
+  async queryDelivery(platformOids: string[]): Promise<SupplierDelivery[]> {
+    // linmiao has no dedicated delivery endpoint; query-order-info returns
+    // courierNumber/deliveryCourier/shippingTime per order.
+    const res = await linmiaoQueryOrderInfo(platformOids);
+    if (!Array.isArray(res.data)) return [];
+    return (res.data as Record<string, unknown>[]).map((r) => {
+      const shipping = typeof r.shippingTime === "string" ? new Date(r.shippingTime) : null;
+      return {
+        platformOid: String(r.pfOrderId ?? r.platformOid ?? ""),
+        trackingNumber: typeof r.courierNumber === "string" && r.courierNumber ? r.courierNumber : null,
+        carrier: typeof r.deliveryCourier === "string" && r.deliveryCourier ? r.deliveryCourier : null,
+        waybillUrl: null,
+        shippedAt: shipping && !isNaN(shipping.getTime()) ? shipping : null,
+      };
+    });
   }
 }

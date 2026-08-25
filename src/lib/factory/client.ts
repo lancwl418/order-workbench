@@ -153,3 +153,7 @@ export function updateOrder(params: Omit<FactoryCreateOrderParams, "platformType
 export function queryOrderStatus(orderIds: string[]): Promise<FactoryResponse<unknown>> {
   return post("trade/v1/openapi/query-order-status", { orderIdList: orderIds });
 }
+
+export function queryOrderInfo(orderIds: string[]): Promise<FactoryResponse<unknown>> {
+  return post("trade/v1/openapi/query-order-info", { orderIdList: orderIds });
+}

@@ -7,6 +7,7 @@ import {
   deriveStyleCode,
   normalizeVendor,
   REJECTED_ORDER_STATUS,
+  SHIPPED_ORDER_STATUS,
   TERMINAL_ORDER_STATUSES,
   type SupplierConsignee,
   type SupplierOrderInput,
@@ -538,12 +539,18 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
   checked: number;
   updated: number;
   rejected: number;
+  tracked: number;
   errors: string[];
 }> {
   const pushes = await prisma.supplierPush.findMany({
     where: {
       ...(opts.orderId ? { orderId: opts.orderId } : {}),
-      OR: [{ orderStatus: null }, { orderStatus: { notIn: TERMINAL_ORDER_STATUSES } }],
+      OR: [
+        { orderStatus: null },
+        { orderStatus: { notIn: TERMINAL_ORDER_STATUSES } },
+        // shipped but tracking not captured yet — keep polling for delivery
+        { orderStatus: SHIPPED_ORDER_STATUS, trackingNumber: null },
+      ],
     },
     include: { supplier: true },
     orderBy: { createdAt: "asc" },
@@ -551,6 +558,7 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
 
   let updated = 0;
   let rejected = 0;
+  let tracked = 0;
   const errors: string[] = [];
 
   const bySupplier = new Map<string, { supplier: Supplier; pushes: (SupplierPush & { supplier: Supplier })[] }>();
@@ -574,10 +582,12 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
       try {
         const statuses = await adapter.queryStatus(batch.map((p) => p.platformOid));
         const byOid = new Map(statuses.map((s) => [s.platformOid, s]));
+        const newStatusById = new Map<string, number>();
         for (const push of batch) {
           const status = byOid.get(push.platformOid);
           if (!status || status.orderStatus === null) continue;
           const changed = status.orderStatus !== push.orderStatus;
+          newStatusById.set(push.id, status.orderStatus);
           await prisma.supplierPush.update({
             where: { id: push.id },
             data: {
@@ -602,11 +612,38 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
             }
           }
         }
+
+        // Fetch factory tracking for shipped pushes that don't have it yet —
+        // each push carries its own tracking (one order can ship from
+        // several factories, and the order-level tracking may belong to the
+        // transfer shipment, not the blanks).
+        const needDelivery = batch.filter((push) => {
+          const s = newStatusById.get(push.id) ?? push.orderStatus;
+          return s === SHIPPED_ORDER_STATUS && !push.trackingNumber;
+        });
+        if (needDelivery.length > 0) {
+          const deliveries = await adapter.queryDelivery(needDelivery.map((p) => p.platformOid));
+          const deliveryByOid = new Map(deliveries.map((d) => [d.platformOid, d]));
+          for (const push of needDelivery) {
+            const d = deliveryByOid.get(push.platformOid);
+            if (!d?.trackingNumber) continue;
+            await prisma.supplierPush.update({
+              where: { id: push.id },
+              data: {
+                trackingNumber: d.trackingNumber,
+                carrier: d.carrier,
+                waybillUrl: d.waybillUrl,
+                shippedAt: d.shippedAt,
+              },
+            });
+            tracked++;
+          }
+        }
       } catch (e) {
         errors.push(`${supplier.key}: ${e instanceof Error ? e.message : "status query failed"}`);
       }
     }
   }
 
-  return { checked: pushes.length, updated, rejected, errors };
+  return { checked: pushes.length, updated, rejected, tracked, errors };
 }

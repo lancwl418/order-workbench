@@ -131,6 +131,10 @@ export async function GET(
       orderStatus: p.orderStatus,
       orderStatusStr: p.orderStatusStr,
       statusSyncedAt: p.statusSyncedAt,
+      trackingNumber: p.trackingNumber,
+      carrier: p.carrier,
+      waybillUrl: p.waybillUrl,
+      shippedAt: p.shippedAt,
       lastError: p.lastError,
     })),
   });
