@@ -16,6 +16,7 @@ import {
   Shirt,
   Tag,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,8 @@ export function BlanksPage() {
   const [filter, setFilter] = useState("all");
   const [dialogOrderId, setDialogOrderId] = useState<string | null>(null);
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
+  const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
+  const [splitting, setSplitting] = useState(false);
 
   const { busy, rePush, refreshStatus } = usePushBlanks();
 
@@ -140,6 +143,26 @@ export function BlanksPage() {
 
   async function handleRePush(pushId: string) {
     if (await rePush(pushId)) mutate();
+  }
+
+  /** Open the OMS label dialog for an order's blanks. Mixed orders are
+   * auto-split first (blanks vs the rest) so the label attaches to the
+   * blanks fulfillment group, not the transfer's. */
+  async function openOmsForBlanks(orderId: string) {
+    setSplitting(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/split-blanks`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Split failed");
+      if (data.split) toast.success(t("autoSplitDone"));
+      setOmsPushGroup(data.blanksFulfillmentOrderId ?? undefined);
+      setOmsPushOrderId(orderId);
+      if (data.split) mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Split failed");
+    } finally {
+      setSplitting(false);
+    }
   }
 
   return (
@@ -381,10 +404,15 @@ export function BlanksPage() {
                           Shopify
                         </button>
                         <button
-                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
-                          onClick={() => setOmsPushOrderId(order.id)}
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+                          disabled={splitting}
+                          onClick={() => openOmsForBlanks(order.id)}
                         >
-                          <Tag className="h-3.5 w-3.5" />
+                          {splitting ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Tag className="h-3.5 w-3.5" />
+                          )}
                           OMS
                         </button>
                       </PopoverContent>
@@ -474,12 +502,17 @@ export function BlanksPage() {
       {omsPushOrderId && (
         <OmsPushDialog
           orderId={omsPushOrderId}
+          presetFulfillmentOrderId={omsPushGroup}
           open={!!omsPushOrderId}
           onOpenChange={(open) => {
-            if (!open) setOmsPushOrderId(null);
+            if (!open) {
+              setOmsPushOrderId(null);
+              setOmsPushGroup(undefined);
+            }
           }}
           onSuccess={() => {
             setOmsPushOrderId(null);
+            setOmsPushGroup(undefined);
             mutate();
           }}
         />

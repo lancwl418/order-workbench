@@ -778,6 +778,7 @@
     "catalogPick": "选择…",
     "defaultSupplier": "（默认）",
     "needSize": "「{title}」缺少尺码",
-    "needColor": "「{title}」缺少颜色"
+    "needColor": "「{title}」缺少颜色",
+    "autoSplitDone": "订单已自动拆分：blanks 单独成组"
   }
 }

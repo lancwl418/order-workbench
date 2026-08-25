@@ -778,6 +778,7 @@
     "catalogPick": "Pick…",
     "defaultSupplier": "(default)",
     "needSize": "\"{title}\" needs a size",
-    "needColor": "\"{title}\" needs a color"
+    "needColor": "\"{title}\" needs a color",
+    "autoSplitDone": "Order auto-split: blanks now have their own fulfillment group"
   }
 }
