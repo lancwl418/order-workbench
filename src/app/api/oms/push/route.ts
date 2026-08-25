@@ -18,6 +18,9 @@ const pushSchema = z.object({
   addressOverride: addressOverrideSchema.optional(),
   // Split fulfillment: which Shopify fulfillment order group this push covers.
   shopifyFulfillmentOrderId: z.string().optional(),
+  // Explicitly create another OMS order for an already-pushed order/group —
+  // the OMS number gets the next sequence suffix (#3973-2, -3, …).
+  force: z.boolean().default(false),
 });
 
 /**
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { orderId, productCode, packageInfo, addressOverride, shopifyFulfillmentOrderId } =
+  const { orderId, productCode, packageInfo, addressOverride, shopifyFulfillmentOrderId, force } =
     parsed.data;
 
   const order = await prisma.order.findUnique({
@@ -77,7 +80,7 @@ export async function POST(req: NextRequest) {
       ? s.shopifyFulfillmentOrderId === shopifyFulfillmentOrderId
       : true)
   );
-  if (existingOms) {
+  if (existingOms && !force) {
     return NextResponse.json(
       {
         error: shopifyFulfillmentOrderId
