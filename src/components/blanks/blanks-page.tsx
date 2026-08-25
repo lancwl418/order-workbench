@@ -288,34 +288,33 @@ export function BlanksPage() {
                   )}
                 </TableCell>
                 <TableCell className="align-top">
-                  {order.supplierPushes.some((p) => p.trackingNumber) ? (
-                    <div className="space-y-1">
-                      {order.supplierPushes
-                        .filter((p) => p.trackingNumber)
-                        .map((p) => (
-                          <div key={p.id} className="space-y-0.5">
-                            <span className="text-[11px] text-muted-foreground block">
-                              {p.supplier.name}
-                              {p.carrier ? ` · ${p.carrier}` : ""}
+                  <div className="space-y-1">
+                    {order.supplierPushes
+                      .filter((p) => p.trackingNumber)
+                      .map((p) => (
+                        <div key={p.id} className="space-y-0.5">
+                          <span className="text-[11px] text-muted-foreground block">
+                            {p.supplier.name}
+                            {p.carrier ? ` · ${p.carrier}` : ""}
+                          </span>
+                          {p.waybillUrl ? (
+                            <a
+                              href={p.waybillUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
+                            >
+                              {p.trackingNumber}
+                            </a>
+                          ) : (
+                            <span className="text-xs font-mono block max-w-[140px] truncate">
+                              {p.trackingNumber}
                             </span>
-                            {p.waybillUrl ? (
-                              <a
-                                href={p.waybillUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
-                              >
-                                {p.trackingNumber}
-                              </a>
-                            ) : (
-                              <span className="text-xs font-mono block max-w-[140px] truncate">
-                                {p.trackingNumber}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
+                          )}
+                        </div>
+                      ))}
+                    {/* Always available — linmiao needs our label created
+                        before the factory ships */}
                     <Popover>
                       <PopoverTrigger
                         render={
@@ -352,7 +351,7 @@ export function BlanksPage() {
                         </button>
                       </PopoverContent>
                     </Popover>
-                  )}
+                  </div>
                 </TableCell>
                 <TableCell className="align-top text-xs text-muted-foreground">
                   {order.supplierPushes.find((p) => p.statusSyncedAt)
