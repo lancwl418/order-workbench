@@ -3,6 +3,7 @@ import type { OrderItem, Supplier, SupplierPush } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getVariantImageUrl } from "@/lib/shopify/product-images";
 import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
+import { ensureBlanksSplit } from "@/lib/orders/blanks-split";
 import { getAdapter } from "./registry";
 import {
   deriveStyleCode,
@@ -568,18 +569,29 @@ export async function syncPushTrackingToShopify(
   if (shipment?.syncStatus === "SYNCED") return { synced: true };
 
   const pushItems = push.order.orderItems.filter((i) => push.itemIds.includes(i.id));
-  const groupFoId =
+  let groupFoId =
     pushItems.find((i) => i.shopifyFulfillmentOrderId)?.shopifyFulfillmentOrderId ?? null;
 
-  // Safety on mixed orders: without a fulfillment group the Shopify call
-  // would fulfill EVERYTHING (transfer included) under the blanks tracking.
+  // Mixed order without a fulfillment group: the Shopify call would fulfill
+  // EVERYTHING (transfer included) under the blanks tracking. Auto-split
+  // first (blanks per supplier) so the tracking lands on its own group.
   const hasNonBlanks = push.order.orderItems.some((i) => i.itemType !== "other");
-  const foId = shipment?.shopifyFulfillmentOrderId ?? groupFoId;
+  let foId = shipment?.shopifyFulfillmentOrderId ?? groupFoId;
   if (hasNonBlanks && !foId) {
-    return {
-      synced: false,
-      error: "Mixed order without a blanks fulfillment group — split the order first",
-    };
+    const splitResult = await ensureBlanksSplit(push.orderId, userId);
+    if (splitResult.error) {
+      return { synced: false, error: `Auto-split failed: ${splitResult.error}` };
+    }
+    groupFoId =
+      (splitResult.foIdByItemId &&
+        pushItems.map((i) => splitResult.foIdByItemId![i.id]).find(Boolean)) ?? null;
+    foId = shipment?.shopifyFulfillmentOrderId ?? groupFoId;
+    if (!foId) {
+      return {
+        synced: false,
+        error: "Mixed order without a blanks fulfillment group — split the order first",
+      };
+    }
   }
 
   if (!shipment) {
@@ -633,6 +645,21 @@ export async function syncPushTrackingToShopify(
       data: { syncStatus: "FAILED", syncError: message.slice(0, 500) },
     });
     return { synced: false, error: message };
+  }
+}
+
+/**
+ * Re-attempt the tracking→Shopify sync for an order's pushes that already
+ * have a factory tracking but no synced fulfillment yet (e.g. tracking
+ * arrived before the order was split). Early-returns per push when synced.
+ */
+export async function resyncPendingTrackings(orderId: string, userId?: string): Promise<void> {
+  const pushes = await prisma.supplierPush.findMany({
+    where: { orderId, trackingNumber: { not: null } },
+    select: { id: true },
+  });
+  for (const p of pushes) {
+    await syncPushTrackingToShopify(p.id, userId).catch(() => {});
   }
 }
 
@@ -763,21 +790,30 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
   // Retry sweep: recent shipped pushes whose tracking never made it to a
   // synced Shopify fulfillment (earlier failure or pre-feature data).
   const retryCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-  const unsynced = await prisma.supplierPush.findMany({
+  const candidates = await prisma.supplierPush.findMany({
     where: {
       ...(opts.orderId ? { orderId: opts.orderId } : {}),
       trackingNumber: { not: null },
       updatedAt: { gte: retryCutoff },
-      order: {
-        shopifyOrderId: { not: null },
-        shipments: {
-          none: { trackingNumber: { not: null }, syncStatus: "SYNCED" },
-        },
-      },
+      order: { shopifyOrderId: { not: null } },
     },
-    select: { id: true },
-    take: 20,
+    select: {
+      id: true,
+      trackingNumber: true,
+      order: { select: { shipments: { select: { trackingNumber: true, syncStatus: true } } } },
+    },
+    take: 100,
   });
+  // A push is pending only when ITS tracking lacks a synced fulfillment —
+  // a synced transfer shipment on the same order must not mask it.
+  const unsynced = candidates
+    .filter(
+      (p) =>
+        !p.order.shipments.some(
+          (sh) => sh.trackingNumber === p.trackingNumber && sh.syncStatus === "SYNCED"
+        )
+    )
+    .slice(0, 20);
   for (const p of unsynced) {
     const sync = await syncPushTrackingToShopify(p.id);
     if (!sync.synced && sync.error) errors.push(`shopify sync ${p.id}: ${sync.error}`);
