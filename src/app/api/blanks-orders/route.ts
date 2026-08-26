@@ -100,6 +100,8 @@ export async function GET(req: NextRequest) {
             carrier: true,
             waybillUrl: true,
             shippedAt: true,
+            rejectionStatus: true,
+            rejectionHandledBy: true,
             lastError: true,
             supplier: { select: { id: true, key: true, name: true, adapterType: true, consoleUrl: true } },
           },
@@ -109,11 +111,24 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Global rejection workload for the summary banner (not page-scoped)
+  const rejectionRows = await prisma.supplierPush.groupBy({
+    by: ["rejectionStatus"],
+    where: { orderStatus: REJECTED_ORDER_STATUS },
+    _count: true,
+  });
+  const rejectedSummary = { pending: 0, handling: 0, resolved: 0 };
+  for (const r of rejectionRows) {
+    const key = (r.rejectionStatus ?? "pending") as keyof typeof rejectedSummary;
+    if (key in rejectedSummary) rejectedSummary[key] += r._count;
+  }
+
   return NextResponse.json({
     orders,
     page,
     pageSize,
     total,
     totalPages: Math.ceil(total / pageSize),
+    rejectedSummary,
   });
 }

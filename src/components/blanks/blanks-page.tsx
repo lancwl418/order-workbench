@@ -6,6 +6,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
+  AlertTriangle,
   ChevronDown,
   ExternalLink,
   Factory,
@@ -85,6 +86,12 @@ interface BlanksOrderRow {
   })[];
 }
 
+interface RejectedSummary {
+  pending: number;
+  handling: number;
+  resolved: number;
+}
+
 /** Our labels covering the blanks group: shipments scoped to a blanks
  * fulfillment group, or unscoped (whole order) when the blanks aren't split
  * into their own group. Excludes the transfer group's label on split orders,
@@ -123,12 +130,13 @@ export function BlanksPage() {
   const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
   const [splitting, setSplitting] = useState(false);
 
-  const { busy, rePush, refreshStatus, syncShopify } = usePushBlanks();
+  const { busy, rePush, refreshStatus, syncShopify, setRejectionStatus } = usePushBlanks();
 
   const { data, isLoading, mutate } = useSWR<{
     orders: BlanksOrderRow[];
     total: number;
     totalPages: number;
+    rejectedSummary?: RejectedSummary;
   }>(
     `/api/blanks-orders?page=${page}&filter=${filter}${search ? `&q=${encodeURIComponent(search)}` : ""}`,
     fetcher
@@ -148,6 +156,10 @@ export function BlanksPage() {
 
   async function handleSyncShopify(pushId: string) {
     if (await syncShopify(pushId)) mutate();
+  }
+
+  async function handleRejection(pushId: string, status: "handling" | "resolved") {
+    if (await setRejectionStatus(pushId, status)) mutate();
   }
 
   /** Open the OMS label dialog for an order's blanks. Mixed orders are
@@ -194,6 +206,34 @@ export function BlanksPage() {
           </Link>
         </div>
       </div>
+
+      {(() => {
+        const rs = data?.rejectedSummary;
+        const open = (rs?.pending ?? 0) + (rs?.handling ?? 0);
+        if (!rs || open === 0) return null;
+        return (
+          <div className="border border-red-300 bg-red-50 rounded-lg p-3 flex items-center gap-3 flex-wrap">
+            <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+            <span className="text-sm text-red-800 font-medium">
+              {t("rejectedBanner", { count: open })}
+            </span>
+            <span className="text-xs text-red-700">
+              {t("rejectedBannerDetail", { pending: rs.pending, handling: rs.handling })}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-300 text-red-700 ml-auto"
+              onClick={() => {
+                setPage(1);
+                setFilter("rejected");
+              }}
+            >
+              {t("rejectedBannerView")}
+            </Button>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center gap-2 flex-wrap">
         <form
@@ -321,6 +361,39 @@ export function BlanksPage() {
                             className="text-xs"
                           />
                           <SupplierPushStatusBadge push={p} />
+                          {p.orderStatus === 3 &&
+                            ((p.rejectionStatus ?? "pending") === "pending" ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[11px] px-2 border-red-300 text-red-700"
+                                disabled={busy}
+                                onClick={() => handleRejection(p.id, "handling")}
+                              >
+                                {t("rejectionStart")}
+                              </Button>
+                            ) : p.rejectionStatus === "handling" ? (
+                              <>
+                                <span className="text-[11px] text-blue-700">
+                                  {t("rejectionHandlingBadge")}
+                                  {p.rejectionHandledBy ? ` · ${p.rejectionHandledBy}` : ""}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[11px] px-2 border-green-300 text-green-700"
+                                  disabled={busy}
+                                  onClick={() => handleRejection(p.id, "resolved")}
+                                >
+                                  {t("rejectionResolve")}
+                                </Button>
+                              </>
+                            ) : (
+                              <span className="text-[11px] text-green-700">
+                                {t("rejectionResolvedBadge")}
+                                {p.rejectionHandledBy ? ` · ${p.rejectionHandledBy}` : ""}
+                              </span>
+                            ))}
                           {!p.pushedAt &&
                             (p.supplier.adapterType === "linmiao" ? (
                               <span className="text-[11px] text-amber-700">

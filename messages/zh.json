@@ -781,6 +781,15 @@
     "needColor": "「{title}」缺少颜色",
     "autoSplitDone": "订单已自动拆分：blanks 单独成组",
     "syncShopify": "同步到 Shopify",
-    "shopifySynced": "运单号已同步到 Shopify"
+    "shopifySynced": "运单号已同步到 Shopify",
+    "rejectedBanner": "{count} 单被工厂反审，需要处理",
+    "rejectedBannerDetail": "待处理 {pending} · 处理中 {handling}",
+    "rejectedBannerView": "查看",
+    "rejectionStart": "开始处理",
+    "rejectionResolve": "标记已处理",
+    "rejectionHandlingBadge": "处理中",
+    "rejectionResolvedBadge": "已处理",
+    "rejectionHandling": "已标记为处理中",
+    "rejectionResolved": "已标记为已处理"
   }
 }

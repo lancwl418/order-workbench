@@ -62,6 +62,8 @@ export interface BlanksPush {
   carrier: string | null;
   waybillUrl: string | null;
   shippedAt: string | null;
+  rejectionStatus: string | null;
+  rejectionHandledBy: string | null;
   lastError: string | null;
 }
 
@@ -200,6 +202,27 @@ export function usePushBlanks() {
     }
   }
 
+  /** Move a rejected push through the handling workflow. */
+  async function setRejectionStatus(pushId: string, status: "handling" | "resolved"): Promise<boolean> {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/supplier-pushes/${pushId}/rejection`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Update failed");
+      toast.success(status === "handling" ? t("rejectionHandling") : t("rejectionResolved"));
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Update failed");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** Manually sync a push's factory tracking to Shopify. */
   async function syncShopify(pushId: string): Promise<boolean> {
     setBusy(true);
@@ -239,5 +262,5 @@ export function usePushBlanks() {
     }
   }
 
-  return { busy, pushBlanks, rePush, refreshStatus, syncShopify };
+  return { busy, pushBlanks, rePush, refreshStatus, syncShopify, setRejectionStatus };
 }

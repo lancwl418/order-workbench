@@ -675,6 +675,12 @@ model SupplierPush {
   carrier        String?
   waybillUrl     String?   @map("waybill_url")
   shippedAt      DateTime? @map("shipped_at")
+  // Factory-rejection workflow: set to "pending" when the factory sends the
+  // order back (反审), staff move it to "handling" then "resolved". A new
+  // rejection re-activates it.
+  rejectionStatus    String?   @map("rejection_status") // "pending" | "handling" | "resolved"
+  rejectionHandledBy String?   @map("rejection_handled_by")
+  rejectionHandledAt DateTime? @map("rejection_handled_at")
   lastError      String?   @map("last_error") @db.Text
   requestPayload Json?     @map("request_payload")
   traceId        String?   @map("trace_id")
