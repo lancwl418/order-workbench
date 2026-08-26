@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { splitFulfillmentOrders, type SplitGroup } from "@/lib/shopify/split";
 import { syncGroupMethodsFromShopify } from "@/lib/orders/sync-groups";
+import { resyncPendingTrackings } from "@/lib/suppliers/push-service";
 
 const splitSchema = z.object({
   groups: z
@@ -130,6 +131,9 @@ export async function POST(
   // Record each group's delivery method (Standard/Express) so the per-group
   // OMS gating and badges work immediately after the split. Never throws.
   await syncGroupMethodsFromShopify(id, order.shopifyOrderId);
+
+  // Factory trackings that arrived before the split can sync to Shopify now.
+  await resyncPendingTrackings(id, session.user?.id);
 
   const distinctFos = new Set(Object.values(mapping));
   return NextResponse.json({
