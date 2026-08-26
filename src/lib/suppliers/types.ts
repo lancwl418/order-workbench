@@ -119,6 +119,18 @@ export const REJECTED_ORDER_STATUS = 3;
 /** Shipped — delivery/tracking becomes available at this status. */
 export const SHIPPED_ORDER_STATUS = 12;
 
+/**
+ * Two tracking numbers refer to the same shipment when equal or one contains
+ * the other — linmiao records our uploaded label's number with the order
+ * number appended (9214...3525 -> 9214...35254275).
+ */
+export function trackingsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length < 8 || b.length < 8) return false;
+  return a.includes(b) || b.includes(a);
+}
+
 /** Normalized form used as the VendorMapping key. */
 export function normalizeVendor(vendor: string): string {
   return vendor.trim().toLowerCase();

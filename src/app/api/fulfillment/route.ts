@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
+import { ensureBlanksSplit } from "@/lib/orders/blanks-split";
+import { trackingsMatch } from "@/lib/suppliers/types";
 
 /**
  * POST /api/fulfillment
@@ -37,6 +39,8 @@ export async function POST(req: NextRequest) {
             id: true,
             shopifyOrderId: true,
             shopifyOrderNumber: true,
+            orderItems: { select: { id: true, itemType: true, shopifyFulfillmentOrderId: true } },
+            supplierPushes: { select: { itemIds: true, trackingNumber: true } },
           },
         },
       },
@@ -65,12 +69,64 @@ export async function POST(req: NextRequest) {
 
     const carrier = "USPS";
 
+    // A group-less shipment on a mixed order would fulfill EVERYTHING
+    // (transfer + blanks) under one tracking. Split first and infer which
+    // group this label belongs to.
+    let fulfillmentOrderId = shipment.shopifyFulfillmentOrderId ?? undefined;
+    const items = shipment.order.orderItems;
+    const isMixed =
+      items.some((i) => i.itemType === "other") && items.some((i) => i.itemType !== "other");
+    if (!fulfillmentOrderId && isMixed) {
+      const split = await ensureBlanksSplit(shipment.order.id, session.user?.id);
+      if (split.error) {
+        return NextResponse.json(
+          { error: `Order is mixed and could not be split: ${split.error}` },
+          { status: 400 }
+        );
+      }
+      const freshItems = await prisma.orderItem.findMany({
+        where: { orderId: shipment.order.id },
+        select: { id: true, itemType: true, shopifyFulfillmentOrderId: true },
+      });
+      // Blanks label? Its tracking matches a supplier push -> that push's group.
+      const matchingPush = shipment.order.supplierPushes.find((p) =>
+        trackingsMatch(p.trackingNumber, shipment.trackingNumber)
+      );
+      if (matchingPush) {
+        fulfillmentOrderId =
+          freshItems.find(
+            (i) => matchingPush.itemIds.includes(i.id) && i.shopifyFulfillmentOrderId
+          )?.shopifyFulfillmentOrderId ?? undefined;
+      } else {
+        // Otherwise assume it's the non-blanks (transfer) label — only when
+        // that resolves to exactly one group.
+        const nonBlankFos = [
+          ...new Set(
+            freshItems
+              .filter((i) => i.itemType !== "other" && i.shopifyFulfillmentOrderId)
+              .map((i) => i.shopifyFulfillmentOrderId as string)
+          ),
+        ];
+        if (nonBlankFos.length === 1) fulfillmentOrderId = nonBlankFos[0];
+      }
+      if (!fulfillmentOrderId) {
+        return NextResponse.json(
+          { error: "Cannot tell which fulfillment group this label covers — recreate the label for a specific group" },
+          { status: 400 }
+        );
+      }
+      await prisma.shipment.update({
+        where: { id: shipment.id },
+        data: { shopifyFulfillmentOrderId: fulfillmentOrderId },
+      });
+    }
+
     // Push fulfillment to Shopify
     const result = await pushFulfillmentToShopify({
       shopifyOrderId: shipment.order.shopifyOrderId,
       trackingNumber: shipment.trackingNumber,
       carrier,
-      fulfillmentOrderId: shipment.shopifyFulfillmentOrderId ?? undefined,
+      fulfillmentOrderId,
     });
 
     // Update shipment with Shopify fulfillment info

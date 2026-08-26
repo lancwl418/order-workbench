@@ -121,6 +121,21 @@ export async function pushFulfillmentToShopify(params: {
  * Mark an order as fulfilled in Shopify WITHOUT tracking info.
  * Used for pickup orders where no shipment/tracking is needed.
  */
+/** Cancel a fulfillment so its fulfillment orders reopen (undo a wrong sync). */
+export async function cancelFulfillment(fulfillmentId: string): Promise<void> {
+  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const token = process.env.SHOPIFY_ACCESS_TOKEN!;
+  const version = process.env.SHOPIFY_API_VERSION || "2025-01";
+  const res = await fetch(
+    `https://${store}/admin/api/${version}/fulfillments/${fulfillmentId}/cancel.json`,
+    { method: "POST", headers: { "X-Shopify-Access-Token": token } }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Fulfillment cancel failed (HTTP ${res.status}): ${text.substring(0, 300)}`);
+  }
+}
+
 export async function markOrderFulfilledInShopify(
   shopifyOrderId: string,
   notify = false

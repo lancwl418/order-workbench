@@ -46,6 +46,7 @@ import {
 import { PushBlanksDialog } from "./push-blanks-dialog";
 import { SupplierPushStatusBadge } from "./supplier-push-status-badge";
 import { SupplierOrderLink } from "./supplier-order-link";
+import { trackingsMatch } from "@/lib/suppliers/types";
 import { usePushBlanks, type BlanksPush } from "./use-push-blanks";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -100,13 +101,13 @@ function blanksOwnLabels(order: BlanksOrderRow) {
   const blankFoIds = new Set(
     order.orderItems.map((i) => i.shopifyFulfillmentOrderId).filter((v): v is string => !!v)
   );
-  const factoryTrackings = new Set(
-    order.supplierPushes.map((p) => p.trackingNumber).filter(Boolean)
-  );
+  const factoryTrackings = order.supplierPushes
+    .map((p) => p.trackingNumber)
+    .filter((v): v is string => !!v);
   return order.shipments.filter(
     (sh) =>
       sh.trackingNumber &&
-      !factoryTrackings.has(sh.trackingNumber) &&
+      !factoryTrackings.some((ft) => trackingsMatch(ft, sh.trackingNumber)) &&
       (sh.shopifyFulfillmentOrderId === null || blankFoIds.has(sh.shopifyFulfillmentOrderId))
   );
 }
