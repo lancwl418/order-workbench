@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
             providerName: true,
             shopifyFulfillmentOrderId: true,
             createdAt: true,
+            syncStatus: true,
           },
           orderBy: { createdAt: "asc" },
         },

@@ -200,6 +200,23 @@ export function usePushBlanks() {
     }
   }
 
+  /** Manually sync a push's factory tracking to Shopify. */
+  async function syncShopify(pushId: string): Promise<boolean> {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/supplier-pushes/${pushId}/sync-shopify`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Shopify sync failed");
+      toast.success(t("shopifySynced"));
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Shopify sync failed");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** Refresh supplier statuses — one order, or everything when omitted. */
   async function refreshStatus(orderId?: string): Promise<boolean> {
     setBusy(true);
@@ -222,5 +239,5 @@ export function usePushBlanks() {
     }
   }
 
-  return { busy, pushBlanks, rePush, refreshStatus };
+  return { busy, pushBlanks, rePush, refreshStatus, syncShopify };
 }

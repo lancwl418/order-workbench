@@ -779,6 +779,8 @@
     "defaultSupplier": "(default)",
     "needSize": "\"{title}\" needs a size",
     "needColor": "\"{title}\" needs a color",
-    "autoSplitDone": "Order auto-split: blanks now have their own fulfillment group"
+    "autoSplitDone": "Order auto-split: blanks now have their own fulfillment group",
+    "syncShopify": "Sync to Shopify",
+    "shopifySynced": "Tracking synced to Shopify"
   }
 }
