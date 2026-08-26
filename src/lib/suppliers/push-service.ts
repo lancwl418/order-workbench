@@ -11,6 +11,7 @@ import {
   REJECTED_ORDER_STATUS,
   SHIPPED_ORDER_STATUS,
   TERMINAL_ORDER_STATUSES,
+  trackingsMatch,
   type SupplierConsignee,
   type SupplierOrderInput,
   type SupplierOrderItemInput,
@@ -563,9 +564,13 @@ export async function syncPushTrackingToShopify(
   if (!push.trackingNumber) return { synced: false, error: "No factory tracking yet" };
   if (!push.order.shopifyOrderId) return { synced: false, error: "Order is not linked to Shopify" };
 
-  let shipment = await prisma.shipment.findFirst({
-    where: { orderId: push.orderId, trackingNumber: push.trackingNumber },
+  // Containment match, not equality — linmiao returns our label number with
+  // the order number appended, and that must reuse the OMS shipment.
+  const orderShipments = await prisma.shipment.findMany({
+    where: { orderId: push.orderId, trackingNumber: { not: null } },
   });
+  let shipment =
+    orderShipments.find((sh) => trackingsMatch(sh.trackingNumber, push.trackingNumber)) ?? null;
   if (shipment?.syncStatus === "SYNCED") return { synced: true };
 
   const pushItems = push.order.orderItems.filter((i) => push.itemIds.includes(i.id));
@@ -617,16 +622,35 @@ export async function syncPushTrackingToShopify(
       carrier: push.carrier ?? shipment.carrier ?? "USPS",
       fulfillmentOrderId: foId ?? undefined,
     });
-    await prisma.shipment.update({
-      where: { id: shipment.id },
-      data: {
-        shopifyFulfillmentId: result.fulfillmentId,
-        syncStatus: "SYNCED",
-        labelStatus: "SYNCED_TO_SHOPIFY",
-        status: "shipped",
-        shippedAt: shipment.shippedAt ?? push.shippedAt ?? new Date(),
-      },
-    });
+    try {
+      await prisma.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          shopifyFulfillmentId: result.fulfillmentId,
+          syncStatus: "SYNCED",
+          labelStatus: "SYNCED_TO_SHOPIFY",
+          status: "shipped",
+          shippedAt: shipment.shippedAt ?? push.shippedAt ?? new Date(),
+        },
+      });
+    } catch (err) {
+      // Another shipment already owns this Shopify fulfillment id (e.g. the
+      // OMS label was synced under a slightly different tracking string) —
+      // keep the sync marked without duplicating the fulfillment link.
+      if ((err as { code?: string }).code === "P2002") {
+        await prisma.shipment.update({
+          where: { id: shipment.id },
+          data: {
+            syncStatus: "SYNCED",
+            labelStatus: "SYNCED_TO_SHOPIFY",
+            status: "shipped",
+            shippedAt: shipment.shippedAt ?? push.shippedAt ?? new Date(),
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
     await prisma.orderLog.create({
       data: {
         orderId: push.orderId,
@@ -749,13 +773,13 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
           }
         }
 
-        // Fetch factory tracking for shipped pushes that don't have it yet —
-        // each push carries its own tracking (one order can ship from
-        // several factories, and the order-level tracking may belong to the
-        // transfer shipment, not the blanks).
+        // Fetch factory tracking for pushes that don't have it yet. Not
+        // gated on "shipped": linmiao records the uploaded label's courier
+        // number while still in production (status 4+), and riin simply
+        // returns nothing until it ships — harmless to ask early.
         const needDelivery = batch.filter((push) => {
           const s = newStatusById.get(push.id) ?? push.orderStatus;
-          return s === SHIPPED_ORDER_STATUS && !push.trackingNumber;
+          return s !== null && s >= 4 && s <= SHIPPED_ORDER_STATUS && !push.trackingNumber;
         });
         if (needDelivery.length > 0) {
           const deliveries = await adapter.queryDelivery(needDelivery.map((p) => p.platformOid));

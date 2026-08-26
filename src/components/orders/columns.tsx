@@ -404,6 +404,36 @@ export function createColumns(opts: {
       },
     },
     {
+      id: "groupStatus",
+      header: "",
+      cell: ({ row }) => {
+        const groups = getFulfillmentGroups(row.original.orderItems);
+        if (groups.length === 0) return null;
+        return (
+          <div className="space-y-0.5">
+            {groups.map((g) => {
+              const sh = (row.original.shipments ?? []).find(
+                (x) => x.shopifyFulfillmentOrderId === g.foId && x.trackingNumber
+              );
+              const state = !sh
+                ? { text: "No label", cls: "bg-gray-100 text-gray-500" }
+                : sh.status === "shipped" || sh.syncStatus === "SYNCED"
+                  ? { text: "Shipped", cls: "bg-green-100 text-green-700" }
+                  : { text: "Label", cls: "bg-blue-100 text-blue-700" };
+              return (
+                <div key={g.foId} className="flex items-center gap-1 whitespace-nowrap">
+                  <span className="text-[10px] text-muted-foreground">
+                    G{g.num}·{g.label}
+                  </span>
+                  <span className={`text-[10px] px-1 py-0 rounded ${state.cls}`}>{state.text}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
       id: "tracking",
       header: t.tracking,
       cell: ({ row }) => {
