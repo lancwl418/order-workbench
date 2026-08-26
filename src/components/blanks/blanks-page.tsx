@@ -77,6 +77,7 @@ interface BlanksOrderRow {
     carrier: string | null;
     providerName: string | null;
     shopifyFulfillmentOrderId: string | null;
+    syncStatus: string;
     createdAt: string;
   }[];
   supplierPushes: (Omit<BlanksPush, "supplierKey" | "supplierName"> & {
@@ -122,7 +123,7 @@ export function BlanksPage() {
   const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
   const [splitting, setSplitting] = useState(false);
 
-  const { busy, rePush, refreshStatus } = usePushBlanks();
+  const { busy, rePush, refreshStatus, syncShopify } = usePushBlanks();
 
   const { data, isLoading, mutate } = useSWR<{
     orders: BlanksOrderRow[];
@@ -143,6 +144,10 @@ export function BlanksPage() {
 
   async function handleRePush(pushId: string) {
     if (await rePush(pushId)) mutate();
+  }
+
+  async function handleSyncShopify(pushId: string) {
+    if (await syncShopify(pushId)) mutate();
   }
 
   /** Open the OMS label dialog for an order's blanks. Mixed orders are
@@ -342,28 +347,44 @@ export function BlanksPage() {
                   <div className="space-y-1">
                     {order.supplierPushes
                       .filter((p) => p.trackingNumber)
-                      .map((p) => (
-                        <div key={p.id} className="space-y-0.5">
-                          <span className="text-[11px] text-muted-foreground block">
-                            {p.supplier.name}
-                            {p.carrier ? ` · ${p.carrier}` : ""}
-                          </span>
-                          {p.waybillUrl ? (
-                            <a
-                              href={p.waybillUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
-                            >
-                              {p.trackingNumber}
-                            </a>
-                          ) : (
-                            <span className="text-xs font-mono block max-w-[140px] truncate">
-                              {p.trackingNumber}
+                      .map((p) => {
+                        const shopifySynced = order.shipments.some(
+                          (sh) => sh.trackingNumber === p.trackingNumber && sh.syncStatus === "SYNCED"
+                        );
+                        return (
+                          <div key={p.id} className="space-y-0.5">
+                            <span className="text-[11px] text-muted-foreground block">
+                              {p.supplier.name}
+                              {p.carrier ? ` · ${p.carrier}` : ""}
                             </span>
-                          )}
-                        </div>
-                      ))}
+                            {p.waybillUrl ? (
+                              <a
+                                href={p.waybillUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-mono text-primary hover:underline block max-w-[140px] truncate"
+                              >
+                                {p.trackingNumber}
+                              </a>
+                            ) : (
+                              <span className="text-xs font-mono block max-w-[140px] truncate">
+                                {p.trackingNumber}
+                              </span>
+                            )}
+                            {shopifySynced ? (
+                              <span className="text-[10px] text-green-700">Shopify ✓</span>
+                            ) : (
+                              <button
+                                className="text-[10px] text-primary hover:underline disabled:opacity-50"
+                                disabled={busy}
+                                onClick={() => handleSyncShopify(p.id)}
+                              >
+                                {t("syncShopify")}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     {blanksOwnLabels(order).map((sh) => (
                       <div key={sh.id} className="space-y-0.5">
                         <span className="text-[11px] text-muted-foreground block">

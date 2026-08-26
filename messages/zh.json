@@ -779,6 +779,8 @@
     "defaultSupplier": "（默认）",
     "needSize": "「{title}」缺少尺码",
     "needColor": "「{title}」缺少颜色",
-    "autoSplitDone": "订单已自动拆分：blanks 单独成组"
+    "autoSplitDone": "订单已自动拆分：blanks 单独成组",
+    "syncShopify": "同步到 Shopify",
+    "shopifySynced": "运单号已同步到 Shopify"
   }
 }

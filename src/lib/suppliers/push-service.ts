@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { OrderItem, Supplier, SupplierPush } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getVariantImageUrl } from "@/lib/shopify/product-images";
+import { pushFulfillmentToShopify } from "@/lib/shopify/fulfillments";
 import { getAdapter } from "./registry";
 import {
   deriveStyleCode,
@@ -531,6 +532,110 @@ export async function pushPlacedSupplierPush(
   return { push: updated };
 }
 
+// ─── Factory tracking → Shopify fulfillment ─────────────────────
+
+/**
+ * Sync a push's factory tracking back to Shopify. Reuses an existing
+ * shipment with the same tracking (the linmiao flow: our OMS label's number
+ * comes back as the factory courierNumber) or creates one scoped to the
+ * blanks fulfillment group. Shared by the auto sync and the manual button.
+ */
+export async function syncPushTrackingToShopify(
+  pushId: string,
+  userId?: string
+): Promise<{ synced: boolean; error?: string }> {
+  const push = await prisma.supplierPush.findUnique({
+    where: { id: pushId },
+    include: {
+      supplier: true,
+      order: {
+        select: {
+          id: true,
+          shopifyOrderId: true,
+          shopifyOrderNumber: true,
+          orderItems: { select: { id: true, itemType: true, shopifyFulfillmentOrderId: true } },
+        },
+      },
+    },
+  });
+  if (!push) return { synced: false, error: "Push not found" };
+  if (!push.trackingNumber) return { synced: false, error: "No factory tracking yet" };
+  if (!push.order.shopifyOrderId) return { synced: false, error: "Order is not linked to Shopify" };
+
+  let shipment = await prisma.shipment.findFirst({
+    where: { orderId: push.orderId, trackingNumber: push.trackingNumber },
+  });
+  if (shipment?.syncStatus === "SYNCED") return { synced: true };
+
+  const pushItems = push.order.orderItems.filter((i) => push.itemIds.includes(i.id));
+  const groupFoId =
+    pushItems.find((i) => i.shopifyFulfillmentOrderId)?.shopifyFulfillmentOrderId ?? null;
+
+  // Safety on mixed orders: without a fulfillment group the Shopify call
+  // would fulfill EVERYTHING (transfer included) under the blanks tracking.
+  const hasNonBlanks = push.order.orderItems.some((i) => i.itemType !== "other");
+  const foId = shipment?.shopifyFulfillmentOrderId ?? groupFoId;
+  if (hasNonBlanks && !foId) {
+    return {
+      synced: false,
+      error: "Mixed order without a blanks fulfillment group — split the order first",
+    };
+  }
+
+  if (!shipment) {
+    shipment = await prisma.shipment.create({
+      data: {
+        orderId: push.orderId,
+        sourceType: "THIRD_PARTY",
+        providerName: push.supplier.key,
+        trackingNumber: push.trackingNumber,
+        carrier: push.carrier,
+        status: "shipped",
+        shippedAt: push.shippedAt ?? new Date(),
+        labelStatus: "CREATED",
+        shopifyFulfillmentOrderId: groupFoId,
+      },
+    });
+  }
+
+  try {
+    const result = await pushFulfillmentToShopify({
+      shopifyOrderId: push.order.shopifyOrderId,
+      trackingNumber: push.trackingNumber,
+      carrier: push.carrier ?? shipment.carrier ?? "USPS",
+      fulfillmentOrderId: foId ?? undefined,
+    });
+    await prisma.shipment.update({
+      where: { id: shipment.id },
+      data: {
+        shopifyFulfillmentId: result.fulfillmentId,
+        syncStatus: "SYNCED",
+        labelStatus: "SYNCED_TO_SHOPIFY",
+        status: "shipped",
+        shippedAt: shipment.shippedAt ?? push.shippedAt ?? new Date(),
+      },
+    });
+    await prisma.orderLog.create({
+      data: {
+        orderId: push.orderId,
+        userId,
+        action: "fulfillment_pushed",
+        toValue: result.fulfillmentId,
+        message: `${push.supplier.name}: factory tracking ${push.trackingNumber} synced to Shopify`,
+        metadata: { pushId: push.id, platformOid: push.platformOid, shipmentId: shipment.id },
+      },
+    });
+    return { synced: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Shopify sync failed";
+    await prisma.shipment.update({
+      where: { id: shipment.id },
+      data: { syncStatus: "FAILED", syncError: message.slice(0, 500) },
+    });
+    return { synced: false, error: message };
+  }
+}
+
 // ─── Status sync (cron + manual refresh share this) ─────────────
 
 const STATUS_BATCH = 100;
@@ -637,12 +742,41 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
               },
             });
             tracked++;
+            // Auto-sync the factory tracking to Shopify; failures are
+            // reported and retried by the next sweep or the manual button.
+            const sync = await syncPushTrackingToShopify(push.id);
+            if (!sync.synced && sync.error) {
+              errors.push(`${supplier.key} ${push.platformOid}: shopify sync — ${sync.error}`);
+            }
           }
         }
       } catch (e) {
         errors.push(`${supplier.key}: ${e instanceof Error ? e.message : "status query failed"}`);
       }
     }
+  }
+
+  // Retry sweep: recent shipped pushes whose tracking never made it to a
+  // synced Shopify fulfillment (earlier failure or pre-feature data).
+  const retryCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const unsynced = await prisma.supplierPush.findMany({
+    where: {
+      ...(opts.orderId ? { orderId: opts.orderId } : {}),
+      trackingNumber: { not: null },
+      updatedAt: { gte: retryCutoff },
+      order: {
+        shopifyOrderId: { not: null },
+        shipments: {
+          none: { trackingNumber: { not: null }, syncStatus: "SYNCED" },
+        },
+      },
+    },
+    select: { id: true },
+    take: 20,
+  });
+  for (const p of unsynced) {
+    const sync = await syncPushTrackingToShopify(p.id);
+    if (!sync.synced && sync.error) errors.push(`shopify sync ${p.id}: ${sync.error}`);
   }
 
   return { checked: pushes.length, updated, rejected, tracked, errors };
