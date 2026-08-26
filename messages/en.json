@@ -781,6 +781,15 @@
     "needColor": "\"{title}\" needs a color",
     "autoSplitDone": "Order auto-split: blanks now have their own fulfillment group",
     "syncShopify": "Sync to Shopify",
-    "shopifySynced": "Tracking synced to Shopify"
+    "shopifySynced": "Tracking synced to Shopify",
+    "rejectedBanner": "{count} push(es) rejected by the factory need attention",
+    "rejectedBannerDetail": "pending: {pending} · handling: {handling}",
+    "rejectedBannerView": "View",
+    "rejectionStart": "Start handling",
+    "rejectionResolve": "Mark resolved",
+    "rejectionHandlingBadge": "Handling",
+    "rejectionResolvedBadge": "Resolved",
+    "rejectionHandling": "Marked as handling",
+    "rejectionResolved": "Marked as resolved"
   }
 }

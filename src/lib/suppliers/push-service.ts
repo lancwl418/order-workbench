@@ -699,6 +699,10 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
               orderStatus: status.orderStatus,
               orderStatusStr: status.orderStatusStr,
               statusSyncedAt: new Date(),
+              // A (re-)rejection activates the handling workflow
+              ...(changed && status.orderStatus === REJECTED_ORDER_STATUS
+                ? { rejectionStatus: "pending", rejectionHandledBy: null, rejectionHandledAt: null }
+                : {}),
             },
           });
           if (changed) {
