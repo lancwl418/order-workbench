@@ -6,6 +6,7 @@ import {
   syncFulfillmentGroupsFromShopify,
   foIdForLineItems,
 } from "@/lib/orders/sync-groups";
+import { upsertShipmentFromShopifyFulfillment } from "@/lib/shipments/from-shopify-fulfillment";
 
 /**
  * POST /api/orders/sync
@@ -151,27 +152,15 @@ export async function POST(req: NextRequest) {
         // fulfillments created in Shopify admin.
         for (const f of fulfillments) {
           const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
-          await prisma.shipment.upsert({
-            where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
-            create: {
-              orderId: upsertedOrder.id,
-              sourceType: "SHOPIFY",
-              trackingNumber: f.trackingNumber,
-              trackingUrl: f.trackingUrl,
-              carrier: f.carrier,
-              shopifyFulfillmentId: f.shopifyFulfillmentId,
-              syncStatus: "SYNCED",
-              status: f.shipmentStatus || f.status,
-              shippedAt: f.shippedAt,
-              shopifyFulfillmentOrderId: foId,
-            },
-            update: {
-              trackingNumber: f.trackingNumber,
-              trackingUrl: f.trackingUrl,
-              carrier: f.carrier,
-              status: f.shipmentStatus || f.status,
-              ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
-            },
+          await upsertShipmentFromShopifyFulfillment({
+            orderId: upsertedOrder.id,
+            shopifyFulfillmentId: f.shopifyFulfillmentId,
+            trackingNumber: f.trackingNumber,
+            trackingUrl: f.trackingUrl,
+            carrier: f.carrier,
+            status: f.shipmentStatus || f.status,
+            shippedAt: f.shippedAt,
+            shopifyFulfillmentOrderId: foId,
           });
         }
 
