@@ -11,6 +11,7 @@ import {
   syncFulfillmentGroupsFromShopify,
   foIdForLineItems,
 } from "@/lib/orders/sync-groups";
+import { upsertShipmentFromShopifyFulfillment } from "@/lib/shipments/from-shopify-fulfillment";
 
 /**
  * Verify the HMAC signature of an incoming Shopify webhook request.
@@ -116,19 +117,15 @@ async function handleOrderCreate(
     // Attach the fulfillment to its split group (null = whole order) so the
     // per-group tracking UI picks up Shopify-created fulfillments.
     const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
-    await prisma.shipment.upsert({
-      where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
-      create: {
-        orderId: upsertedOrder.id, sourceType: "SHOPIFY", trackingNumber: f.trackingNumber,
-        trackingUrl: f.trackingUrl, carrier: f.carrier, shopifyFulfillmentId: f.shopifyFulfillmentId,
-        syncStatus: "SYNCED", status: f.shipmentStatus || f.status, shippedAt: f.shippedAt,
-        shopifyFulfillmentOrderId: foId,
-      },
-      update: {
-        trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier,
-        status: f.shipmentStatus || f.status,
-        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
-      },
+    await upsertShipmentFromShopifyFulfillment({
+      orderId: upsertedOrder.id,
+      shopifyFulfillmentId: f.shopifyFulfillmentId,
+      trackingNumber: f.trackingNumber,
+      trackingUrl: f.trackingUrl,
+      carrier: f.carrier,
+      status: f.shipmentStatus || f.status,
+      shippedAt: f.shippedAt,
+      shopifyFulfillmentOrderId: foId,
     });
   }
 
@@ -246,19 +243,15 @@ async function handleOrderUpdated(
     // Attach the fulfillment to its split group (null = whole order) so the
     // per-group tracking UI picks up Shopify-created fulfillments.
     const foId = await foIdForLineItems(upsertedOrder.id, f.lineItemIds);
-    await prisma.shipment.upsert({
-      where: { shopifyFulfillmentId: f.shopifyFulfillmentId },
-      create: {
-        orderId: upsertedOrder.id, sourceType: "SHOPIFY", trackingNumber: f.trackingNumber,
-        trackingUrl: f.trackingUrl, carrier: f.carrier, shopifyFulfillmentId: f.shopifyFulfillmentId,
-        syncStatus: "SYNCED", status: f.shipmentStatus || f.status, shippedAt: f.shippedAt,
-        shopifyFulfillmentOrderId: foId,
-      },
-      update: {
-        trackingNumber: f.trackingNumber, trackingUrl: f.trackingUrl, carrier: f.carrier,
-        status: f.shipmentStatus || f.status,
-        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
-      },
+    await upsertShipmentFromShopifyFulfillment({
+      orderId: upsertedOrder.id,
+      shopifyFulfillmentId: f.shopifyFulfillmentId,
+      trackingNumber: f.trackingNumber,
+      trackingUrl: f.trackingUrl,
+      carrier: f.carrier,
+      status: f.shipmentStatus || f.status,
+      shippedAt: f.shippedAt,
+      shopifyFulfillmentOrderId: foId,
     });
   }
 
@@ -360,29 +353,16 @@ async function handleFulfillmentUpsert(
       (payload.line_items || []).map((li) => String(li.id))
     );
 
-    const upsertedShipment = await prisma.shipment.upsert({
-      where: { shopifyFulfillmentId: fulfillmentId },
-      create: {
-        orderId: order.id,
-        sourceType: "SHOPIFY",
-        trackingNumber,
-        trackingUrl,
-        carrier,
-        shopifyFulfillmentId: fulfillmentId,
-        syncStatus: "SYNCED",
-        status: shipmentStatus || "shipped",
-        shippedAt: new Date(payload.created_at),
-        shopifyFulfillmentOrderId: foId,
-        ...(deliveredAt ? { deliveredAt } : {}),
-      },
-      update: {
-        trackingNumber,
-        trackingUrl,
-        carrier,
-        status: shipmentStatus || "shipped",
-        ...(foId ? { shopifyFulfillmentOrderId: foId } : {}),
-        ...(deliveredAt ? { deliveredAt } : {}),
-      },
+    const upsertedShipment = await upsertShipmentFromShopifyFulfillment({
+      orderId: order.id,
+      shopifyFulfillmentId: fulfillmentId,
+      trackingNumber,
+      trackingUrl,
+      carrier,
+      status: shipmentStatus || "shipped",
+      shippedAt: new Date(payload.created_at),
+      shopifyFulfillmentOrderId: foId,
+      deliveredAt,
     });
 
     // Real-time exception detection/resolution
