@@ -222,7 +222,6 @@ export function createColumns(opts: {
         const canSplit = isMixed && !!row.original.shopifyOrderId;
         return (
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-sm text-muted-foreground">{items.length}</span>
             {hasTransfer && (
               <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-blue-100 text-blue-700">
                 Transfer
