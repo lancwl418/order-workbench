@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  resolveGangSheetUrls,
-  isDirectImageUrl,
-  type ResolvedPrintFile,
-} from "@/lib/drip/resolve-gang-sheet";
+import { resolveOrderPrintFiles } from "@/lib/drip/order-print-files";
 import { getPngDimensions } from "@/lib/drip/png-dimensions";
 import { z } from "zod";
 
@@ -124,34 +120,17 @@ export async function POST(
       where: { printGroupId: groupId, orderId },
     });
 
-    // Re-collect unique designFileUrls from all order items (after update)
+    // Re-resolve print files from all order items (after update)
     const allOrderItems = await prisma.orderItem.findMany({
       where: { orderId },
     });
+    const resolvedFiles = await resolveOrderPrintFiles({
+      shopifyOrderNumber: order?.shopifyOrderNumber ?? null,
+      orderItems: allOrderItems,
+      extraPrintFiles: null,
+    });
 
-    const urlSet = new Set<string>();
-    const urlLabelMap = new Map<string, string>();
-    for (const oi of allOrderItems) {
-      if (oi.designFileUrl && !urlSet.has(oi.designFileUrl)) {
-        urlSet.add(oi.designFileUrl);
-        urlLabelMap.set(oi.designFileUrl, oi.variantTitle || oi.title);
-      }
-    }
-
-    if (urlSet.size > 0) {
-      const resolvedFiles: ResolvedPrintFile[] = [];
-      for (const url of urlSet) {
-        if (isDirectImageUrl(url)) {
-          const label = urlLabelMap.get(url) || "print-file";
-          const orderNum =
-            order?.shopifyOrderNumber?.replace("#", "") || "";
-          resolvedFiles.push({ url, filename: `${orderNum}-${label}.png` });
-        } else {
-          const resolved = await resolveGangSheetUrls(url);
-          resolvedFiles.push(...resolved);
-        }
-      }
-
+    if (resolvedFiles.length > 0) {
       const filesWithDimensions = await Promise.all(
         resolvedFiles.map(async (file) => {
           try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { groupPrintFileSources, extraPrintFilesOf } from "@/lib/drip/order-print-files";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useOrders } from "@/hooks/use-orders";
@@ -68,32 +69,18 @@ function PrintFileCellActions({
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Group items by unique designFileUrl
+  // Group items by unique designFileUrl (Ready to Print sheets carry copies)
   const fileGroups = useMemo(() => {
-    const map = new Map<string, { url: string; title: string; itemIds: string[] }>();
-    for (const item of order.orderItems) {
-      if (!item.designFileUrl) continue;
-      const existing = map.get(item.designFileUrl);
-      if (existing) {
-        existing.itemIds.push(item.id);
-      } else {
-        map.set(item.designFileUrl, {
-          url: item.designFileUrl,
-          title: item.variantTitle || item.title,
-          itemIds: [item.id],
-        });
-      }
-    }
+    const groups = groupPrintFileSources(order.orderItems);
     // Include extra print files
-    const extras = Array.isArray(order.extraPrintFiles)
-      ? (order.extraPrintFiles as { url: string; filename: string }[])
-      : [];
-    for (const extra of extras) {
-      if (!map.has(extra.url)) {
-        map.set(extra.url, { url: extra.url, title: extra.filename, itemIds: [] });
+    const seen = new Set(groups.map((g) => g.url));
+    for (const extra of extraPrintFilesOf(order.extraPrintFiles)) {
+      if (!seen.has(extra.url)) {
+        seen.add(extra.url);
+        groups.push({ url: extra.url, label: extra.filename, itemIds: [], originalUrl: null, copies: 1 });
       }
     }
-    return [...map.values()];
+    return groups;
   }, [order.orderItems, order.extraPrintFiles]);
 
   if (fileGroups.length === 0) {
@@ -185,6 +172,9 @@ function PrintFileCellActions({
             >
               {shortName(fg.url)}
             </a>
+            {fg.copies > 1 && (
+              <span className="text-[10px] text-muted-foreground shrink-0">×{fg.copies}</span>
+            )}
             <button
               onClick={() => {
                 setEditingUrl(editingUrl === fg.url ? null : fg.url);

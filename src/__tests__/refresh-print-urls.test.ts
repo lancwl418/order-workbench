@@ -14,7 +14,7 @@ vi.mock("@/lib/prisma", () => ({
 const mockFetchOrderById = vi.fn();
 vi.mock("@/lib/shopify/orders", () => ({
   fetchOrderById: (...args: unknown[]) => mockFetchOrderById(...args),
-  transformShopifyOrder: (shopifyOrder: { _freshItems: { shopifyLineItemId: string; designFileUrl: string | null }[] }) => ({
+  transformShopifyOrderWithProducts: async (shopifyOrder: { _freshItems: { shopifyLineItemId: string; designFileUrl: string | null }[] }) => ({
     order: {},
     items: shopifyOrder._freshItems || [],
     fulfillments: [],

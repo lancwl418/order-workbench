@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { fetchOrders, transformShopifyOrder } from "@/lib/shopify/orders";
+import { fetchOrders, transformShopifyOrderWithProducts } from "@/lib/shopify/orders";
 import {
   syncFulfillmentGroupsFromShopify,
   foIdForLineItems,
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     for (const shopifyOrder of shopifyOrders) {
       try {
         const { order: orderData, items, fulfillments } =
-          transformShopifyOrder(shopifyOrder);
+          await transformShopifyOrderWithProducts(shopifyOrder);
 
         const existingOrder = await prisma.order.findUnique({
           where: { shopifyOrderId: orderData.shopifyOrderId },

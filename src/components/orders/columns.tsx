@@ -17,7 +17,7 @@ import {
   PRINT_STATUS_COLORS,
 } from "@/lib/constants";
 import type { OrderListItem } from "@/types";
-import { getFulfillmentGroups } from "@/lib/orders/groups";
+import { getFulfillmentGroups, isTransferItemType } from "@/lib/orders/groups";
 import {
   isExpressMethod,
   getGroupMethods,
@@ -207,9 +207,10 @@ export function createColumns(opts: {
       header: t.items,
       cell: ({ row }) => {
         const items = row.original.orderItems;
-        const hasTransfer = items.some(
-          (item) => item.itemType === "transfer_by_size" || item.itemType === "gangsheet"
-        );
+        const hasTransfer = items.some((item) => isTransferItemType(item.itemType));
+        // Ready Print sheets are transfers too (same group / split rules);
+        // the extra badge only tells the operator a pre-made sheet is inside.
+        const hasReadyPrint = items.some((item) => item.itemType === "ready_print");
         const hasBlanks = items.some((item) => item.itemType === "other");
         const hasFreeSample = items.some((item) => item.itemType === "free_sample");
         const categoryCount = [hasTransfer, hasBlanks, hasFreeSample].filter(
@@ -225,6 +226,11 @@ export function createColumns(opts: {
             {hasTransfer && (
               <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-blue-100 text-blue-700">
                 Transfer
+              </span>
+            )}
+            {hasReadyPrint && (
+              <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-cyan-100 text-cyan-700">
+                Ready Print
               </span>
             )}
             {hasBlanks &&

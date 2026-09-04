@@ -38,7 +38,7 @@ import { SupplierPushStatusBadge } from "@/components/blanks/supplier-push-statu
 import { SupplierOrderLink } from "@/components/blanks/supplier-order-link";
 import { useBlanksData, usePushBlanks } from "@/components/blanks/use-push-blanks";
 import { SplitOrderDialog } from "@/components/orders/split-order-dialog";
-import { getFulfillmentGroups } from "@/lib/orders/groups";
+import { getFulfillmentGroups, groupLabelFromType } from "@/lib/orders/groups";
 import {
   isExpressMethod,
   getGroupMethods,
@@ -693,13 +693,7 @@ export default function OrderDetailPage() {
                 fulfillment group (e.g. blanks + transfer) and is on Shopify */}
             {(() => {
               const cats = new Set(
-                order.orderItems.map((i) =>
-                  i.itemType === "free_sample"
-                    ? "Free Sample"
-                    : i.itemType === "transfer_by_size" || i.itemType === "gangsheet"
-                    ? "Transfer"
-                    : "Blanks"
-                )
+                order.orderItems.map((i) => groupLabelFromType(i.itemType))
               );
               if (!order.shopifyOrderId || order.orderItems.length < 2 || cats.size < 2) {
                 return null;
