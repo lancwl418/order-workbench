@@ -6,7 +6,9 @@ import type {
   MappedOrder,
   MappedOrderItem,
   MappedFulfillment,
+  OrderItemType,
 } from "./types";
+import { applyReadyPrintItems } from "./ready-print";
 
 /**
  * Fetch orders from Shopify REST Admin API.
@@ -165,7 +167,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const items: MappedOrderItem[] = shopifyOrder.line_items.map(
     (lineItem: ShopifyLineItem) => {
       let designFileUrl: string | null = null;
-      let itemType: "transfer_by_size" | "gangsheet" | "free_sample" | "other" = "other";
+      let itemType: OrderItemType = "other";
       const productId = String(lineItem.product_id || "");
 
       if (productId === FREE_SAMPLE_PRODUCT_ID) {
@@ -222,6 +224,19 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     }));
 
   return { order, items, fulfillments };
+}
+
+/**
+ * transformShopifyOrder plus the async product-level pass that recognizes
+ * Ready to Print gang sheet items (needs product tags + metafield, which
+ * the order payload doesn't carry). Use this wherever items are persisted.
+ */
+export async function transformShopifyOrderWithProducts(
+  shopifyOrder: ShopifyOrder
+): Promise<ReturnType<typeof transformShopifyOrder>> {
+  const result = transformShopifyOrder(shopifyOrder);
+  await applyReadyPrintItems(result.items, shopifyOrder.line_items);
+  return result;
 }
 
 /**

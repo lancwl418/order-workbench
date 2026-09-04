@@ -296,6 +296,7 @@ async function runCombineJob(
     // Step 1: Download all images and collect metadata
     const pieces: Piece[] = [];
     const orderLabels = new Map<string, string>(); // orderId -> label text
+    const downloaded = new Map<string, string>(); // fileUrl -> local path (Ready to Print copies)
 
     for (let i = 0; i < group.items.length; i++) {
       checkAborted(signal);
@@ -303,13 +304,20 @@ async function runCombineJob(
       const item = group.items[i];
       const imgPath = path.join(tmpDir, `img-${i}.png`);
 
-      // Download to disk
-      const res = await fetch(item.fileUrl, { signal });
-      if (!res.ok) {
-        throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
+      // Download to disk (copy a file already fetched for this job — a
+      // Ready to Print sheet ordered ×N appears N times with the same URL)
+      const cached = downloaded.get(item.fileUrl);
+      if (cached) {
+        await fs.copyFile(cached, imgPath);
+      } else {
+        const res = await fetch(item.fileUrl, { signal });
+        if (!res.ok) {
+          throw new Error(`Failed to fetch ${item.filename}: ${res.status}`);
+        }
+        const buffer = Buffer.from(await res.arrayBuffer());
+        await fs.writeFile(imgPath, buffer);
+        downloaded.set(item.fileUrl, imgPath);
       }
-      const buffer = Buffer.from(await res.arrayBuffer());
-      await fs.writeFile(imgPath, buffer);
 
       const meta = await sharp(imgPath, { limitInputPixels: false }).metadata();
 

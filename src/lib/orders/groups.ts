@@ -4,10 +4,19 @@
  * line items were split into (Phase 1). Items carry shopifyFulfillmentOrderId.
  */
 
+/** Item types that are printed transfers (Drip-built or Ready to Print). */
+export function isTransferItemType(itemType: string): boolean {
+  return (
+    itemType === "transfer_by_size" ||
+    itemType === "gangsheet" ||
+    itemType === "ready_print"
+  );
+}
+
 /** Human label for an item type within a split fulfillment group. */
 export function groupLabelFromType(itemType: string): string {
   if (itemType === "free_sample") return "Free Sample";
-  if (itemType === "transfer_by_size" || itemType === "gangsheet") return "Transfer";
+  if (isTransferItemType(itemType)) return "Transfer";
   return "Blanks";
 }
 

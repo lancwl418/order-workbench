@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { groupLabelFromType } from "@/lib/orders/groups";
 import {
   Dialog,
   DialogContent,
@@ -28,12 +29,6 @@ interface SplitItem {
   itemType: string;
 }
 
-/** Default fulfillment group label for an item type. */
-function defaultGroup(itemType: string): string {
-  if (itemType === "free_sample") return "Free Sample";
-  if (itemType === "transfer_by_size" || itemType === "gangsheet") return "Transfer";
-  return "Blanks";
-}
 
 const GROUP_OPTIONS = ["Blanks", "Transfer", "Free Sample"] as const;
 
@@ -56,7 +51,7 @@ export function SplitOrderDialog({
   useEffect(() => {
     if (!open) return;
     setGroupOf(
-      Object.fromEntries(items.map((i) => [i.id, defaultGroup(i.itemType)]))
+      Object.fromEntries(items.map((i) => [i.id, groupLabelFromType(i.itemType)]))
     );
   }, [open, items]);
 
@@ -64,7 +59,7 @@ export function SplitOrderDialog({
   const groups = useMemo(() => {
     const byGroup = new Map<string, string[]>();
     for (const item of items) {
-      const g = groupOf[item.id] ?? defaultGroup(item.itemType);
+      const g = groupOf[item.id] ?? groupLabelFromType(item.itemType);
       if (!byGroup.has(g)) byGroup.set(g, []);
       byGroup.get(g)!.push(item.id);
     }
@@ -139,7 +134,7 @@ export function SplitOrderDialog({
                   </div>
                 </div>
                 <Select
-                  value={groupOf[item.id] ?? defaultGroup(item.itemType)}
+                  value={groupOf[item.id] ?? groupLabelFromType(item.itemType)}
                   onValueChange={(v) =>
                     v && setGroupOf((prev) => ({ ...prev, [item.id]: v }))
                   }

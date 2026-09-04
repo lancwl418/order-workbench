@@ -142,5 +142,18 @@ export interface MappedOrderItem {
   quantity: number;
   price: string; // Decimal as string for Prisma
   designFileUrl: string | null;
-  itemType: "transfer_by_size" | "gangsheet" | "free_sample" | "other";
+  itemType: OrderItemType;
 }
+
+/**
+ * - transfer_by_size / gangsheet: Drip transfers (print file from line item properties)
+ * - ready_print: pre-made gang sheet product (tag `readyprint`, file from product metafield)
+ * - free_sample
+ * - other: blanks / POD
+ */
+export type OrderItemType =
+  | "transfer_by_size"
+  | "gangsheet"
+  | "ready_print"
+  | "free_sample"
+  | "other";

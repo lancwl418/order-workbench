@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  resolveGangSheetUrls,
-  isDirectImageUrl,
-  type ResolvedPrintFile,
-} from "@/lib/drip/resolve-gang-sheet";
+import { resolveOrderPrintFiles } from "@/lib/drip/order-print-files";
 import { getPngDimensions } from "@/lib/drip/png-dimensions";
 import { refreshPrintFileUrls } from "@/lib/shopify/refresh-print-urls";
 import { z } from "zod";
@@ -63,53 +59,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve print files from order items
-  const urlSet = new Set<string>();
-  const urlLabelMap = new Map<string, string>();
-  for (const item of order.orderItems) {
-    if (item.designFileUrl && !urlSet.has(item.designFileUrl)) {
-      urlSet.add(item.designFileUrl);
-      urlLabelMap.set(
-        item.designFileUrl,
-        item.variantTitle || item.title
-      );
-    }
-  }
-
-  // Also include extra print files
-  const extras = Array.isArray(order.extraPrintFiles)
-    ? (order.extraPrintFiles as { url: string; filename: string }[])
-    : [];
-  for (const extra of extras) {
-    if (!urlSet.has(extra.url)) {
-      urlSet.add(extra.url);
-      urlLabelMap.set(extra.url, extra.filename);
-    }
-  }
-
-  if (urlSet.size === 0) {
-    return NextResponse.json(
-      { error: "Order has no print files" },
-      { status: 400 }
-    );
-  }
-
-  // Resolve all files (direct URLs or Transfer by Size pages)
-  const resolvedFiles: ResolvedPrintFile[] = [];
-  for (const url of urlSet) {
-    if (isDirectImageUrl(url)) {
-      const label = urlLabelMap.get(url) || "print-file";
-      const orderNum = order.shopifyOrderNumber?.replace("#", "") || "";
-      resolvedFiles.push({ url, filename: `${orderNum}-${label}.png` });
-    } else {
-      const resolved = await resolveGangSheetUrls(url);
-      resolvedFiles.push(...resolved);
-    }
-  }
+  // Resolve print files (item design URLs + extra uploads). Ready to Print
+  // items contribute one copy per unit ordered.
+  const resolvedFiles = await resolveOrderPrintFiles(order);
 
   if (resolvedFiles.length === 0) {
     return NextResponse.json(
-      { error: "Could not resolve any print files" },
+      { error: "Order has no print files" },
       { status: 400 }
     );
   }

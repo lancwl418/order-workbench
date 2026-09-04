@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { transformShopifyOrder } from "./orders";
+import { transformShopifyOrderWithProducts } from "./orders";
 import type { ShopifyOrder, ShopifyFulfillment } from "./types";
 import { onShipmentUpdated } from "@/lib/exceptions/realtime";
 import {
@@ -62,7 +62,7 @@ export async function processShopifyWebhook(
 async function handleOrderCreate(
   shopifyOrder: ShopifyOrder
 ): Promise<{ action: string; orderId: string }> {
-  const { order: orderData, items, fulfillments } = transformShopifyOrder(shopifyOrder);
+  const { order: orderData, items, fulfillments } = await transformShopifyOrderWithProducts(shopifyOrder);
 
   const latestFulfillment = fulfillments[0] || null;
   const trackingFields = latestFulfillment
@@ -175,7 +175,7 @@ async function handleOrderCreate(
 async function handleOrderUpdated(
   shopifyOrder: ShopifyOrder
 ): Promise<{ action: string; orderId: string }> {
-  const { order: orderData, items, fulfillments } = transformShopifyOrder(shopifyOrder);
+  const { order: orderData, items, fulfillments } = await transformShopifyOrderWithProducts(shopifyOrder);
 
   const latestFulfillment = fulfillments[0] || null;
   const trackingFields = latestFulfillment

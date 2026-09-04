@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { fetchOrderById, transformShopifyOrder } from "./orders";
+import { fetchOrderById, transformShopifyOrderWithProducts } from "./orders";
 
 /**
  * Refresh designFileUrl for all order items by re-fetching from Shopify.
@@ -36,7 +36,7 @@ export async function refreshPrintFileUrls(orderId: string): Promise<number> {
     return 0;
   }
 
-  const { items: freshItems } = transformShopifyOrder(shopifyOrder);
+  const { items: freshItems } = await transformShopifyOrderWithProducts(shopifyOrder);
 
   // Build lookup: shopifyLineItemId → fresh designFileUrl
   const freshUrlMap = new Map<string, string | null>();
