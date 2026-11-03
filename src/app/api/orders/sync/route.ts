@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
               quantity: item.quantity,
               price: item.price,
               designFileUrl: item.designFileUrl,
+              designFileUrls: item.designFileUrls,
               itemType: item.itemType,
             },
           });

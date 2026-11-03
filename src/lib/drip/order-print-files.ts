@@ -12,7 +12,17 @@ export interface PrintFileItem {
   quantity: number;
   itemType: string;
   designFileUrl: string | null;
+  /** Ready Print: all gang sheets of the purchased variant (designFileUrl = first). */
+  designFileUrls?: string[];
   originalDesignFileUrl: string | null;
+}
+
+/** Every design URL an item points at (a Ready Print variant can have several). */
+function itemUrls(item: PrintFileItem): string[] {
+  if (item.designFileUrls && item.designFileUrls.length > 0) {
+    return item.designFileUrls;
+  }
+  return item.designFileUrl ? [item.designFileUrl] : [];
 }
 
 /** One design URL shared by one or more order items. */
@@ -37,21 +47,28 @@ export interface PrintFileSource {
 export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[] {
   const byUrl = new Map<string, PrintFileSource & { readyCopies: number }>();
   for (const item of items) {
-    if (!item.designFileUrl) continue;
+    const urls = itemUrls(item);
     const isReady = item.itemType === "ready_print";
-    const existing = byUrl.get(item.designFileUrl);
-    if (existing) {
-      existing.itemIds.push(item.id);
-      if (isReady) existing.readyCopies += item.quantity;
-    } else {
-      byUrl.set(item.designFileUrl, {
-        url: item.designFileUrl,
-        label: item.variantTitle || item.title,
-        itemIds: [item.id],
-        originalUrl: item.originalDesignFileUrl,
-        copies: 1,
-        readyCopies: isReady ? item.quantity : 0,
-      });
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      const baseLabel = item.variantTitle || item.title;
+      const label = urls.length > 1 ? `${baseLabel} - Sheet ${i + 1}` : baseLabel;
+      const existing = byUrl.get(url);
+      if (existing) {
+        if (!existing.itemIds.includes(item.id)) existing.itemIds.push(item.id);
+        if (isReady) existing.readyCopies += item.quantity;
+      } else {
+        byUrl.set(url, {
+          url,
+          label,
+          itemIds: [item.id],
+          // Original-version tracking only applies to single-sheet items;
+          // a multi-sheet replacement can't be paired back to one URL.
+          originalUrl: urls.length === 1 ? item.originalDesignFileUrl : null,
+          copies: 1,
+          readyCopies: isReady ? item.quantity : 0,
+        });
+      }
     }
   }
   return [...byUrl.values()].map(({ readyCopies, ...src }) => ({

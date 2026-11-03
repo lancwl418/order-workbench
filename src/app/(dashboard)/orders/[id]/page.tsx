@@ -1268,16 +1268,23 @@ function LineItemsSection({ order }: { order: OrderWithRelations }) {
                     {t("sku")}: {item.sku}
                   </p>
                 )}
-                {item.designFileUrl && (
+                {(item.designFileUrls?.length > 1
+                  ? item.designFileUrls
+                  : item.designFileUrl
+                    ? [item.designFileUrl]
+                    : []
+                ).map((url, i, urls) => (
                   <a
-                    href={item.designFileUrl}
+                    key={url + i}
+                    href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                    className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1 mr-2"
                   >
                     {t("printReadyFile")}
+                    {urls.length > 1 ? ` ${i + 1}/${urls.length}` : ""}
                   </a>
-                )}
+                ))}
               </div>
               <div className="text-right">
                 <p className="text-sm">{t("qty")}: {item.quantity}</p>

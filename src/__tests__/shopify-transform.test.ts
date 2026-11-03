@@ -310,6 +310,29 @@ describe("transformShopifyOrder", () => {
       expect(items[0].designFileUrl).toBe("https://transferbysize.com/order/abc");
       expect(items[1].designFileUrl).toBe("https://transferbysize.com/order/abc");
     });
+
+    it("treats Custom Christmas Transfers by Size as a Transfer by Size product", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            {
+              id: 5005,
+              title: "Custom Christmas Transfers by Size",
+              quantity: 1,
+              price: "12.00",
+              product_id: 15469542277355,
+              fulfillable_quantity: 1,
+              properties: [
+                { name: "_Print Ready", value: "https://transferbysize.com/order/xmas" },
+              ],
+            },
+          ],
+        })
+      );
+
+      expect(items[0].itemType).toBe("transfer_by_size");
+      expect(items[0].designFileUrl).toBe("https://transferbysize.com/order/xmas");
+    });
   });
 
   describe("item type fallback by title", () => {

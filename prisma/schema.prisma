@@ -236,6 +236,10 @@ model OrderItem {
 
   // DTF-specific fields
   designFileUrl         String?   @map("design_file_url")
+  // Ready Print variants can carry several gang sheets (variant metafield
+  // custom.ready_to_print_gangsheets is a list). designFileUrl mirrors the
+  // first entry; this holds the full list. Empty for every other item type.
+  designFileUrls        String[]  @default([]) @map("design_file_urls")
   originalDesignFileUrl String?   @map("original_design_file_url")
   artworkRef            String?   @map("artwork_ref")
   printSize             String?   @map("print_size")

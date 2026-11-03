@@ -69,7 +69,46 @@ describe("refreshPrintFileUrls", () => {
     expect(count).toBe(1);
     expect(mockUpdate).toHaveBeenCalledWith({
       where: { id: "item1" },
-      data: { designFileUrl: "https://new.com/b.png" },
+      data: { designFileUrl: "https://new.com/b.png", designFileUrls: [] },
+    });
+  });
+
+  it("updates designFileUrls and itemType when a Ready Print variant changes sheets", async () => {
+    mockFindUnique.mockResolvedValue({
+      shopifyOrderId: "12345",
+      orderItems: [
+        {
+          id: "item1",
+          shopifyLineItemId: "li1",
+          itemType: "gangsheet",
+          designFileUrl: "https://x/sheet-1.png",
+          designFileUrls: [],
+          originalDesignFileUrl: null,
+        },
+      ],
+    });
+    mockFetchOrderById.mockResolvedValue({
+      _freshItems: [
+        {
+          shopifyLineItemId: "li1",
+          itemType: "ready_print",
+          designFileUrl: "https://x/sheet-1.png",
+          designFileUrls: ["https://x/sheet-1.png", "https://x/sheet-2.png"],
+        },
+      ],
+    });
+    mockUpdate.mockResolvedValue({});
+
+    const count = await refreshPrintFileUrls("order1");
+
+    expect(count).toBe(1);
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: "item1" },
+      data: {
+        designFileUrl: "https://x/sheet-1.png",
+        designFileUrls: ["https://x/sheet-1.png", "https://x/sheet-2.png"],
+        itemType: "ready_print",
+      },
     });
   });
 
@@ -159,7 +198,7 @@ describe("refreshPrintFileUrls", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(1);
     expect(mockUpdate).toHaveBeenCalledWith({
       where: { id: "item1" },
-      data: { designFileUrl: "https://updated.com/a2.png" },
+      data: { designFileUrl: "https://updated.com/a2.png", designFileUrls: [] },
     });
   });
 

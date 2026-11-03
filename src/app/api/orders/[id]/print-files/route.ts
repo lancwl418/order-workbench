@@ -52,6 +52,7 @@ export async function GET(
           quantity: true,
           itemType: true,
           designFileUrl: true,
+          designFileUrls: true,
           originalDesignFileUrl: true,
         },
       },
