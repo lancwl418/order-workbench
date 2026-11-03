@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  resolveGangSheetUrls,
-  isDirectImageUrl,
-  type ResolvedPrintFile,
-} from "@/lib/drip/resolve-gang-sheet";
+import { type ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
+import { resolveOrderPrintFiles } from "@/lib/drip/order-print-files";
 import { getPngDimensions } from "@/lib/drip/png-dimensions";
 import { z } from "zod";
 
@@ -59,10 +56,15 @@ export async function PATCH(
     ? { originalDesignFileUrl: oldUrl }
     : {};
 
-  // Update the OrderItem
+  // Update the OrderItem. The operator's choice replaces the whole sheet
+  // list of a multi-sheet Ready Print item.
   const updated = await prisma.orderItem.update({
     where: { id: itemId },
-    data: { designFileUrl, ...originalFields },
+    data: {
+      designFileUrl,
+      designFileUrls: item.designFileUrls.length > 0 ? [designFileUrl] : [],
+      ...originalFields,
+    },
   });
 
   // If the order had no print files before, set printStatus to READY
@@ -112,35 +114,18 @@ export async function PATCH(
       where: { printGroupId: groupId, orderId: item.orderId },
     });
 
-    // Re-collect unique designFileUrls from all of this order's items
+    // Re-resolve print files from all of this order's items (shared rule:
+    // handles multi-sheet Ready Print items and per-unit copies)
     const allOrderItems = await prisma.orderItem.findMany({
       where: { orderId: item.orderId },
     });
+    const resolvedFiles: ResolvedPrintFile[] = await resolveOrderPrintFiles({
+      shopifyOrderNumber: item.order.shopifyOrderNumber ?? null,
+      orderItems: allOrderItems,
+      extraPrintFiles: null,
+    });
 
-    const urlSet = new Set<string>();
-    const urlLabelMap = new Map<string, string>();
-    for (const oi of allOrderItems) {
-      if (oi.designFileUrl && !urlSet.has(oi.designFileUrl)) {
-        urlSet.add(oi.designFileUrl);
-        urlLabelMap.set(oi.designFileUrl, oi.variantTitle || oi.title);
-      }
-    }
-
-    if (urlSet.size > 0) {
-      // Resolve all files
-      const resolvedFiles: ResolvedPrintFile[] = [];
-      for (const url of urlSet) {
-        if (isDirectImageUrl(url)) {
-          const label = urlLabelMap.get(url) || "print-file";
-          const orderNum =
-            item.order.shopifyOrderNumber?.replace("#", "") || "";
-          resolvedFiles.push({ url, filename: `${orderNum}-${label}.png` });
-        } else {
-          const resolved = await resolveGangSheetUrls(url);
-          resolvedFiles.push(...resolved);
-        }
-      }
-
+    if (resolvedFiles.length > 0) {
       // Fetch dimensions
       const filesWithDimensions = await Promise.all(
         resolvedFiles.map(async (file) => {
@@ -241,6 +226,7 @@ export async function DELETE(
     where: { id: itemId },
     data: {
       designFileUrl: null,
+      designFileUrls: [],
       originalDesignFileUrl: null,
       isPrinted: false,
       printedAt: null,

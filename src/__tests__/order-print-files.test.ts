@@ -45,6 +45,48 @@ describe("groupPrintFileSources", () => {
       { url: "https://x/ready.png", label: "Russell Sprinkle", itemIds: ["c", "d"], originalUrl: null, copies: 5 },
     ]);
   });
+
+  it("emits one source per sheet of a multi-sheet ready print variant", () => {
+    const groups = groupPrintFileSources([
+      item({
+        id: "a",
+        itemType: "ready_print",
+        quantity: 2,
+        title: "Christmas Patchwork",
+        variantTitle: '9" DTF Transfers',
+        designFileUrl: "https://x/sheet-1.png",
+        designFileUrls: ["https://x/sheet-1.png", "https://x/sheet-2.png"],
+      }),
+    ]);
+    expect(groups).toEqual([
+      {
+        url: "https://x/sheet-1.png",
+        label: '9" DTF Transfers - Sheet 1',
+        itemIds: ["a"],
+        originalUrl: null,
+        copies: 2,
+      },
+      {
+        url: "https://x/sheet-2.png",
+        label: '9" DTF Transfers - Sheet 2',
+        itemIds: ["a"],
+        originalUrl: null,
+        copies: 2,
+      },
+    ]);
+  });
+
+  it("prefers designFileUrls over designFileUrl when both are set", () => {
+    const groups = groupPrintFileSources([
+      item({
+        id: "a",
+        itemType: "ready_print",
+        designFileUrl: "https://x/stale.png",
+        designFileUrls: ["https://x/current.png"],
+      }),
+    ]);
+    expect(groups.map((g) => g.url)).toEqual(["https://x/current.png"]);
+  });
 });
 
 describe("resolvePrintFileSource", () => {

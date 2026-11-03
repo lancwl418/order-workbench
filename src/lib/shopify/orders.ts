@@ -156,7 +156,10 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   };
 
   // Product IDs for print-ready URL extraction (compared as strings for safety)
-  const TRANSFER_BY_SIZE_PRODUCT_ID = "9000096399595";
+  const TRANSFER_BY_SIZE_PRODUCT_IDS = [
+    "9000096399595", // Custom DTF Transfers by Size
+    "15469542277355", // Custom Christmas Transfers by Size (seasonal clone)
+  ];
   const BUILD_A_GANGSHEET_PRODUCT_ID = "8999852835051";
   const UPLOAD_GANGSHEET_PRODUCT_ID = "9101910016235";
   const FREE_SAMPLE_PRODUCT_ID = "9385735061739";
@@ -172,7 +175,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
 
       if (productId === FREE_SAMPLE_PRODUCT_ID) {
         itemType = "free_sample";
-      } else if (productId === TRANSFER_BY_SIZE_PRODUCT_ID) {
+      } else if (TRANSFER_BY_SIZE_PRODUCT_IDS.includes(productId)) {
         itemType = "transfer_by_size";
         // Transfer by Size: one shared print-ready URL per order
         if (!transferBySizePrintUrl) {
@@ -204,6 +207,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         quantity: lineItem.quantity,
         price: lineItem.price,
         designFileUrl,
+        designFileUrls: [],
         itemType,
       };
     }

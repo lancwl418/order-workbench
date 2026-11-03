@@ -39,9 +39,13 @@ export async function POST(
 
   const { sourceUrl, newUrl } = parsed.data;
 
-  // Find all OrderItems on this order with the given designFileUrl
+  // Find all OrderItems on this order pointing at the given URL — either as
+  // their designFileUrl or as one sheet of a multi-sheet Ready Print variant
   const items = await prisma.orderItem.findMany({
-    where: { orderId, designFileUrl: sourceUrl },
+    where: {
+      orderId,
+      OR: [{ designFileUrl: sourceUrl }, { designFileUrls: { has: sourceUrl } }],
+    },
   });
 
   if (items.length === 0) {
@@ -59,10 +63,21 @@ export async function POST(
         ? { originalDesignFileUrl: item.designFileUrl }
         : {};
 
+    // Swap the matching sheet within a multi-sheet list; keep designFileUrl
+    // mirroring the first sheet
+    const newUrls = item.designFileUrls.map((u) => (u === sourceUrl ? newUrl : u));
+    const newPrimary =
+      newUrls.length > 0
+        ? newUrls[0]
+        : item.designFileUrl === sourceUrl
+          ? newUrl
+          : item.designFileUrl;
+
     await prisma.orderItem.update({
       where: { id: item.id },
       data: {
-        designFileUrl: newUrl,
+        designFileUrl: newPrimary,
+        designFileUrls: newUrls,
         ...originalFields,
         isPrinted: false,
         printedAt: null,

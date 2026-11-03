@@ -142,6 +142,8 @@ export interface MappedOrderItem {
   quantity: number;
   price: string; // Decimal as string for Prisma
   designFileUrl: string | null;
+  /** Ready Print only: all gang sheet URLs of the purchased variant. */
+  designFileUrls: string[];
   itemType: OrderItemType;
 }
 

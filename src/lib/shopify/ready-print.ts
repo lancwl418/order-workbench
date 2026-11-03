@@ -1,8 +1,13 @@
 /**
  * "Ready to Print" gang sheets: a transfer product whose artwork is a
  * pre-made gang sheet rather than a Drip-built one. Shopify identifies them
- * with the product tag `readyprint`; the sheet image lives in the product
- * metafield `custom.transfer_file`.
+ * with the product tag `readyprint`.
+ *
+ * The sheet images live in metafields:
+ * - variant `custom.ready_to_print_gangsheets` (list.url) — one entry per
+ *   gang sheet of the purchased variant (a variant may have several);
+ * - product `custom.transfer_file` (url) — legacy single-sheet products
+ *   without per-variant sheets. Used only when the variant list is empty.
  *
  * Line items don't carry product tags or metafields, so classification is a
  * separate async pass over the mapped items (see applyReadyPrintItems).
@@ -13,39 +18,69 @@ import type { MappedOrderItem, ShopifyLineItem } from "./types";
 
 export const READY_PRINT_TAG = "readyprint";
 const METAFIELD_NAMESPACE = "custom";
-const METAFIELD_KEY = "transfer_file";
+const PRODUCT_METAFIELD_KEY = "transfer_file";
+const VARIANT_METAFIELD_KEY = "ready_to_print_gangsheets";
 
-export interface ReadyPrintProductInfo {
+export interface ReadyPrintInfo {
   isReadyPrint: boolean;
-  transferFileUrl: string | null;
+  /** Gang sheet URLs for the purchased variant; empty if none configured. */
+  transferFileUrls: string[];
 }
 
-const PRODUCT_QUERY = `
-  query readyPrintProduct($id: ID!, $namespace: String!, $key: String!) {
-    product(id: $id) {
-      tags
-      metafield(namespace: $namespace, key: $key) {
-        type
-        value
-        reference {
-          ... on GenericFile { url }
-          ... on MediaImage { image { url } }
-        }
-      }
+const METAFIELD_FIELDS = `
+  type
+  value
+  reference {
+    ... on GenericFile { url }
+    ... on MediaImage { image { url } }
+  }
+  references(first: 20) {
+    nodes {
+      ... on GenericFile { url }
+      ... on MediaImage { image { url } }
     }
   }
 `;
 
-interface ProductQueryResult {
+const PRODUCT_QUERY = `
+  query readyPrintProduct($productId: ID!, $namespace: String!, $productKey: String!) {
+    product(id: $productId) {
+      tags
+      metafield(namespace: $namespace, key: $productKey) { ${METAFIELD_FIELDS} }
+    }
+  }
+`;
+
+const PRODUCT_VARIANT_QUERY = `
+  query readyPrintProductVariant($productId: ID!, $variantId: ID!, $namespace: String!, $productKey: String!, $variantKey: String!) {
+    product(id: $productId) {
+      tags
+      metafield(namespace: $namespace, key: $productKey) { ${METAFIELD_FIELDS} }
+    }
+    productVariant(id: $variantId) {
+      metafield(namespace: $namespace, key: $variantKey) { ${METAFIELD_FIELDS} }
+    }
+  }
+`;
+
+interface MetafieldResult {
+  type: string;
+  value: string | null;
+  reference:
+    | { url?: string | null; image?: { url?: string | null } | null }
+    | null;
+  references: {
+    nodes: Array<{ url?: string | null; image?: { url?: string | null } | null }>;
+  } | null;
+}
+
+interface LookupQueryResult {
   product: {
     tags: string[];
-    metafield: {
-      type: string;
-      value: string | null;
-      reference:
-        | { url?: string | null; image?: { url?: string | null } | null }
-        | null;
-    } | null;
+    metafield: MetafieldResult | null;
+  } | null;
+  productVariant?: {
+    metafield: MetafieldResult | null;
   } | null;
 }
 
@@ -53,51 +88,94 @@ interface ProductQueryResult {
 // few products, but merchants also edit the metafield and expect "Refresh"
 // on the order page to pick it up, so don't cache for long.
 const CACHE_TTL_MS = 60_000;
-const cache = new Map<string, { info: ReadyPrintProductInfo; at: number }>();
+const cache = new Map<string, { info: ReadyPrintInfo; at: number }>();
 
-/** Pull a usable URL out of the metafield: file reference, URL type, or plain text. */
-function metafieldUrl(mf: NonNullable<ProductQueryResult["product"]>["metafield"]): string | null {
-  if (!mf) return null;
+/**
+ * Pull the usable URLs out of a metafield: file references, a list.url JSON
+ * array, a single URL value, or plain text containing a URL.
+ */
+function metafieldUrls(mf: MetafieldResult | null | undefined): string[] {
+  if (!mf) return [];
+
+  const refUrls = (mf.references?.nodes || [])
+    .map((n) => n.url || n.image?.url)
+    .filter((u): u is string => Boolean(u));
+  if (refUrls.length > 0) return refUrls;
+
   const refUrl = mf.reference?.url || mf.reference?.image?.url;
-  if (refUrl) return refUrl;
+  if (refUrl) return [refUrl];
+
   const v = (mf.value || "").trim();
-  return /^https?:\/\//i.test(v) ? v : null;
+  if (!v) return [];
+
+  // list.url metafields hold a JSON array of URLs
+  if (v.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((u) => String(u).trim())
+          .filter((u) => /^https?:\/\//i.test(u));
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return /^https?:\/\//i.test(v) ? [v] : [];
 }
 
 /**
  * Look up whether a product is a Ready to Print gang sheet and, if so, the
- * transfer file URL. Never throws: lookup failures return "not ready print"
- * so a Shopify hiccup degrades to the pre-existing classification.
+ * transfer file URLs for the purchased variant (variant metafield first,
+ * product metafield as fallback). Never throws: lookup failures return
+ * "not ready print" so a Shopify hiccup degrades to the pre-existing
+ * classification.
  */
-export async function getReadyPrintProductInfo(
-  productId: string
-): Promise<ReadyPrintProductInfo> {
-  const hit = cache.get(productId);
+export async function getReadyPrintInfo(
+  productId: string,
+  variantId: string | null
+): Promise<ReadyPrintInfo> {
+  const cacheKey = `${productId}:${variantId || ""}`;
+  const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.info;
 
-  let info: ReadyPrintProductInfo = { isReadyPrint: false, transferFileUrl: null };
+  let info: ReadyPrintInfo = { isReadyPrint: false, transferFileUrls: [] };
   try {
-    const data = await shopifyGraphql<ProductQueryResult>(PRODUCT_QUERY, {
-      id: `gid://shopify/Product/${productId}`,
+    const variables: Record<string, string> = {
+      productId: `gid://shopify/Product/${productId}`,
       namespace: METAFIELD_NAMESPACE,
-      key: METAFIELD_KEY,
-    });
+      productKey: PRODUCT_METAFIELD_KEY,
+    };
+    let query = PRODUCT_QUERY;
+    if (variantId) {
+      query = PRODUCT_VARIANT_QUERY;
+      variables.variantId = `gid://shopify/ProductVariant/${variantId}`;
+      variables.variantKey = VARIANT_METAFIELD_KEY;
+    }
+
+    const data = await shopifyGraphql<LookupQueryResult>(query, variables);
     const product = data.product;
     if (product) {
       const isReadyPrint = product.tags.some(
         (t) => t.trim().toLowerCase() === READY_PRINT_TAG
       );
-      info = {
-        isReadyPrint,
-        transferFileUrl: isReadyPrint ? metafieldUrl(product.metafield) : null,
-      };
+      if (isReadyPrint) {
+        const variantUrls = metafieldUrls(data.productVariant?.metafield);
+        const urls =
+          variantUrls.length > 0 ? variantUrls : metafieldUrls(product.metafield);
+        info = { isReadyPrint, transferFileUrls: urls };
+      }
     }
   } catch (e) {
-    console.error(`Ready print lookup failed for product ${productId}:`, e);
+    console.error(
+      `Ready print lookup failed for product ${productId} variant ${variantId}:`,
+      e
+    );
     return info; // don't cache failures
   }
 
-  cache.set(productId, { info, at: Date.now() });
+  cache.set(cacheKey, { info, at: Date.now() });
   return info;
 }
 
@@ -119,28 +197,34 @@ function isReadyPrintCandidate(item: MappedOrderItem): boolean {
 
 /**
  * Second classification pass: mark Ready to Print line items and attach the
- * gang sheet URL from the product metafield. Mutates `items` in place.
- * Items already recognized as Transfer by Size / Build a Gangsheet / Free
- * Sample are left untouched.
+ * gang sheet URLs from the variant/product metafields. Mutates `items` in
+ * place. Items already recognized as Transfer by Size / Build a Gangsheet /
+ * Free Sample are left untouched.
  */
 export async function applyReadyPrintItems(
   items: MappedOrderItem[],
   lineItems: ShopifyLineItem[]
 ): Promise<void> {
-  const productByLineItem = new Map<string, string>();
+  const idsByLineItem = new Map<string, { productId: string; variantId: string | null }>();
   for (const li of lineItems) {
-    if (li.product_id) productByLineItem.set(String(li.id), String(li.product_id));
+    if (li.product_id) {
+      idsByLineItem.set(String(li.id), {
+        productId: String(li.product_id),
+        variantId: li.variant_id ? String(li.variant_id) : null,
+      });
+    }
   }
 
   for (const item of items) {
     if (!isReadyPrintCandidate(item)) continue;
-    const productId = productByLineItem.get(item.shopifyLineItemId);
-    if (!productId) continue;
+    const ids = idsByLineItem.get(item.shopifyLineItemId);
+    if (!ids) continue;
 
-    const info = await getReadyPrintProductInfo(productId);
+    const info = await getReadyPrintInfo(ids.productId, ids.variantId);
     if (!info.isReadyPrint) continue;
 
     item.itemType = "ready_print";
-    item.designFileUrl = info.transferFileUrl;
+    item.designFileUrl = info.transferFileUrls[0] ?? null;
+    item.designFileUrls = info.transferFileUrls;
   }
 }
