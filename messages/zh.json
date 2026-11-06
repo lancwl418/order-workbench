@@ -55,6 +55,8 @@
     "DELAYED": "延迟",
     "CANCELLED": "已取消",
     "DISMISSED": "已忽略",
+    "PICKED_UP": "已取货",
+    "READY_FOR_PICKUP": "待取货",
     "NOT_ASSIGNED": "未分配",
     "THIRD_PARTY": "第三方",
     "SHOPIFY": "Shopify",

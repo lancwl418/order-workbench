@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
             totalPrice: orderData.totalPrice,
             currency: orderData.currency,
             ...shippingMethodField,
+            isPickup: orderData.isPickup,
             tags: orderData.tags,
             notes: orderData.notes,
             ...trackingFields,

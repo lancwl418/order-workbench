@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { orderUpdateSchema } from "@/lib/validators";
 import { onOrderStatusChanged } from "@/lib/exceptions/realtime";
 import { INTERNAL_STATUSES, shouldAutoClearCsFlag } from "@/lib/constants";
-import { markOrderFulfilledInShopify } from "@/lib/shopify/fulfillments";
+import {
+  markOrderFulfilledInShopify,
+  markOrderReadyForPickupInShopify,
+} from "@/lib/shopify/fulfillments";
 import { notifyAngelCsFlagged } from "@/lib/notifications";
 
 export async function GET(
@@ -118,7 +121,7 @@ export async function PATCH(
 
   // Auto-sync printStatus based on order status changes
   if (updateData.internalStatus && !updateData.printStatus) {
-    const DONE_TRIGGER = ["SHIPPED", "DELAYED", "DISMISSED", "CANCELLED", "PICKED_UP"];
+    const DONE_TRIGGER = ["SHIPPED", "DELAYED", "DISMISSED", "CANCELLED", "PICKED_UP", "READY_FOR_PICKUP"];
     const READY_TRIGGER = ["OPEN", "REVIEW", "LABEL_CREATED"];
     if (DONE_TRIGGER.includes(updateData.internalStatus) && existing.printStatus !== "DONE") {
       (updateData as Record<string, unknown>).printStatus = "DONE";
@@ -287,6 +290,39 @@ export async function PATCH(
       })
       .catch((err) => {
         console.error(`[Pickup] Failed to sync to Shopify for order ${id}:`, err);
+      });
+  }
+
+  // Sync READY_FOR_PICKUP to Shopify (sends the customer the
+  // "Ready For Pickup" notification; no label/fulfillment is created)
+  if (
+    updateData.internalStatus === "READY_FOR_PICKUP" &&
+    existing.internalStatus !== "READY_FOR_PICKUP" &&
+    existing.shopifyOrderId
+  ) {
+    markOrderReadyForPickupInShopify(existing.shopifyOrderId)
+      .then((result) => {
+        console.log(
+          `[Pickup] Marked ready for pickup in Shopify for order ${id}: ${result.fulfillmentOrderIds.join(", ")}`
+        );
+        return prisma.orderLog.create({
+          data: {
+            orderId: id,
+            userId: session.user?.id,
+            action: "ready_for_pickup",
+            toValue: "READY_FOR_PICKUP",
+            message: `Marked ready for pickup in Shopify (customer notified)`,
+            metadata: {
+              fulfillmentOrderIds: result.fulfillmentOrderIds,
+            },
+          },
+        });
+      })
+      .catch((err) => {
+        console.error(
+          `[Pickup] Failed to mark ready for pickup in Shopify for order ${id}:`,
+          err
+        );
       });
   }
 

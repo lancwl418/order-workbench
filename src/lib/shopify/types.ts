@@ -114,7 +114,9 @@ export interface MappedOrder {
   totalPrice: string; // Decimal as string for Prisma
   currency: string;
   shippingMethod: string | null;
-  internalStatus: "OPEN" | "REVIEW" | "LABEL_CREATED" | "SHIPPED" | "DELIVERED" | "DELAYED" | "CANCELLED" | "DISMISSED" | "PICKED_UP";
+  /** Shopify local pickup order — no shipping address, picked up in store. */
+  isPickup: boolean;
+  internalStatus: "OPEN" | "REVIEW" | "LABEL_CREATED" | "SHIPPED" | "DELIVERED" | "DELAYED" | "CANCELLED" | "DISMISSED" | "PICKED_UP" | "READY_FOR_PICKUP";
   tags: string[];
   notes: string | null;
 }

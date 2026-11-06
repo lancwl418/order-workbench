@@ -36,7 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, SplitSquareHorizontal } from "lucide-react";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, SplitSquareHorizontal, Store } from "lucide-react";
 
 const DELIVERY_METHODS = ["standard", "express", "pickup"] as const;
 
@@ -306,6 +306,20 @@ export function createColumns(opts: {
         const loading = opts.loadingId === id;
         const groups = getFulfillmentGroups(row.original.orderItems);
         const groupMethods = getGroupMethods(row.original.groupShippingMethods);
+
+        // Pickup in store: no label, no delivery-method choice — the badge
+        // screams so the order gets prepared first.
+        if (row.original.isPickup) {
+          return (
+            <Badge
+              variant="outline"
+              className="text-xs border-0 bg-rose-100 text-rose-700 font-semibold"
+            >
+              <Store className="h-3 w-3 mr-0.5" />
+              Pickup{method ? ` · ${method}` : ""}
+            </Badge>
+          );
+        }
 
         const renderBadge = (m: string | null) => {
           if (!m) return <span className="text-sm text-muted-foreground">-</span>;
@@ -584,6 +598,33 @@ export function createColumns(opts: {
           shipment?.trackingUrl ||
           (tracking ? getTrackingUrl(carrier ?? null, tracking) : null);
         const transitStatus = shipment?.status;
+
+        // Pickup in store: no label — the action is marking it ready for
+        // pickup (notifies the customer via Shopify).
+        if (row.original.isPickup && !tracking) {
+          const status = row.original.internalStatus;
+          if (status === "READY_FOR_PICKUP" || status === "PICKED_UP") {
+            return <StatusBadge status={status} />;
+          }
+          const loading = opts.loadingId === row.original.id;
+          return (
+            <Button
+              size="xs"
+              className="gap-1 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={loading}
+              onClick={() =>
+                opts.onStatusChange(row.original.id, "READY_FOR_PICKUP")
+              }
+            >
+              {loading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Store className="h-3 w-3" />
+              )}
+              Ready for Pickup
+            </Button>
+          );
+        }
 
         if (!tracking) {
           const shopifyOrderId = row.original.shopifyOrderId;

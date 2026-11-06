@@ -27,7 +27,7 @@ import { StatusBadge } from "@/components/orders/status-badge";
 import { INTERNAL_STATUSES, PRINT_STATUS_COLORS, EXCEPTION_TYPE_COLORS, EXCEPTION_STATUS_COLORS } from "@/lib/constants";
 import { formatDateTime, timeAgo, getTrackingUrl } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2, SplitSquareHorizontal } from "lucide-react";
+import { ArrowLeft, Save, Package, Loader2, AlertTriangle, Image, ExternalLink, Pencil, X, Check, Undo2, Upload, MessageSquare, Send, Paperclip, FileText, Image as ImageIcon, Truck, RefreshCw, Trash2, SplitSquareHorizontal, Store } from "lucide-react";
 import { toast } from "sonner";
 import type { OrderWithRelations, OrderException, CsCommentWithUser } from "@/types";
 import type { ResolvedPrintFile } from "@/lib/drip/resolve-gang-sheet";
@@ -486,7 +486,15 @@ export default function OrderDetailPage() {
                 <span className="text-muted-foreground">{t("deliveryMethod")}</span>
                 <div className="flex items-center gap-1.5">
                   <p className="font-medium">
-                    {order.shippingMethod ? (
+                    {order.isPickup ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-0 bg-rose-100 text-rose-700 font-semibold"
+                      >
+                        <Store className="h-3 w-3 mr-0.5" />
+                        Pickup{order.shippingMethod ? ` · ${order.shippingMethod}` : ""}
+                      </Badge>
+                    ) : order.shippingMethod ? (
                       <Badge
                         variant="outline"
                         className={`text-xs border-0 ${
@@ -499,15 +507,17 @@ export default function OrderDetailPage() {
                       </Badge>
                     ) : "-"}
                   </p>
-                  <button
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => {
-                      setDeliveryMethodInput(order.shippingMethod || "");
-                      setEditDeliveryOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
+                  {!order.isPickup && (
+                    <button
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => {
+                        setDeliveryMethodInput(order.shippingMethod || "");
+                        setEditDeliveryOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 {/* Split order: each group can ship with its own method */}
                 {(() => {
@@ -575,6 +585,21 @@ export default function OrderDetailPage() {
             <CardTitle>{t("actions")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Pickup in store: no label — mark ready so Shopify notifies the customer */}
+            {order.isPickup &&
+              !["READY_FOR_PICKUP", "PICKED_UP", "CANCELLED", "DISMISSED"].includes(
+                order.internalStatus
+              ) && (
+                <Button
+                  size="sm"
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white"
+                  onClick={() => updateStatus("READY_FOR_PICKUP")}
+                >
+                  <Store className="h-3.5 w-3.5 mr-1" />
+                  {tStatus("READY_FOR_PICKUP")}
+                </Button>
+              )}
+
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">
                 {t("updateStatus")}
@@ -620,8 +645,9 @@ export default function OrderDetailPage() {
             </div>
 
             {/* OMS Push — for a split order, show until every group has its
-                own OMS shipment. Express orders can also use OMS. */}
-            {(() => {
+                own OMS shipment. Express orders can also use OMS. Pickup
+                orders never ship, so they never push to OMS. */}
+            {!order.isPickup && (() => {
               const groups = getFulfillmentGroups(order.orderItems);
               const showOmsPush =
                 groups.length > 0

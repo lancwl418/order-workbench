@@ -458,6 +458,14 @@ export default function OrdersPage() {
           setSelectedOrders(rows as OrderListItem[])
         }
         isLoading={isLoading}
+        rowClassName={(row) =>
+          // Pickup orders jump the queue: the customer is coming to the store,
+          // so they stay highlighted until handed over (or cancelled).
+          row.isPickup &&
+          !["PICKED_UP", "CANCELLED", "DISMISSED"].includes(row.internalStatus)
+            ? "bg-rose-50 hover:bg-rose-100/70 shadow-[inset_3px_0_0_0_theme(colors.rose.500)]"
+            : undefined
+        }
       />
 
       {/* OMS Push Dialog */}

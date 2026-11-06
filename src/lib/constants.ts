@@ -8,6 +8,7 @@ export const INTERNAL_STATUSES = [
   "CANCELLED",
   "DISMISSED",
   "PICKED_UP",
+  "READY_FOR_PICKUP",
 ] as const;
 
 export const PRINT_STATUSES = [
@@ -58,6 +59,7 @@ export const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
   DISMISSED: "Dismissed",
   PICKED_UP: "Picked Up",
+  READY_FOR_PICKUP: "Ready for Pickup",
   NOT_ASSIGNED: "Not Assigned",
   THIRD_PARTY: "Third Party",
   SHOPIFY: "Shopify",
@@ -100,6 +102,7 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   CANCELLED: { bg: "bg-gray-100", text: "text-gray-400" },        // faded
   DISMISSED: { bg: "bg-gray-100", text: "text-gray-400" },        // faded
   PICKED_UP: { bg: "bg-teal-100", text: "text-teal-700" },
+  READY_FOR_PICKUP: { bg: "bg-fuchsia-100", text: "text-fuchsia-700" },
   // Shipping route
   NOT_ASSIGNED: { bg: "bg-gray-100", text: "text-gray-500" },
   THIRD_PARTY: { bg: "bg-orange-100", text: "text-orange-700" },
@@ -220,6 +223,7 @@ export const PRODUCTION_COMPLETE_STATUSES = [
   "SHIPPED",
   "CANCELLED",
   "PICKED_UP",
+  "READY_FOR_PICKUP",
 ] as const;
 
 /**
