@@ -33,6 +33,8 @@ interface DataTableProps<TData> {
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
+  /** Extra class(es) for a row, e.g. the urgent pickup highlight. */
+  rowClassName?: (row: TData) => string | undefined;
 }
 
 export function DataTable<TData>({
@@ -43,6 +45,7 @@ export function DataTable<TData>({
   onRowSelectionChange,
   isLoading,
   columnVisibility,
+  rowClassName,
 }: DataTableProps<TData>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -108,6 +111,7 @@ export function DataTable<TData>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={rowClassName?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

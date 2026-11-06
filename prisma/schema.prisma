@@ -20,6 +20,7 @@ enum InternalStatus {
   CANCELLED
   DISMISSED
   PICKED_UP
+  READY_FOR_PICKUP
 }
 
 enum PrintStatus {
@@ -137,6 +138,10 @@ model Order {
   // True once an operator manually overrides shippingMethod — Shopify sync
   // then stops overwriting the manual value.
   shippingMethodManual Boolean @default(false) @map("shipping_method_manual")
+
+  // Pickup-in-store order (Shopify local pickup): no shipping label is
+  // created; the workflow is OPEN → READY_FOR_PICKUP → PICKED_UP.
+  isPickup Boolean @default(false) @map("is_pickup")
 
   // Internal workflow fields
   internalStatus InternalStatus @default(OPEN) @map("internal_status")

@@ -13,6 +13,7 @@ export const orderQuerySchema = z.object({
       "CANCELLED",
       "DISMISSED",
       "PICKED_UP",
+      "READY_FOR_PICKUP",
     ])
     .optional(),
   printStatus: z
@@ -50,6 +51,7 @@ export const orderUpdateSchema = z.object({
       "CANCELLED",
       "DISMISSED",
       "PICKED_UP",
+      "READY_FOR_PICKUP",
     ])
     .optional(),
   printStatus: z
@@ -90,6 +92,7 @@ export const bulkUpdateSchema = z.object({
       "CANCELLED",
       "DISMISSED",
       "PICKED_UP",
+      "READY_FOR_PICKUP",
     ])
     .optional(),
   printStatus: z

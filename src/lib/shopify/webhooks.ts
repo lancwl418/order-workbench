@@ -97,6 +97,7 @@ async function handleOrderCreate(
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
       ...shippingMethodField,
+      isPickup: orderData.isPickup,
       ...trackingFields,
     },
   });
@@ -202,11 +203,20 @@ async function handleOrderUpdated(
   // Don't overwrite an operator's manual delivery-method change
   const existing = await prisma.order.findUnique({
     where: { shopifyOrderId: orderData.shopifyOrderId },
-    select: { shippingMethodManual: true },
+    select: { shippingMethodManual: true, internalStatus: true },
   });
   const shippingMethodField = existing?.shippingMethodManual
     ? {}
     : { shippingMethod: orderData.shippingMethod };
+
+  // READY_FOR_PICKUP is set by an operator while the Shopify order is still
+  // unfulfilled (→ OPEN) — don't let the webhook knock it back to OPEN.
+  if (
+    existing?.internalStatus === "READY_FOR_PICKUP" &&
+    statusFields.internalStatus === "OPEN"
+  ) {
+    delete statusFields.internalStatus;
+  }
 
   const upsertedOrder = await prisma.order.upsert({
     where: { shopifyOrderId: orderData.shopifyOrderId },
@@ -223,6 +233,7 @@ async function handleOrderUpdated(
       totalPrice: orderData.totalPrice,
       currency: orderData.currency,
       ...shippingMethodField,
+      isPickup: orderData.isPickup,
       ...statusFields,
       ...trackingFields,
     },

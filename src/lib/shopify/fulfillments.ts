@@ -1,3 +1,5 @@
+import { shopifyGraphql } from "./graphql";
+
 /**
  * Push a fulfillment (tracking number + carrier) back to Shopify
  * via the REST Admin API using raw fetch (consistent with fetchOrders).
@@ -397,4 +399,78 @@ async function updateExistingFulfillmentTracking(
     fulfillmentId: String(updateData.fulfillment.id),
     status: updateData.fulfillment.status,
   };
+}
+
+const FO_PICKUP_QUERY = `
+  query pickupFulfillmentOrders($id: ID!) {
+    order(id: $id) {
+      fulfillmentOrders(first: 50) {
+        nodes {
+          id
+          status
+          deliveryMethod { methodType }
+        }
+      }
+    }
+  }
+`;
+
+const PREPARED_FOR_PICKUP_MUTATION = `
+  mutation markReadyForPickup($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+    fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+      userErrors { field message }
+    }
+  }
+`;
+
+/**
+ * Mark a local-pickup order as "Ready for pickup" in Shopify. Shopify sends
+ * the customer a Ready For Pickup notification. Applies to every open pickup
+ * fulfillment order on the order; the fulfillment itself is only created
+ * later when the customer collects (PICKED_UP → markOrderFulfilledInShopify).
+ */
+export async function markOrderReadyForPickupInShopify(
+  shopifyOrderId: string
+): Promise<{ fulfillmentOrderIds: string[] }> {
+  const data = await shopifyGraphql<{
+    order: {
+      fulfillmentOrders: {
+        nodes: Array<{
+          id: string;
+          status: string;
+          deliveryMethod: { methodType: string | null } | null;
+        }>;
+      };
+    } | null;
+  }>(FO_PICKUP_QUERY, { id: `gid://shopify/Order/${shopifyOrderId}` });
+
+  const pickupFos = (data.order?.fulfillmentOrders.nodes ?? []).filter(
+    (fo) =>
+      fo.deliveryMethod?.methodType === "PICK_UP" &&
+      (fo.status === "OPEN" || fo.status === "IN_PROGRESS")
+  );
+  if (pickupFos.length === 0) {
+    throw new Error(
+      `Order ${shopifyOrderId} has no open pickup fulfillment orders`
+    );
+  }
+
+  const result = await shopifyGraphql<{
+    fulfillmentOrderLineItemsPreparedForPickup: {
+      userErrors: Array<{ field: string[] | null; message: string }>;
+    };
+  }>(PREPARED_FOR_PICKUP_MUTATION, {
+    input: {
+      lineItemsByFulfillmentOrder: pickupFos.map((fo) => ({
+        fulfillmentOrderId: fo.id,
+      })),
+    },
+  });
+
+  const errors =
+    result.fulfillmentOrderLineItemsPreparedForPickup.userErrors;
+  if (errors.length > 0) {
+    throw new Error(errors.map((e) => e.message).join("; "));
+  }
+  return { fulfillmentOrderIds: pickupFos.map((fo) => fo.id) };
 }

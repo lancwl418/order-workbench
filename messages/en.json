@@ -55,6 +55,8 @@
     "DELAYED": "Delayed",
     "CANCELLED": "Cancelled",
     "DISMISSED": "Dismissed",
+    "PICKED_UP": "Picked Up",
+    "READY_FOR_PICKUP": "Ready for Pickup",
     "NOT_ASSIGNED": "Not Assigned",
     "THIRD_PARTY": "Third Party",
     "SHOPIFY": "Shopify",

@@ -117,6 +117,10 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const shippingMethod =
     shippingLineTitles.length > 0 ? shippingLineTitles.join(" + ") : null;
 
+  // Local pickup: Shopify pickup orders have no shipping address but still
+  // carry a shipping line (titled with the pickup location, e.g. "Idea Max").
+  const isPickup = !shippingAddress && shippingLineTitles.length > 0;
+
   // Map Shopify fulfillment/financial status to internal workflow status
   const internalStatus = mapShopifyToInternalStatus(
     shopifyOrder.fulfillment_status,
@@ -150,6 +154,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
     totalPrice: shopifyOrder.total_price,
     currency: shopifyOrder.currency,
     shippingMethod,
+    isPickup,
     internalStatus,
     tags,
     notes: shopifyOrder.note || null,

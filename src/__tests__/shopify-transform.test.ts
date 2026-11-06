@@ -399,6 +399,31 @@ describe("transformShopifyOrder", () => {
     });
   });
 
+  describe("pickup in store detection", () => {
+    it("flags orders with a shipping line but no shipping address as pickup", () => {
+      const { order } = transformShopifyOrder(
+        makeShopifyOrder({
+          shipping_address: undefined,
+          shipping_lines: [{ title: "Idea Max", price: "0.00" }],
+        })
+      );
+      expect(order.isPickup).toBe(true);
+      expect(order.shippingMethod).toBe("Idea Max");
+    });
+
+    it("does not flag orders with a shipping address", () => {
+      const { order } = transformShopifyOrder(makeShopifyOrder());
+      expect(order.isPickup).toBe(false);
+    });
+
+    it("does not flag orders with neither address nor shipping lines", () => {
+      const { order } = transformShopifyOrder(
+        makeShopifyOrder({ shipping_address: undefined, shipping_lines: [] })
+      );
+      expect(order.isPickup).toBe(false);
+    });
+  });
+
   describe("item type fallback by title", () => {
     it('classifies "other" item as gangsheet when title contains "transfer"', () => {
       const { items } = transformShopifyOrder(
