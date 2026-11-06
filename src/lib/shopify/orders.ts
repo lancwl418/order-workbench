@@ -170,6 +170,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
   const items: MappedOrderItem[] = shopifyOrder.line_items.map(
     (lineItem: ShopifyLineItem) => {
       let designFileUrl: string | null = null;
+      let designFileUrls: string[] = [];
       let itemType: OrderItemType = "other";
       const productId = String(lineItem.product_id || "");
 
@@ -190,6 +191,21 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
           ?.find((p) => p.name === "_Print Ready File")?.value || null;
       }
 
+      // In-house gangsheet app (Transfer By Size V2): the finished sheet PNGs
+      // are written straight onto the line item as `_Gangsheet PNG`, one
+      // property per sheet. Matched by property (not product id) so new
+      // products using the app are picked up automatically.
+      if (itemType === "other") {
+        const gangsheetPngs = (lineItem.properties ?? [])
+          .filter((p) => p.name === "_Gangsheet PNG" && p.value)
+          .map((p) => p.value);
+        if (gangsheetPngs.length > 0) {
+          itemType = "gangsheet";
+          designFileUrl = gangsheetPngs[0];
+          if (gangsheetPngs.length > 1) designFileUrls = gangsheetPngs;
+        }
+      }
+
       // Fallback: check product title for transfer-related keywords
       if (itemType === "other") {
         const titleLower = (lineItem.title || "").toLowerCase();
@@ -207,7 +223,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         quantity: lineItem.quantity,
         price: lineItem.price,
         designFileUrl,
-        designFileUrls: [],
+        designFileUrls,
         itemType,
       };
     }
