@@ -311,6 +311,70 @@ describe("transformShopifyOrder", () => {
       expect(items[1].designFileUrl).toBe("https://transferbysize.com/order/abc");
     });
 
+    it("extracts _Gangsheet PNG from the in-house gangsheet app on any product", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            {
+              id: 5010,
+              title: "Transfer By Size V2",
+              variant_title: "22×18.5in · 2 designs · 8a59887f",
+              quantity: 1,
+              price: "24.00",
+              product_id: 9485248233707,
+              fulfillable_quantity: 1,
+              properties: [
+                {
+                  name: "Uploaded designs",
+                  value: "https://example.myshopify.com/apps/gangsheet/session/abc/designs",
+                },
+                {
+                  name: "Merged gangsheet",
+                  value: "https://example.myshopify.com/apps/gangsheet/session/abc/gangsheet",
+                },
+                {
+                  name: "_Gangsheet PNG",
+                  value: "https://pub-abc.r2.dev/20261106-824C_sheet_1.png",
+                },
+              ],
+            },
+          ],
+        })
+      );
+
+      expect(items[0].itemType).toBe("gangsheet");
+      expect(items[0].designFileUrl).toBe("https://pub-abc.r2.dev/20261106-824C_sheet_1.png");
+      expect(items[0].designFileUrls).toEqual([]);
+    });
+
+    it("collects every _Gangsheet PNG property when the app splits into multiple sheets", () => {
+      const { items } = transformShopifyOrder(
+        makeShopifyOrder({
+          line_items: [
+            {
+              id: 5011,
+              title: "Transfer By Size V2",
+              quantity: 1,
+              price: "48.00",
+              product_id: 9485248233707,
+              fulfillable_quantity: 1,
+              properties: [
+                { name: "_Gangsheet PNG", value: "https://pub-abc.r2.dev/x_sheet_1.png" },
+                { name: "_Gangsheet PNG", value: "https://pub-abc.r2.dev/x_sheet_2.png" },
+              ],
+            },
+          ],
+        })
+      );
+
+      expect(items[0].itemType).toBe("gangsheet");
+      expect(items[0].designFileUrl).toBe("https://pub-abc.r2.dev/x_sheet_1.png");
+      expect(items[0].designFileUrls).toEqual([
+        "https://pub-abc.r2.dev/x_sheet_1.png",
+        "https://pub-abc.r2.dev/x_sheet_2.png",
+      ]);
+    });
+
     it("treats Custom Christmas Transfers by Size as a Transfer by Size product", () => {
       const { items } = transformShopifyOrder(
         makeShopifyOrder({
