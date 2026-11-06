@@ -36,7 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, SplitSquareHorizontal, Store } from "lucide-react";
+import { ChevronRight, ChevronDown, Undo2, Loader2, PrinterCheck, MessageSquareText, Headset, ExternalLink, Tag, Zap, SplitSquareHorizontal, Store, Check } from "lucide-react";
 
 const DELIVERY_METHODS = ["standard", "express", "pickup"] as const;
 
@@ -603,25 +603,37 @@ export function createColumns(opts: {
         // pickup (notifies the customer via Shopify).
         if (row.original.isPickup && !tracking) {
           const status = row.original.internalStatus;
-          if (status === "READY_FOR_PICKUP" || status === "PICKED_UP") {
+          if (status === "PICKED_UP") {
             return <StatusBadge status={status} />;
           }
           const loading = opts.loadingId === row.original.id;
+          // Linear pickup flow, one action per state: mark ready (notifies
+          // the customer) → mark picked up (fulfills in Shopify).
+          const awaiting = status === "READY_FOR_PICKUP";
           return (
             <Button
               size="xs"
-              className="gap-1 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+              className={`gap-1 text-xs text-white ${
+                awaiting
+                  ? "bg-teal-600 hover:bg-teal-700"
+                  : "bg-rose-600 hover:bg-rose-700"
+              }`}
               disabled={loading}
               onClick={() =>
-                opts.onStatusChange(row.original.id, "READY_FOR_PICKUP")
+                opts.onStatusChange(
+                  row.original.id,
+                  awaiting ? "PICKED_UP" : "READY_FOR_PICKUP"
+                )
               }
             >
               {loading ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
+              ) : awaiting ? (
+                <Check className="h-3 w-3" />
               ) : (
                 <Store className="h-3 w-3" />
               )}
-              Ready for Pickup
+              {awaiting ? "Mark as Picked Up" : "Ready for Pickup"}
             </Button>
           );
         }

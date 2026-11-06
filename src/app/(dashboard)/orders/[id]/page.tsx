@@ -585,11 +585,22 @@ export default function OrderDetailPage() {
             <CardTitle>{t("actions")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Pickup in store: no label — mark ready so Shopify notifies the customer */}
+            {/* Pickup in store: no label — mark ready (Shopify notifies the
+                customer), then mark picked up when they collect */}
             {order.isPickup &&
-              !["READY_FOR_PICKUP", "PICKED_UP", "CANCELLED", "DISMISSED"].includes(
+              !["PICKED_UP", "CANCELLED", "DISMISSED"].includes(
                 order.internalStatus
-              ) && (
+              ) &&
+              (order.internalStatus === "READY_FOR_PICKUP" ? (
+                <Button
+                  size="sm"
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={() => updateStatus("PICKED_UP")}
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  {tStatus("PICKED_UP")}
+                </Button>
+              ) : (
                 <Button
                   size="sm"
                   className="w-full bg-rose-600 hover:bg-rose-700 text-white"
@@ -598,7 +609,7 @@ export default function OrderDetailPage() {
                   <Store className="h-3.5 w-3.5 mr-1" />
                   {tStatus("READY_FOR_PICKUP")}
                 </Button>
-              )}
+              ))}
 
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">
