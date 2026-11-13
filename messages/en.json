@@ -792,6 +792,14 @@
     "rejectionHandlingBadge": "Handling",
     "rejectionResolvedBadge": "Resolved",
     "rejectionHandling": "Marked as handling",
-    "rejectionResolved": "Marked as resolved"
+    "rejectionResolved": "Marked as resolved",
+    "needFpPrintFields": "\"{title}\" is set to print — fill the FP print code and print width",
+    "fpLogistics": "FP logistics mode (Xinfeiyang)",
+    "fpLogisticsSystem": "ERP-assigned logistics",
+    "fpLogisticsOwnLabel": "Own shipping label (upload later)",
+    "fpSystemSku": "systemSku (FP product SKU)",
+    "fpPrintCode": "FP print code",
+    "fpPrintWidth": "Print width (cm)",
+    "fpPrintHeight": "Print height (cm)"
   }
 }

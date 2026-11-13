@@ -39,6 +39,10 @@ export interface BlanksItemInput {
   printPosition?: "1" | "2" | "1,2";
   imageUrls?: string[];
   effectImageUrls?: string[];
+  /** FP ERP printed items: print-position code + print size in the mask. */
+  fpPrintCode?: string;
+  fpPrintWidth?: number;
+  fpPrintHeight?: number;
 }
 
 export type BlanksPushMode = "place" | "place_and_push";
@@ -169,6 +173,9 @@ function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrder
     printPosition: m.printPosition,
     printImageUrls: m.imageUrls ?? [],
     effectImageUrls: m.effectImageUrls ?? (item.designFileUrl ? [item.designFileUrl] : []),
+    fpPrintCode: m.fpPrintCode,
+    fpPrintWidth: m.fpPrintWidth,
+    fpPrintHeight: m.fpPrintHeight,
   };
 }
 
@@ -241,6 +248,8 @@ export async function pushBlanksForOrder(opts: {
   /** Edited consignee from the dialog — used for this push and persisted
    * back onto the order's shipping address. */
   consignee?: SupplierConsignee;
+  /** FP ERP groups only: 0=ERP-assigned logistics (default), 1=own label. */
+  fpLogisticsType?: 0 | 1;
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
   const { orderId, mode, items, sellerRemark, userId, replace } = opts;
 
@@ -337,13 +346,24 @@ export async function pushBlanksForOrder(opts: {
   // always sent; if a factory insists on an effect image the per-group error
   // surfaces in the dialog and the group can be retried with one.
   for (const group of groups) {
+    const isFp = group.supplier.adapterType === "fp";
     for (const item of group.items) {
       const m = inputByItemId.get(item.id)!;
       const input = toSupplierItemInput(item, m);
       if (input.shouldPrint && input.printImageUrls.length === 0) {
         return { results: [], error: `Item "${item.title}" is set to print but has no print image`, status: 400 };
       }
-      if (!input.sizeCode.trim() || !input.colorCode.trim()) {
+      if (isFp) {
+        // FP identifies the product by systemSku alone; size/color live
+        // inside it. Printed items need the FP print position + width.
+        if (input.shouldPrint && (!input.fpPrintCode?.trim() || !input.fpPrintWidth)) {
+          return {
+            results: [],
+            error: `Item "${item.title}" is set to print but is missing the FP print position code or print width`,
+            status: 400,
+          };
+        }
+      } else if (!input.sizeCode.trim() || !input.colorCode.trim()) {
         return { results: [], error: `Item "${item.title}" needs both size and color (factory-required fields)`, status: 400 };
       }
     }
@@ -408,6 +428,7 @@ export async function pushBlanksForOrder(opts: {
       orderTime: order.shopifyCreatedAt ?? order.createdAt,
       sellerRemark,
       items: itemInputs.map((x) => x.input),
+      fpLogisticsType: opts.fpLogisticsType ?? 0,
     };
 
     try {

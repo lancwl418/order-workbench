@@ -8,6 +8,7 @@ const updateSchema = z.object({
   baseUrl: z.string().url().nullable().optional(),
   consoleUrl: z.string().url().nullable().optional(),
   secretKeyEnv: z.string().min(1).regex(/^[A-Z0-9_]+$/).optional(),
+  appKeyEnv: z.string().regex(/^[A-Z0-9_]+$/).nullable().optional(),
   platformType: z.number().int().optional(),
   enabled: z.boolean().optional(),
 });

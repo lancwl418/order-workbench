@@ -60,18 +60,26 @@ async function main() {
       consoleUrl: "https://tshirt.riin.com/",
     },
     {
+      // 2026-11: Xinfeiyang switched from the riin system to FP ERP
+      // (Linglu-ERP-OpenApi). Direct cutover — no riin in-flight orders.
       key: "xinfeiyang",
       name: "Xinfeiyang",
-      adapterType: "riin",
-      secretKeyEnv: "RIIN_XINFEIYANG_SECRET_KEY",
-      consoleUrl: "https://tshirt.riin.com/",
+      adapterType: "fp",
+      secretKeyEnv: "FP_XINFEIYANG_SECRET_KEY",
+      appKeyEnv: "FP_XINFEIYANG_APP_KEY",
+      consoleUrl: "https://digiprint.fastprintpod.com/",
     },
   ];
 
   for (const s of suppliers) {
     const supplier = await prisma.supplier.upsert({
       where: { key: s.key },
-      update: { adapterType: s.adapterType, secretKeyEnv: s.secretKeyEnv },
+      update: {
+        adapterType: s.adapterType,
+        secretKeyEnv: s.secretKeyEnv,
+        appKeyEnv: (s as { appKeyEnv?: string }).appKeyEnv ?? null,
+        consoleUrl: s.consoleUrl,
+      },
       create: s,
     });
     console.log(`Seeded supplier: ${supplier.key} (id: ${supplier.id})`);

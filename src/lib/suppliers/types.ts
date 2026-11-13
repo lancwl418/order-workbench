@@ -33,6 +33,11 @@ export interface SupplierOrderItemInput {
   printPosition?: "1" | "2" | "1,2";
   printImageUrls: string[];
   effectImageUrls: string[];
+  /** FP ERP print-position code (queryPrintPosition) — printed items only. */
+  fpPrintCode?: string;
+  /** FP ERP print width/height inside the printable area (blue mask). */
+  fpPrintWidth?: number;
+  fpPrintHeight?: number;
 }
 
 export interface SupplierOrderInput {
@@ -44,6 +49,8 @@ export interface SupplierOrderInput {
   orderTime: Date;
   sellerRemark?: string;
   items: SupplierOrderItemInput[];
+  /** FP ERP logistics mode: 0=ERP-assigned, 1=own label (delayed upload). */
+  fpLogisticsType?: 0 | 1;
 }
 
 // ─── Results ────────────────────────────────────────────────────

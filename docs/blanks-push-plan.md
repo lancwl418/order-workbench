@@ -154,7 +154,40 @@ linmiao 和 riin(JJSPROMO) 是**同一种 POD T 恤系统协议**：`secretKey` 
 ```
 RIIN_API_URL=https://tshirt-test.riin.com/   # 生产切 https://tshirt.riin.com/（riin 系工厂共用）
 RIIN_JJSPROMO_SECRET_KEY=<向 JJSPROMO 索取>
-RIIN_XINFEIYANG_SECRET_KEY=<向 xinfeiyang 索取>
+RIIN_XINFEIYANG_SECRET_KEY=<已废弃 2026-11:鑫飞扬切到 FP ERP>
 # 每新增一个 riin 系工厂：加一个 RIIN_<KEY>_SECRET_KEY 环境变量 + Supplier 表加一条记录（secretKeyEnv 指向它）
 # 现有 linmiao：FACTORY_API_URL / FACTORY_API_SECRET_KEY（已存在）
+
+# FP ERP(鑫飞扬 2026-11 起):
+FP_API_URL=<FP 环境域名,注意带 /ecommerce 前缀,如 https://digiprint.fastprintpod.com/ecommerce>
+FP_XINFEIYANG_APP_KEY=<FP 后台建 standalone store 后生成>
+FP_XINFEIYANG_SECRET_KEY=<同上;只用于本地 HMAC 签名,不发送>
 ```
+
+---
+
+## 鑫飞扬切换 FP ERP(2026-11-13,Wenlan 拍板)
+
+**决策**:打印一步到位(goodsMode 1+2 都支持)、物流两种模式都要(logisticsType 0/1)、riin 直接切换(无在途订单,旧 riin 推送记录保留展示、不再轮询)。
+
+**协议差异与实现**(`src/lib/suppliers/fp-client.ts` + `fp.ts`):
+- 签名:`Base64(HmacSHA256(signText, secret))`,signText = 非 null 参数扁平化(对象 `a.b`、数组 `items[0]`)→ 字典序 → `k=v&k=v`。body 带 `appKey/timestamp(毫秒)/requestId/signature`。测试向量来自文档 §4.2。
+- **建单异步**:`placeOrder` 受理 ≠ 创建成功。adapter 建单后轮询 `listPlaceOrderLog`(5×2.5s)把硬失败(SKU 错/地址错)直接抛给弹窗;超时未出结果按"已建单"处理,靠状态同步/webhook 兜底。
+- **推送门槛**:只有 `orderStatus=150`(待推送)能 `batchPushOrder`。"建单并推送"会等物流匹配最多 ~18s,没到 150 则建单成功 + pushError 提示稍后重推;`pushToFactory` 先查状态,未就绪的单给出明确原因。
+- **状态归一化**:FP 100/130→1、150→2、250→4、300→5、350→12、400(反审)→3、800→13,写入共享枚举,`orderStatusStr` 保留原始 FP 码(如 `物流匹配中(FP:130)`)。现有同步/徽章/反审工作流零改动复用。
+- **商品**:不打印 → goodsMode=2(无工艺,干净);打印 → goodsMode=1,需先 `uploadMaterialImage` 传素材,引用图片名 + `printCode` + `widthInBlueMask`。弹窗 FP 分组只显示 systemSku(隐藏 size/color/style),打印时出 FP 印位代码/宽/高输入。
+- **Webhook** `/api/webhooks/fp`:payload 只当触发器(不从 body 写状态),按 platformOid 重新拉 FP 真实状态;面单请求事件自动用 Shipment.labelUrl 调 `uploadDelayShippingLabel`(logisticsType=1 的单)。FP 后台建店时把这个 URL 填进 Webhook Callback URL。
+
+**待联调确认**(Apifox: https://g3fbha3xw5.apifox.cn/ 密码 llkj2026):
+1. `uploadMaterialImage` 的确切入参(当前假设 `{materialImageFolderName?, imageName, imageUrl}`);
+2. `listOrderInfo` 返回行的字段名(跟踪号/物流商/发货时间——当前多字段名防御式解析);
+3. `listPlaceOrderLog` 的成败字段(当前认 `success`/`createSuccess`/`status` 字符串);
+4. `uploadDelayShippingLabel` 的确切入参;
+5. Webhook payload 结构(当前按 platformOid 泛匹配,够用但可精化)。
+
+**上线 checklist(FP)**:
+1. Render 环境变量:`FP_API_URL` / `FP_XINFEIYANG_APP_KEY` / `FP_XINFEIYANG_SECRET_KEY`;
+2. 部署后跑 `npx prisma migrate deploy` + `npx prisma db seed`(xinfeiyang 行切到 adapterType=fp);
+3. FP 后台:建 standalone store、配 Webhook URL(`{APP_URL}/api/webhooks/fp`)、Warehouse Match 启用发货仓、Logistics Priority 配好(否则订单卡 130 物流匹配推不出去);
+4. 用 `querySpuList`/`querySpuInfo` 拿到 systemSku,在弹窗/SkuMapping 里配好常用品的映射;
+5. 测试单:一单不打印(goodsMode=2)+ 一单打印(goodsMode=1),建单 → 等 150 → 推送 → 查状态/跟踪号回流。

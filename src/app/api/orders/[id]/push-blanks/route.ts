@@ -18,6 +18,9 @@ const itemSchema = z.object({
   printPosition: z.enum(["1", "2", "1,2"]).optional(),
   imageUrls: z.array(z.string().url()).optional(),
   effectImageUrls: z.array(z.string().url()).optional(),
+  fpPrintCode: z.string().optional(),
+  fpPrintWidth: z.number().positive().optional(),
+  fpPrintHeight: z.number().positive().optional(),
 });
 
 const consigneeSchema = z.object({
@@ -37,6 +40,7 @@ const pushSchema = z.object({
   replace: z.boolean().default(false),
   consignee: consigneeSchema.optional(),
   items: z.array(itemSchema).min(1),
+  fpLogisticsType: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
 export async function POST(
@@ -64,6 +68,7 @@ export async function POST(
     sellerRemark: parsed.data.sellerRemark,
     replace: parsed.data.replace,
     consignee: parsed.data.consignee,
+    fpLogisticsType: parsed.data.fpLogisticsType,
     userId: session.user?.id,
   });
 

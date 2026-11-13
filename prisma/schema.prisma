@@ -607,11 +607,14 @@ model Supplier {
   id           String   @id @default(cuid())
   key          String   @unique // "linmiao" | "jjspromo" | "xinfeiyang" | ...
   name         String
-  adapterType  String   @map("adapter_type") // "linmiao" | "riin"
+  adapterType  String   @map("adapter_type") // "linmiao" | "riin" | "fp"
   baseUrl      String?  @map("base_url")
   // Supplier console/admin URL — supplier order numbers in the UI link here
   consoleUrl   String?  @map("console_url")
   secretKeyEnv String   @map("secret_key_env")
+  // FP ERP sends an appKey in every request body alongside the signature.
+  // Like the secret, stored as an env var NAME (key material stays out of DB).
+  appKeyEnv    String?  @map("app_key_env")
   platformType Int      @default(15) @map("platform_type")
   enabled      Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
