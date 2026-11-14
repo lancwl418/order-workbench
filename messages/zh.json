@@ -792,6 +792,14 @@
     "rejectionHandlingBadge": "处理中",
     "rejectionResolvedBadge": "已处理",
     "rejectionHandling": "已标记为处理中",
-    "rejectionResolved": "已标记为已处理"
+    "rejectionResolved": "已标记为已处理",
+    "needFpPrintFields": "「{title}」要打印,需填 FP 印位代码和打印宽度",
+    "fpLogistics": "FP 物流模式(鑫飞扬)",
+    "fpLogisticsSystem": "ERP 安排物流",
+    "fpLogisticsOwnLabel": "自己出面单(稍后上传)",
+    "fpSystemSku": "systemSku(FP 产品 SKU)",
+    "fpPrintCode": "FP 印位代码",
+    "fpPrintWidth": "打印宽度(cm)",
+    "fpPrintHeight": "打印高度(cm)"
   }
 }

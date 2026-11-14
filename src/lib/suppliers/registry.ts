@@ -1,4 +1,6 @@
 import type { Supplier } from "@prisma/client";
+import { FpAdapter } from "./fp";
+import { FpClient } from "./fp-client";
 import { LinmiaoAdapter } from "./linmiao";
 import { RiinAdapter } from "./riin";
 import { RiinClient } from "./riin-client";
@@ -26,6 +28,29 @@ export function getAdapter(supplier: Supplier): SupplierAdapter {
       return new RiinAdapter(
         supplier,
         new RiinClient({ secretKey, baseUrl: supplier.baseUrl })
+      );
+    }
+    case "fp": {
+      const secret = process.env[supplier.secretKeyEnv];
+      if (!secret) {
+        throw new Error(
+          `Env var ${supplier.secretKeyEnv} is not set — configure the secret for supplier ${supplier.key}`
+        );
+      }
+      if (!supplier.appKeyEnv) {
+        throw new Error(
+          `Supplier ${supplier.key} has no appKeyEnv — FP ERP suppliers need an appKey env var name`
+        );
+      }
+      const appKey = process.env[supplier.appKeyEnv];
+      if (!appKey) {
+        throw new Error(
+          `Env var ${supplier.appKeyEnv} is not set — configure the appKey for supplier ${supplier.key}`
+        );
+      }
+      return new FpAdapter(
+        supplier,
+        new FpClient({ appKey, secret, baseUrl: supplier.baseUrl })
       );
     }
     default:

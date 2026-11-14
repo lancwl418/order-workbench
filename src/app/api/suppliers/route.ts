@@ -17,7 +17,8 @@ export async function GET() {
   return NextResponse.json({
     suppliers: suppliers.map((s) => ({
       ...s,
-      secretConfigured: !!process.env[s.secretKeyEnv],
+      secretConfigured:
+        !!process.env[s.secretKeyEnv] && (!s.appKeyEnv || !!process.env[s.appKeyEnv]),
     })),
   });
 }
@@ -25,9 +26,10 @@ export async function GET() {
 const createSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9_-]+$/, "lowercase letters, digits, - and _ only"),
   name: z.string().min(1),
-  adapterType: z.enum(["linmiao", "riin"]),
+  adapterType: z.enum(["linmiao", "riin", "fp"]),
   baseUrl: z.string().url().optional().nullable(),
   secretKeyEnv: z.string().min(1).regex(/^[A-Z0-9_]+$/, "env var name (A-Z, 0-9, _)"),
+  appKeyEnv: z.string().regex(/^[A-Z0-9_]+$/, "env var name (A-Z, 0-9, _)").optional().nullable(),
   platformType: z.number().int().optional(),
   enabled: z.boolean().optional(),
 });
@@ -58,6 +60,7 @@ export async function POST(req: NextRequest) {
       adapterType: parsed.data.adapterType,
       baseUrl: parsed.data.baseUrl ?? null,
       secretKeyEnv: parsed.data.secretKeyEnv,
+      appKeyEnv: parsed.data.appKeyEnv ?? null,
       platformType: parsed.data.platformType ?? 15,
       enabled: parsed.data.enabled ?? true,
     },

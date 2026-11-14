@@ -103,6 +103,10 @@ export interface PushBlanksItemPayload {
   printPosition?: "1" | "2" | "1,2";
   imageUrls?: string[];
   effectImageUrls?: string[];
+  /** FP ERP printed items: print-position code + print size in the mask. */
+  fpPrintCode?: string;
+  fpPrintWidth?: number;
+  fpPrintHeight?: number;
 }
 
 export interface BlanksGroupResult {
@@ -157,7 +161,8 @@ export function usePushBlanks() {
     items: PushBlanksItemPayload[],
     sellerRemark?: string,
     replace?: boolean,
-    consignee?: BlanksConsignee
+    consignee?: BlanksConsignee,
+    fpLogisticsType?: 0 | 1
   ): Promise<{ results: BlanksGroupResult[] } | null> {
     setBusy(true);
     try {
@@ -170,6 +175,7 @@ export function usePushBlanks() {
           sellerRemark: sellerRemark || undefined,
           replace: replace || undefined,
           consignee,
+          fpLogisticsType,
         }),
       });
       const data = await res.json();

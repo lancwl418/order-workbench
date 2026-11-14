@@ -50,6 +50,10 @@ interface ItemFormState {
   printPosition: "1" | "2" | "1,2";
   imageUrlsText: string;
   effectImageUrlsText: string;
+  // FP ERP printed items (free text; validated on submit)
+  fpPrintCode: string;
+  fpPrintWidth: string;
+  fpPrintHeight: string;
 }
 
 const SIZE_TOKENS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "2XL", "3XL", "4XL", "5XL", "ONESIZE", "OS"];
@@ -103,6 +107,7 @@ export function PushBlanksDialog({
   const [pendingAction, setPendingAction] = useState<"place" | "place_and_push" | null>(null);
   const [consignee, setConsignee] = useState<BlanksConsignee | null>(null);
   const [addressOpen, setAddressOpen] = useState(false);
+  const [fpLogisticsType, setFpLogisticsType] = useState<0 | 1>(0);
 
   useEffect(() => {
     if (!open) {
@@ -139,6 +144,9 @@ export function PushBlanksDialog({
           printPosition: "1",
           imageUrlsText: item.designFileUrl ?? "",
           effectImageUrlsText: item.designFileUrl ?? "",
+          fpPrintCode: "",
+          fpPrintWidth: "",
+          fpPrintHeight: "",
         };
       }
       return next;
@@ -174,6 +182,8 @@ export function PushBlanksDialog({
     [data, forms]
   );
 
+  const hasFpGroup = useMemo(() => groups.some((g) => g.adapterType === "fp"), [groups]);
+
   function updateForm(id: string, patch: Partial<ItemFormState>) {
     setForms((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
@@ -196,6 +206,13 @@ export function PushBlanksDialog({
     });
   }
 
+  /** adapterType of the supplier an item form currently points at. */
+  function formAdapterType(f: ItemFormState): string | undefined {
+    if (!data) return undefined;
+    const supplierId = f.supplierId || data.items.find((i) => i.id === f.orderItemId)?.supplier?.id;
+    return data.suppliers.find((s) => s.id === supplierId)?.adapterType;
+  }
+
   function buildPayload(): PushBlanksItemPayload[] | null {
     const selected = Object.values(forms).filter((f) => f.selected);
     if (selected.length === 0) {
@@ -207,38 +224,54 @@ export function PushBlanksDialog({
         toast.error(t("needFactorySku"));
         return null;
       }
-      // Both factory protocols require size and color on every goods item —
-      // catch it here with the item named, instead of a group-level 400.
       const itemTitle = data?.items.find((i) => i.id === f.orderItemId)?.title ?? f.factorySku;
-      if (!f.sizeCode.trim()) {
-        toast.error(t("needSize", { title: itemTitle }));
-        return null;
-      }
-      if (!f.colorCode.trim()) {
-        toast.error(t("needColor", { title: itemTitle }));
-        return null;
+      const isFp = formAdapterType(f) === "fp";
+      if (isFp) {
+        // FP identifies the product by systemSku alone; printed items need
+        // the FP print-position code and print width instead.
+        if (f.shouldPrint && (!f.fpPrintCode.trim() || !(parseFloat(f.fpPrintWidth) > 0))) {
+          toast.error(t("needFpPrintFields", { title: itemTitle }));
+          return null;
+        }
+      } else {
+        // riin/linmiao require size and color on every goods item — catch it
+        // here with the item named, instead of a group-level 400.
+        if (!f.sizeCode.trim()) {
+          toast.error(t("needSize", { title: itemTitle }));
+          return null;
+        }
+        if (!f.colorCode.trim()) {
+          toast.error(t("needColor", { title: itemTitle }));
+          return null;
+        }
       }
       if (f.shouldPrint && splitUrls(f.imageUrlsText).length === 0) {
         toast.error(t("needPrintImage"));
         return null;
       }
     }
-    return selected.map((f) => ({
-      orderItemId: f.orderItemId,
-      supplierId: f.supplierId || undefined,
-      factorySku: f.factorySku.trim(),
-      sizeCode: f.sizeCode || undefined,
-      sizeName: f.sizeCode || undefined,
-      colorCode: f.colorCode || undefined,
-      colorName: f.colorCode || undefined,
-      styleCode: f.styleCode || undefined,
-      styleName: f.styleCode || undefined,
-      craftType: f.craftType,
-      shouldPrint: f.shouldPrint,
-      printPosition: f.shouldPrint ? f.printPosition : undefined,
-      imageUrls: f.shouldPrint ? splitUrls(f.imageUrlsText) : undefined,
-      effectImageUrls: !f.shouldPrint ? splitUrls(f.effectImageUrlsText) : undefined,
-    }));
+    return selected.map((f) => {
+      const isFp = formAdapterType(f) === "fp";
+      return {
+        orderItemId: f.orderItemId,
+        supplierId: f.supplierId || undefined,
+        factorySku: f.factorySku.trim(),
+        sizeCode: f.sizeCode || undefined,
+        sizeName: f.sizeCode || undefined,
+        colorCode: f.colorCode || undefined,
+        colorName: f.colorCode || undefined,
+        styleCode: f.styleCode || undefined,
+        styleName: f.styleCode || undefined,
+        craftType: f.craftType,
+        shouldPrint: f.shouldPrint,
+        printPosition: f.shouldPrint && !isFp ? f.printPosition : undefined,
+        imageUrls: f.shouldPrint ? splitUrls(f.imageUrlsText) : undefined,
+        effectImageUrls: !f.shouldPrint ? splitUrls(f.effectImageUrlsText) : undefined,
+        fpPrintCode: isFp && f.shouldPrint ? f.fpPrintCode.trim() : undefined,
+        fpPrintWidth: isFp && f.shouldPrint ? parseFloat(f.fpPrintWidth) || undefined : undefined,
+        fpPrintHeight: isFp && f.shouldPrint ? parseFloat(f.fpPrintHeight) || undefined : undefined,
+      };
+    });
   }
 
   // Re-place mode: any selected item that already has a supplier order means
@@ -268,7 +301,15 @@ export function PushBlanksDialog({
     const items = buildPayload();
     if (!items) return;
     setPendingAction(mode);
-    const res = await pushBlanks(orderId, mode, items, sellerRemark, isReplacing, consignee ?? undefined);
+    const res = await pushBlanks(
+      orderId,
+      mode,
+      items,
+      sellerRemark,
+      isReplacing,
+      consignee ?? undefined,
+      hasFpGroup ? fpLogisticsType : undefined
+    );
     setPendingAction(null);
     if (!res) return;
     setResults(res.results);
@@ -496,6 +537,27 @@ export function PushBlanksDialog({
               />
             </div>
 
+            {/* FP logistics mode — only when an FP (Xinfeiyang) group exists */}
+            {hasFpGroup && (
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  {t("fpLogistics")}
+                </label>
+                <Select
+                  value={String(fpLogisticsType)}
+                  onValueChange={(v) => setFpLogisticsType(Number(v) as 0 | 1)}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">{t("fpLogisticsSystem")}</SelectItem>
+                    <SelectItem value="1">{t("fpLogisticsOwnLabel")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Supplier groups */}
             {groups.map((group) => {
               const groupResult = [...resultByOid.values()].find(
@@ -589,7 +651,7 @@ export function PushBlanksDialog({
 
                           {f.selected && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pl-7">
-                              {f.supplierId && (
+                              {f.supplierId && group.adapterType !== "fp" && (
                                 <CatalogPicker
                                   supplierId={f.supplierId}
                                   styleCode={f.styleCode}
@@ -600,57 +662,67 @@ export function PushBlanksDialog({
                                 />
                               )}
                               <div className="col-span-2">
-                                <label className="text-[11px] text-muted-foreground">{t("factorySku")}</label>
+                                <label className="text-[11px] text-muted-foreground">
+                                  {group.adapterType === "fp" ? t("fpSystemSku") : t("factorySku")}
+                                </label>
                                 <Input
                                   value={f.factorySku}
                                   onChange={(e) => updateForm(item.id, { factorySku: e.target.value })}
                                   className="h-8 text-sm font-mono"
                                 />
                               </div>
-                              <div>
-                                <label className="text-[11px] text-muted-foreground">{t("size")}</label>
-                                <Input
-                                  value={f.sizeCode}
-                                  onChange={(e) => updateForm(item.id, { sizeCode: e.target.value })}
-                                  placeholder="XL"
-                                  className="h-8 text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[11px] text-muted-foreground">{t("color")}</label>
-                                <Input
-                                  value={f.colorCode}
-                                  onChange={(e) => updateForm(item.id, { colorCode: e.target.value })}
-                                  placeholder="BL01"
-                                  className="h-8 text-sm"
-                                />
-                              </div>
-                              <div className="md:col-span-2">
-                                <label className="text-[11px] text-muted-foreground">{t("style")}</label>
-                                <Input
-                                  value={f.styleCode}
-                                  onChange={(e) => updateForm(item.id, { styleCode: e.target.value })}
-                                  placeholder={t("stylePlaceholder")}
-                                  className="h-8 text-sm"
-                                />
-                              </div>
-                              <div className="md:col-span-2">
-                                <label className="text-[11px] text-muted-foreground">{t("craft")}</label>
-                                <Select
-                                  value={String(f.craftType)}
-                                  onValueChange={(v) =>
-                                    updateForm(item.id, { craftType: Number(v) as 1 | 2 })
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 text-sm">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="1">{t("craftHeat")}</SelectItem>
-                                    <SelectItem value="2">{t("craftDtg")}</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                              {/* FP identifies the variant by systemSku alone — size/color/style
+                                  are riin/linmiao concepts */}
+                              {group.adapterType !== "fp" && (
+                                <>
+                                  <div>
+                                    <label className="text-[11px] text-muted-foreground">{t("size")}</label>
+                                    <Input
+                                      value={f.sizeCode}
+                                      onChange={(e) => updateForm(item.id, { sizeCode: e.target.value })}
+                                      placeholder="XL"
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] text-muted-foreground">{t("color")}</label>
+                                    <Input
+                                      value={f.colorCode}
+                                      onChange={(e) => updateForm(item.id, { colorCode: e.target.value })}
+                                      placeholder="BL01"
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div className="md:col-span-2">
+                                    <label className="text-[11px] text-muted-foreground">{t("style")}</label>
+                                    <Input
+                                      value={f.styleCode}
+                                      onChange={(e) => updateForm(item.id, { styleCode: e.target.value })}
+                                      placeholder={t("stylePlaceholder")}
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                              {(group.adapterType !== "fp" || f.shouldPrint) && (
+                                <div className="md:col-span-2">
+                                  <label className="text-[11px] text-muted-foreground">{t("craft")}</label>
+                                  <Select
+                                    value={String(f.craftType)}
+                                    onValueChange={(v) =>
+                                      updateForm(item.id, { craftType: Number(v) as 1 | 2 })
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 text-sm">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="1">{t("craftHeat")}</SelectItem>
+                                      <SelectItem value="2">{t("craftDtg")}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
 
                               <div className="md:col-span-4 flex items-center gap-2 pt-1 border-t">
                                 <Checkbox
@@ -662,37 +734,84 @@ export function PushBlanksDialog({
 
                               {f.shouldPrint ? (
                                 <>
-                                  <div className="md:col-span-2">
-                                    <label className="text-[11px] text-muted-foreground">{t("printPosition")}</label>
-                                    <Select
-                                      value={f.printPosition}
-                                      onValueChange={(v) =>
-                                        updateForm(item.id, { printPosition: v as "1" | "2" | "1,2" })
-                                      }
-                                    >
-                                      <SelectTrigger className="h-8 text-sm">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="1">{t("posFront")}</SelectItem>
-                                        <SelectItem value="2">{t("posBack")}</SelectItem>
-                                        <SelectItem value="1,2">{t("posBoth")}</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="md:col-span-2">
-                                    <label className="text-[11px] text-muted-foreground">
-                                      {t("printImages")}
-                                    </label>
-                                    <Input
-                                      value={f.imageUrlsText}
-                                      onChange={(e) =>
-                                        updateForm(item.id, { imageUrlsText: e.target.value })
-                                      }
-                                      placeholder="https://..., https://..."
-                                      className="h-8 text-sm"
-                                    />
-                                  </div>
+                                  {group.adapterType === "fp" ? (
+                                    <>
+                                      <div>
+                                        <label className="text-[11px] text-muted-foreground">{t("fpPrintCode")}</label>
+                                        <Input
+                                          value={f.fpPrintCode}
+                                          onChange={(e) => updateForm(item.id, { fpPrintCode: e.target.value })}
+                                          placeholder="front"
+                                          className="h-8 text-sm font-mono"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[11px] text-muted-foreground">{t("fpPrintWidth")}</label>
+                                        <Input
+                                          value={f.fpPrintWidth}
+                                          onChange={(e) => updateForm(item.id, { fpPrintWidth: e.target.value })}
+                                          placeholder="25"
+                                          className="h-8 text-sm"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[11px] text-muted-foreground">{t("fpPrintHeight")}</label>
+                                        <Input
+                                          value={f.fpPrintHeight}
+                                          onChange={(e) => updateForm(item.id, { fpPrintHeight: e.target.value })}
+                                          placeholder="30"
+                                          className="h-8 text-sm"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[11px] text-muted-foreground">
+                                          {t("printImages")}
+                                        </label>
+                                        <Input
+                                          value={f.imageUrlsText}
+                                          onChange={(e) =>
+                                            updateForm(item.id, { imageUrlsText: e.target.value })
+                                          }
+                                          placeholder="https://..., https://..."
+                                          className="h-8 text-sm"
+                                        />
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="md:col-span-2">
+                                        <label className="text-[11px] text-muted-foreground">{t("printPosition")}</label>
+                                        <Select
+                                          value={f.printPosition}
+                                          onValueChange={(v) =>
+                                            updateForm(item.id, { printPosition: v as "1" | "2" | "1,2" })
+                                          }
+                                        >
+                                          <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="1">{t("posFront")}</SelectItem>
+                                            <SelectItem value="2">{t("posBack")}</SelectItem>
+                                            <SelectItem value="1,2">{t("posBoth")}</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="md:col-span-2">
+                                        <label className="text-[11px] text-muted-foreground">
+                                          {t("printImages")}
+                                        </label>
+                                        <Input
+                                          value={f.imageUrlsText}
+                                          onChange={(e) =>
+                                            updateForm(item.id, { imageUrlsText: e.target.value })
+                                          }
+                                          placeholder="https://..., https://..."
+                                          className="h-8 text-sm"
+                                        />
+                                      </div>
+                                    </>
+                                  )}
                                 </>
                               ) : (
                                 <div className="md:col-span-4">
