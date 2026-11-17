@@ -80,6 +80,22 @@ export function fpImageName(orderItemId: string, index: number): string {
 }
 
 /**
+ * FP's gateway appears to rewrite HTML-special characters before verifying
+ * the signature (验签不通过 on bodies containing e.g. "Men's"), so free-text
+ * fields must not carry them. Unverified against FP's backend — see the
+ * signature probe in FpAdapter.placeOrder.
+ */
+export function fpSafeText(text: string): string {
+  return text.replace(/['"<>&\\]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Digits only — FP's examples carry no "+" / separators in the phone. */
+export function fpPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits || phone;
+}
+
+/**
  * Build the placeOrder payload. Printed items (goodsMode=1) reference
  * asset-center image NAMES — the adapter uploads them first and passes the
  * same names here via fpImageName().
@@ -94,7 +110,7 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
         goodsMode: 2 as const,
         quantity: item.quantity,
         systemSku: item.factorySku,
-        goodsName: item.title,
+        goodsName: fpSafeText(item.title),
         thumbUrl: item.effectImageUrls[0],
       };
     }
@@ -103,7 +119,7 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
       quantity: item.quantity,
       systemSku: item.factorySku,
       productProcessId: item.craftType,
-      goodsName: item.title,
+      goodsName: fpSafeText(item.title),
       thumbUrl: item.effectImageUrls[0],
       productionImages: item.printImageUrls.map((_, i) => ({
         printCode: item.fpPrintCode!,
@@ -119,7 +135,7 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
     orderCreateTime: formatOrderTime(input.orderTime),
     recipientFirstName: firstName,
     recipientLastName: lastName,
-    recipientPhone: consignee.phone,
+    recipientPhone: fpPhone(consignee.phone),
     recipientPostCode: consignee.postCode ?? "",
     recipientCity: consignee.city,
     recipientState: consignee.province,
@@ -205,7 +221,15 @@ export class FpAdapter implements SupplierAdapter {
     }
 
     const params = buildFpPlaceOrderParams(input);
-    const placed = await this.client.placeOrder(params);
+    let placed;
+    try {
+      placed = await this.client.placeOrder(params);
+    } catch (e) {
+      if (e instanceof FpApiError && /验签/.test(e.message)) {
+        throw new FpApiError(`${e.message} | ${await this.probeSignature()}`, e.traceId, e.errorCode);
+      }
+      throw e;
+    }
 
     // placeOrder is async: poll the creation log briefly so hard failures
     // (bad SKU, bad address) surface in the dialog instead of a silent limbo.
@@ -232,6 +256,35 @@ export class FpAdapter implements SupplierAdapter {
       pushError: pushResult.error,
       raw: placed.data,
     };
+  }
+
+  /**
+   * Diagnostic for 验签不通过 on placeOrder: the signature check runs before
+   * any business logic, so read-only listOrderInfo calls with crafted values
+   * reveal which characters FP's verifier handles differently from us.
+   * Read-only; nothing is created. Remove once the signing rules are settled.
+   */
+  private async probeSignature(): Promise<string> {
+    const probes: Record<string, string> = {
+      plain: "probe",
+      space: "pro be",
+      apostrophe: "pro'be",
+      plus: "+1probe",
+      dot: "pro.be",
+      colon: "pro:be",
+      hash: "#probe",
+    };
+    const out: string[] = [];
+    for (const [name, value] of Object.entries(probes)) {
+      try {
+        await this.client.listOrderInfo([value]);
+        out.push(`${name}=ok`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "";
+        out.push(`${name}=${/验签/.test(msg) ? "SIGN_FAIL" : "other-error"}`);
+      }
+    }
+    return `sign probe: ${out.join(", ")}`;
   }
 
   private async pollCreationResult(
