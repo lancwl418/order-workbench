@@ -11,11 +11,17 @@
  * Pass --dry to list the orders without touching them.
  */
 import "dotenv/config";
+import { InternalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { refreshPrintFileUrls } from "@/lib/shopify/refresh-print-urls";
 
 const DRY = process.argv.includes("--dry");
-const TERMINAL = ["DELIVERED", "CANCELLED", "SHIPPED", "PICKED_UP"];
+const TERMINAL: InternalStatus[] = [
+  InternalStatus.DELIVERED,
+  InternalStatus.CANCELLED,
+  InternalStatus.SHIPPED,
+  InternalStatus.PICKED_UP,
+];
 
 async function main() {
   const orders = await prisma.order.findMany({
