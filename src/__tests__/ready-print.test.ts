@@ -43,6 +43,7 @@ function item(over: Partial<MappedOrderItem>): MappedOrderItem {
     designFileUrl: null,
     designFileUrls: [],
     itemType: "other",
+    soldPerSheet: false,
     ...over,
   };
 }

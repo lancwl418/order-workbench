@@ -177,6 +177,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
       let designFileUrl: string | null = null;
       let designFileUrls: string[] = [];
       let itemType: OrderItemType = "other";
+      let soldPerSheet = false;
       const productId = String(lineItem.product_id || "");
 
       if (productId === FREE_SAMPLE_PRODUCT_ID) {
@@ -191,7 +192,9 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         designFileUrl = transferBySizePrintUrl;
       } else if (productId === BUILD_A_GANGSHEET_PRODUCT_ID || productId === UPLOAD_GANGSHEET_PRODUCT_ID) {
         itemType = "gangsheet";
-        // Build a Gangsheet / Upload Gangsheet: each line item has its own URL
+        // Build a Gangsheet / Upload Gangsheet: each line item has its own
+        // URL and is sold per sheet (quantity N = N copies of the file).
+        soldPerSheet = true;
         designFileUrl = lineItem.properties
           ?.find((p) => p.name === "_Print Ready File")?.value || null;
       }
@@ -230,6 +233,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         designFileUrl,
         designFileUrls,
         itemType,
+        soldPerSheet,
       };
     }
   );

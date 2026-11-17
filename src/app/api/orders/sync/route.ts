@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
               designFileUrl: item.designFileUrl,
               designFileUrls: item.designFileUrls,
               itemType: item.itemType,
+              soldPerSheet: item.soldPerSheet,
             },
           });
         }

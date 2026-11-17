@@ -23,6 +23,7 @@ export async function refreshPrintFileUrls(orderId: string): Promise<number> {
           id: true,
           shopifyLineItemId: true,
           itemType: true,
+          soldPerSheet: true,
           designFileUrl: true,
           designFileUrls: true,
           originalDesignFileUrl: true,
@@ -46,13 +47,19 @@ export async function refreshPrintFileUrls(orderId: string): Promise<number> {
   // Build lookup: shopifyLineItemId → fresh item data
   const freshMap = new Map<
     string,
-    { designFileUrl: string | null; designFileUrls: string[]; itemType: string }
+    {
+      designFileUrl: string | null;
+      designFileUrls: string[];
+      itemType: string;
+      soldPerSheet: boolean;
+    }
   >();
   for (const item of freshItems) {
     freshMap.set(item.shopifyLineItemId, {
       designFileUrl: item.designFileUrl,
       designFileUrls: item.designFileUrls,
       itemType: item.itemType,
+      soldPerSheet: item.soldPerSheet,
     });
   }
 
@@ -73,14 +80,17 @@ export async function refreshPrintFileUrls(orderId: string): Promise<number> {
       freshUrls.join("\n") !== (dbItem.designFileUrls ?? []).join("\n");
     const typeChanged =
       fresh.itemType === "ready_print" && dbItem.itemType !== "ready_print";
+    // Backfill: orders ingested before the flag existed pick it up here
+    const soldPerSheetChanged = fresh.soldPerSheet !== dbItem.soldPerSheet;
 
-    if (urlChanged || urlsChanged || typeChanged) {
+    if (urlChanged || urlsChanged || typeChanged || soldPerSheetChanged) {
       await prisma.orderItem.update({
         where: { id: dbItem.id },
         data: {
           designFileUrl: fresh.designFileUrl,
           designFileUrls: freshUrls,
           ...(typeChanged ? { itemType: fresh.itemType } : {}),
+          ...(soldPerSheetChanged ? { soldPerSheet: fresh.soldPerSheet } : {}),
         },
       });
       updated++;

@@ -46,18 +46,35 @@ describe("groupPrintFileSources", () => {
     ]);
   });
 
-  it("multiplies gang sheet builder items by quantity (direct image urls only)", () => {
+  it("multiplies sold-per-sheet builder items by quantity (direct image urls only)", () => {
     const groups = groupPrintFileSources([
       // order #5614: a builder sheet bought with quantity 2 must print twice
-      item({ id: "a", itemType: "gangsheet", quantity: 2, title: "Custom DTF Gang Sheet Builder", variantTitle: "2 Feet", designFileUrl: "https://app.dripappsserver.com/uploads/sheet-a.png" }),
-      item({ id: "b", itemType: "gangsheet", quantity: 1, title: "Custom DTF Gang Sheet Builder", variantTitle: "2 Feet", designFileUrl: "https://app.dripappsserver.com/uploads/sheet-b.png" }),
+      item({ id: "a", itemType: "gangsheet", soldPerSheet: true, quantity: 2, title: "Custom DTF Gang Sheet Builder", variantTitle: "2 Feet", designFileUrl: "https://app.dripappsserver.com/uploads/sheet-a.png" }),
+      item({ id: "b", itemType: "gangsheet", soldPerSheet: true, quantity: 1, title: "Custom DTF Gang Sheet Builder", variantTitle: "2 Feet", designFileUrl: "https://app.dripappsserver.com/uploads/sheet-b.png" }),
       // a page URL resolves to its own file list — quantity must not duplicate it
-      item({ id: "c", itemType: "gangsheet", quantity: 3, designFileUrl: "https://drip/page" }),
+      item({ id: "c", itemType: "gangsheet", soldPerSheet: true, quantity: 3, designFileUrl: "https://drip/page" }),
     ]);
     expect(groups.map((g) => ({ url: g.url, copies: g.copies }))).toEqual([
       { url: "https://app.dripappsserver.com/uploads/sheet-a.png", copies: 2 },
       { url: "https://app.dripappsserver.com/uploads/sheet-b.png", copies: 1 },
       { url: "https://drip/page", copies: 1 },
+    ]);
+  });
+
+  it("does not multiply gangsheet lines that are not sold per sheet", () => {
+    // order #5756: a $0 manual reprint classified gangsheet by title fallback,
+    // direct R2 image URL, quantity 2 — the file already IS the full reprint
+    const groups = groupPrintFileSources([
+      item({
+        id: "a",
+        itemType: "gangsheet",
+        quantity: 2,
+        title: "Custom DTF Transfers by Size 12in x 8in",
+        designFileUrl: "https://pub-x.r2.dev/prints/5635-reprint.png",
+      }),
+    ]);
+    expect(groups.map((g) => ({ url: g.url, copies: g.copies }))).toEqual([
+      { url: "https://pub-x.r2.dev/prints/5635-reprint.png", copies: 1 },
     ]);
   });
 

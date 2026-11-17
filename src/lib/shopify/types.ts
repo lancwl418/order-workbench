@@ -147,6 +147,12 @@ export interface MappedOrderItem {
   /** Ready Print only: all gang sheet URLs of the purchased variant. */
   designFileUrls: string[];
   itemType: OrderItemType;
+  /**
+   * Sold per sheet: quantity N = print the design file N times. True only
+   * for the Build a Gangsheet / Upload Gangsheet products — every other
+   * line's file already contains its full print run.
+   */
+  soldPerSheet: boolean;
 }
 
 /**
