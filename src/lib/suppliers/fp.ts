@@ -185,6 +185,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Fields safe to drop from placeOrder if FP's request model rejects them. */
+const FP_OPTIONAL_FIELDS = new Set([
+  "shopName",
+  "orderCreateTime",
+  "latestShipTime",
+  "addressLine2",
+  "addressLine3",
+  "currencyType",
+  "goods.goodsName",
+  "goods.thumbUrl",
+]);
+
 // ─── Adapter ─────────────────────────────────────────────────────
 
 const PLACE_POLL_TRIES = 5;
@@ -222,13 +234,33 @@ export class FpAdapter implements SupplierAdapter {
 
     const params = buildFpPlaceOrderParams(input);
     let placed;
+    let droppedNote: string | undefined;
     try {
       placed = await this.client.placeOrder(params);
     } catch (e) {
-      if (e instanceof FpApiError && /验签/.test(e.message)) {
-        throw new FpApiError(`${e.message} | ${await this.probeSignature(params)}`, e.traceId, e.errorCode);
+      if (!(e instanceof FpApiError) || !/验签/.test(e.message)) throw e;
+      const probe = await this.probeSignature(params);
+      const droppable = probe.failing.every((f) => FP_OPTIONAL_FIELDS.has(f));
+      if (!probe.baselineOk || probe.failing.length === 0 || !droppable) {
+        throw new FpApiError(`${e.message} | ${probe.summary}`, e.traceId, e.errorCode);
       }
-      throw e;
+      // Only optional fields break verification — retry without them.
+      const top = new Set(probe.failing.filter((f) => !f.startsWith("goods.")));
+      const goodsKeys = new Set(probe.failing.filter((f) => f.startsWith("goods.")).map((f) => f.slice(6)));
+      const retry = Object.fromEntries(
+        Object.entries(params).filter(([k]) => !top.has(k))
+      ) as unknown as FpPlaceOrderParams;
+      retry.orderGoodsList = params.orderGoodsList.map(
+        (g) => Object.fromEntries(Object.entries(g).filter(([k]) => !goodsKeys.has(k))) as unknown as FpOrderGoodsItem
+      );
+      try {
+        placed = await this.client.placeOrder(retry);
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : "retry failed";
+        throw new FpApiError(`${msg} | retried without [${probe.failing.join(",")}] | ${probe.summary}`);
+      }
+      droppedNote = `FP signature: placed after dropping fields [${probe.failing.join(",")}]`;
+      console.warn(`[fp] ${input.platformOid}: ${droppedNote}`);
     }
 
     // placeOrder is async: poll the creation log briefly so hard failures
@@ -242,7 +274,13 @@ export class FpAdapter implements SupplierAdapter {
     }
 
     if (!opts.push) {
-      return { platformOid: input.platformOid, traceId: placed.traceId, pushed: false, raw: placed.data };
+      return {
+        platformOid: input.platformOid,
+        traceId: placed.traceId,
+        pushed: false,
+        pushError: droppedNote,
+        raw: placed.data,
+      };
     }
 
     // Push gate: FP only accepts batchPushOrder at status 150. Wait briefly
@@ -253,48 +291,46 @@ export class FpAdapter implements SupplierAdapter {
       platformOid: input.platformOid,
       traceId: placed.traceId,
       pushed: pushResult.pushed,
-      pushError: pushResult.error,
+      pushError: [pushResult.error, droppedNote].filter(Boolean).join(" | ") || undefined,
       raw: placed.data,
     };
   }
 
   /**
-   * Diagnostic for 验签不通过 on placeOrder. The signature check runs before
-   * business logic, so we replay the placeOrder fields as extra body fields
-   * on the read-only listOrderInfo endpoint and bisect which field breaks
-   * verification. Nothing is created. Remove once signing is settled.
+   * Diagnostic for 验签不通过 on placeOrder. FP rebuilds signText from its
+   * typed request model, not the raw JSON (any unknown field on
+   * listOrderInfo fails verification), so a field we send that the model
+   * does not know breaks the signature. Probe placeOrder with bodies that
+   * can never become an order ({platformOid} + one field) to find which
+   * fields the model rejects. Remove once the field list is settled.
    */
-  private async probeSignature(params: FpPlaceOrderParams): Promise<string> {
-    const test = async (extra: Record<string, unknown>): Promise<"ok" | "SIGN_FAIL" | "other"> => {
+  private async probeSignature(
+    params: FpPlaceOrderParams
+  ): Promise<{ baselineOk: boolean; failing: string[]; summary: string }> {
+    const signOk = async (body: Record<string, unknown>): Promise<boolean> => {
       try {
-        await this.client.probeSign(extra);
-        return "ok";
+        await this.client.probePlaceOrderSign({ platformOid: "sign-probe", ...body });
+        return true;
       } catch (e) {
-        return /验签/.test(e instanceof Error ? e.message : "") ? "SIGN_FAIL" : "other";
+        // Any non-signature error means verification passed.
+        return !/验签/.test(e instanceof Error ? e.message : "");
       }
     };
-    const body = params as unknown as Record<string, unknown>;
-    const { platformOid: _oid, ...rest } = body;
-    const out: string[] = [];
-    out.push(`baseline=${await test({})}`);
-    out.push(`extraFlat=${await test({ zzProbe: "1" })}`);
-    out.push(`extraZero=${await test({ zzProbe: 0 })}`);
-    out.push(`extraNested=${await test({ zzProbe: [{ a: "1", b: 2 }] })}`);
-    const full = await test(rest);
-    out.push(`fullBody=${full}`);
-    if (full !== "ok") {
-      const bad: string[] = [];
-      for (const [key, value] of Object.entries(rest)) {
-        if (key === "orderGoodsList") continue;
-        if ((await test({ [key]: value })) !== "ok") bad.push(key);
-      }
-      const goods = (params.orderGoodsList[0] ?? {}) as unknown as Record<string, unknown>;
-      for (const [key, value] of Object.entries(goods)) {
-        if ((await test({ orderGoodsList: [{ [key]: value }] })) !== "ok") bad.push(`orderGoodsList[0].${key}`);
-      }
-      out.push(`failingFields=[${bad.join(",")}]`);
+    const baselineOk = await signOk({});
+    const failing: string[] = [];
+    for (const [key, value] of Object.entries(params)) {
+      if (key === "platformOid" || key === "orderGoodsList") continue;
+      if (!(await signOk({ [key]: value }))) failing.push(key);
     }
-    return `sign probe: ${out.join(", ")}`;
+    const goods = (params.orderGoodsList[0] ?? {}) as unknown as Record<string, unknown>;
+    for (const key of Object.keys(goods)) {
+      if (!(await signOk({ orderGoodsList: [{ [key]: goods[key] }] }))) failing.push(`goods.${key}`);
+    }
+    return {
+      baselineOk,
+      failing,
+      summary: `sign probe(placeOrder): baseline=${baselineOk ? "ok" : "SIGN_FAIL"}, failingFields=[${failing.join(",")}]`,
+    };
   }
 
   private async pollCreationResult(

@@ -252,12 +252,13 @@ export class FpClient {
   }
 
   /**
-   * Diagnostic only: listOrderInfo with arbitrary extra body fields. The
-   * signature is verified over the whole body before any business logic, so
-   * this read-only call tells whether a given set of fields signs correctly.
+   * Diagnostic only: placeOrder with a deliberately incomplete body (never
+   * a creatable order). FP verifies the signature against its typed request
+   * model before business validation, so the outcome tells whether the
+   * given fields are part of that model.
    */
-  probeSign(extra: Record<string, unknown>): Promise<FpResponse<unknown>> {
-    return this.post("listOrderInfo", { ...extra, platformOidList: ["sign-probe"], pageIndex: 1, pageSize: 20 });
+  probePlaceOrderSign(body: Record<string, unknown>): Promise<FpResponse<unknown>> {
+    return this.post("placeOrder", body);
   }
 
   listPlaceOrderLog(platformOidList: string[]): Promise<FpResponse<FpPlaceOrderLog[] | { list?: FpPlaceOrderLog[]; records?: FpPlaceOrderLog[] } | null>> {
