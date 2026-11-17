@@ -251,6 +251,15 @@ export class FpClient {
     return this.post("listOrderInfo", { platformOidList, ...page });
   }
 
+  /**
+   * Diagnostic only: listOrderInfo with arbitrary extra body fields. The
+   * signature is verified over the whole body before any business logic, so
+   * this read-only call tells whether a given set of fields signs correctly.
+   */
+  probeSign(extra: Record<string, unknown>): Promise<FpResponse<unknown>> {
+    return this.post("listOrderInfo", { ...extra, platformOidList: ["sign-probe"], pageIndex: 1, pageSize: 20 });
+  }
+
   listPlaceOrderLog(platformOidList: string[]): Promise<FpResponse<FpPlaceOrderLog[] | { list?: FpPlaceOrderLog[]; records?: FpPlaceOrderLog[] } | null>> {
     return this.post("listPlaceOrderLog", { platformOidList });
   }

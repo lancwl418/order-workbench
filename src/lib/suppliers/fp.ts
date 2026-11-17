@@ -226,7 +226,7 @@ export class FpAdapter implements SupplierAdapter {
       placed = await this.client.placeOrder(params);
     } catch (e) {
       if (e instanceof FpApiError && /验签/.test(e.message)) {
-        throw new FpApiError(`${e.message} | ${await this.probeSignature()}`, e.traceId, e.errorCode);
+        throw new FpApiError(`${e.message} | ${await this.probeSignature(params)}`, e.traceId, e.errorCode);
       }
       throw e;
     }
@@ -259,30 +259,40 @@ export class FpAdapter implements SupplierAdapter {
   }
 
   /**
-   * Diagnostic for 验签不通过 on placeOrder: the signature check runs before
-   * any business logic, so read-only listOrderInfo calls with crafted values
-   * reveal which characters FP's verifier handles differently from us.
-   * Read-only; nothing is created. Remove once the signing rules are settled.
+   * Diagnostic for 验签不通过 on placeOrder. The signature check runs before
+   * business logic, so we replay the placeOrder fields as extra body fields
+   * on the read-only listOrderInfo endpoint and bisect which field breaks
+   * verification. Nothing is created. Remove once signing is settled.
    */
-  private async probeSignature(): Promise<string> {
-    const probes: Record<string, string> = {
-      plain: "probe",
-      space: "pro be",
-      apostrophe: "pro'be",
-      plus: "+1probe",
-      dot: "pro.be",
-      colon: "pro:be",
-      hash: "#probe",
-    };
-    const out: string[] = [];
-    for (const [name, value] of Object.entries(probes)) {
+  private async probeSignature(params: FpPlaceOrderParams): Promise<string> {
+    const test = async (extra: Record<string, unknown>): Promise<"ok" | "SIGN_FAIL" | "other"> => {
       try {
-        await this.client.listOrderInfo([value]);
-        out.push(`${name}=ok`);
+        await this.client.probeSign(extra);
+        return "ok";
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "";
-        out.push(`${name}=${/验签/.test(msg) ? "SIGN_FAIL" : "other-error"}`);
+        return /验签/.test(e instanceof Error ? e.message : "") ? "SIGN_FAIL" : "other";
       }
+    };
+    const body = params as unknown as Record<string, unknown>;
+    const { platformOid: _oid, ...rest } = body;
+    const out: string[] = [];
+    out.push(`baseline=${await test({})}`);
+    out.push(`extraFlat=${await test({ zzProbe: "1" })}`);
+    out.push(`extraZero=${await test({ zzProbe: 0 })}`);
+    out.push(`extraNested=${await test({ zzProbe: [{ a: "1", b: 2 }] })}`);
+    const full = await test(rest);
+    out.push(`fullBody=${full}`);
+    if (full !== "ok") {
+      const bad: string[] = [];
+      for (const [key, value] of Object.entries(rest)) {
+        if (key === "orderGoodsList") continue;
+        if ((await test({ [key]: value })) !== "ok") bad.push(key);
+      }
+      const goods = (params.orderGoodsList[0] ?? {}) as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(goods)) {
+        if ((await test({ orderGoodsList: [{ [key]: value }] })) !== "ok") bad.push(`orderGoodsList[0].${key}`);
+      }
+      out.push(`failingFields=[${bad.join(",")}]`);
     }
     return `sign probe: ${out.join(", ")}`;
   }
