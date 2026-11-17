@@ -8,6 +8,8 @@ import {
 import {
   buildFpPlaceOrderParams,
   fpImageName,
+  fpPhone,
+  fpSafeText,
   normalizeFpStatus,
   splitRecipientName,
   validateFpOrderInput,
@@ -110,6 +112,16 @@ describe("FP signature", () => {
     // Same input, same secret → same signature; different secret → different
     expect(signFpRequest(body, "secret1")).toBe(sig);
     expect(signFpRequest(body, "secret2")).not.toBe(sig);
+  });
+});
+
+describe("FP text sanitizing", () => {
+  it("strips HTML-special characters from free text", () => {
+    expect(fpSafeText("180g Men's Pure Cotton <b>Tee</b> & \"more\"")).toBe("180g Mens Pure Cotton bTee/b more");
+  });
+  it("keeps digits only in phones", () => {
+    expect(fpPhone("+1 (760) 555-0100")).toBe("17605550100");
+    expect(fpPhone("n/a")).toBe("n/a");
   });
 });
 
