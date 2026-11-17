@@ -41,22 +41,26 @@ export interface PrintFileSource {
 
 /**
  * Group order items by designFileUrl (every route that lists print files
- * did this by hand — keep one copy of the rule). Ready to Print items add
- * their quantity as copies of the shared image.
+ * did this by hand — keep one copy of the rule). Ready to Print and custom
+ * gang sheet items add their quantity as copies of the shared image; gang
+ * sheets only when the URL is a direct image, since a page URL resolves to
+ * its own file list and can't be duplicated by filename.
  */
 export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[] {
-  const byUrl = new Map<string, PrintFileSource & { readyCopies: number }>();
+  const byUrl = new Map<string, PrintFileSource & { soldCopies: number }>();
   for (const item of items) {
     const urls = itemUrls(item);
-    const isReady = item.itemType === "ready_print";
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
+      const soldPerSheet =
+        item.itemType === "ready_print" ||
+        (item.itemType === "gangsheet" && isDirectImageUrl(url));
       const baseLabel = item.variantTitle || item.title;
       const label = urls.length > 1 ? `${baseLabel} - Sheet ${i + 1}` : baseLabel;
       const existing = byUrl.get(url);
       if (existing) {
         if (!existing.itemIds.includes(item.id)) existing.itemIds.push(item.id);
-        if (isReady) existing.readyCopies += item.quantity;
+        if (soldPerSheet) existing.soldCopies += item.quantity;
       } else {
         byUrl.set(url, {
           url,
@@ -66,14 +70,14 @@ export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[]
           // a multi-sheet replacement can't be paired back to one URL.
           originalUrl: urls.length === 1 ? item.originalDesignFileUrl : null,
           copies: 1,
-          readyCopies: isReady ? item.quantity : 0,
+          soldCopies: soldPerSheet ? item.quantity : 0,
         });
       }
     }
   }
-  return [...byUrl.values()].map(({ readyCopies, ...src }) => ({
+  return [...byUrl.values()].map(({ soldCopies, ...src }) => ({
     ...src,
-    copies: Math.max(1, readyCopies),
+    copies: Math.max(1, soldCopies),
   }));
 }
 
