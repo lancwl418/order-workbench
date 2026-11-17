@@ -104,6 +104,9 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
   const { consignee } = input;
   const { firstName, lastName } = splitRecipientName(consignee.name);
 
+  // Item fields must match FP's OrderGoods model exactly (Apifox "4-创建订单"):
+  // FP rebuilds signText from its typed model, so a field it does not know
+  // (e.g. an item-level thumbUrl, or heightInBlueMask) breaks 验签.
   const orderGoodsList: FpOrderGoodsItem[] = input.items.map((item) => {
     if (!item.shouldPrint) {
       return {
@@ -111,7 +114,6 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
         quantity: item.quantity,
         systemSku: item.factorySku,
         goodsName: fpSafeText(item.title),
-        thumbUrl: item.effectImageUrls[0],
       };
     }
     return {
@@ -120,12 +122,11 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
       systemSku: item.factorySku,
       productProcessId: item.craftType,
       goodsName: fpSafeText(item.title),
-      thumbUrl: item.effectImageUrls[0],
       productionImages: item.printImageUrls.map((_, i) => ({
         printCode: item.fpPrintCode!,
         productionImageName: fpImageName(item.orderItemId, i),
         widthInBlueMask: item.fpPrintWidth,
-        heightInBlueMask: item.fpPrintHeight,
+        thumbUrl: item.effectImageUrls[0],
       })),
     };
   });
@@ -221,13 +222,7 @@ export class FpAdapter implements SupplierAdapter {
     }
 
     const params = buildFpPlaceOrderParams(input);
-    let placed;
-    try {
-      placed = await this.client.placeOrder(params);
-    } catch (e) {
-      if (!(e instanceof FpApiError) || !/验签/.test(e.message)) throw e;
-      throw new FpApiError(`${e.message} | ${await this.probeSignature(params)}`, e.traceId, e.errorCode);
-    }
+    const placed = await this.client.placeOrder(params);
 
     // placeOrder is async: poll the creation log briefly so hard failures
     // (bad SKU, bad address) surface in the dialog instead of a silent limbo.
@@ -254,76 +249,6 @@ export class FpAdapter implements SupplierAdapter {
       pushError: pushResult.error,
       raw: placed.data,
     };
-  }
-
-  /**
-   * Diagnostic for 验签不通过 on placeOrder.
-   *
-   * Earlier probes sent incomplete bodies and treated "any non-验签 error"
-   * as "signature ok". They all came back ok — including the full request
-   * minus addressLine1 — which means FP validates required fields BEFORE
-   * verifying the signature, so those results said nothing about signing.
-   * The one valid finding stands: on listOrderInfo any field outside FP's
-   * request model fails verification.
-   *
-   * These probes are therefore complete, valid requests, made uncreatable
-   * by a non-existent systemSku and a throwaway platformOid, and each
-   * reports FP's actual message. Remove once signing is settled.
-   */
-  private async probeSignature(params: FpPlaceOrderParams): Promise<string> {
-    const stamp = Date.now().toString(36);
-    let n = 0;
-    const run = async (name: string, build: (oid: string) => Record<string, unknown>): Promise<string> => {
-      const oid = `#SP${stamp}${n++}-probe`;
-      try {
-        const res = await this.client.probePlaceOrderSign(build(oid));
-        return `${name}=ACCEPTED(${String(res.message ?? "").slice(0, 40)})`;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "";
-        if (/验签/.test(msg)) return `${name}=SIGN_FAIL`;
-        const m = /"message":"([^"]*)"/.exec(msg);
-        return `${name}=other(${(m ? m[1] : msg).slice(0, 60)})`;
-      }
-    };
-
-    const goods = params.orderGoodsList[0];
-    const minGoods = { goodsMode: goods.goodsMode, quantity: goods.quantity, systemSku: "SIGN-PROBE-NO-SUCH-SKU" };
-    const min = (oid: string): Record<string, unknown> => ({
-      platformOid: oid,
-      recipientFirstName: params.recipientFirstName,
-      recipientLastName: params.recipientLastName,
-      recipientPhone: params.recipientPhone,
-      recipientPostCode: params.recipientPostCode,
-      recipientCity: params.recipientCity,
-      recipientState: params.recipientState,
-      recipientCountry: params.recipientCountry,
-      addressLine1: params.addressLine1,
-      logisticsType: params.logisticsType,
-      saleCountry: params.saleCountry,
-      orderGoodsList: [minGoods],
-    });
-    const withGoods = (oid: string, extra: Record<string, unknown>) => ({
-      ...min(oid),
-      orderGoodsList: [{ ...minGoods, ...extra }],
-    });
-
-    const out: string[] = [];
-    out.push(await run("incomplete", (oid) => ({ platformOid: oid })));
-    out.push(
-      await run("full", (oid) => ({
-        ...params,
-        platformOid: oid,
-        orderGoodsList: params.orderGoodsList.map((g) => ({ ...g, systemSku: "SIGN-PROBE-NO-SUCH-SKU" })),
-      }))
-    );
-    out.push(await run("min", min));
-    out.push(await run("minNoHash", (oid) => min(oid.replace("#", ""))));
-    out.push(await run("min+orderCreateTime", (oid) => ({ ...min(oid), orderCreateTime: params.orderCreateTime })));
-    out.push(await run("min+currencyType", (oid) => ({ ...min(oid), currencyType: params.currencyType })));
-    out.push(await run("min+goodsName", (oid) => withGoods(oid, { goodsName: goods.goodsName })));
-    out.push(await run("min+thumbUrl", (oid) => withGoods(oid, { thumbUrl: goods.thumbUrl })));
-    out.push(await run("min+processId", (oid) => withGoods(oid, { productProcessId: -1 })));
-    return `sign probe 4: ${out.join(", ")}`;
   }
 
   private async pollCreationResult(
