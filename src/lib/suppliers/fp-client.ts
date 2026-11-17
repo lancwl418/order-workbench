@@ -99,23 +99,31 @@ export function signFpRequest(body: Record<string, unknown>, secret: string): st
 
 // ─── Request/response shapes (doc section 7) ────────────────────
 
+// IMPORTANT: FP verifies the signature against its typed request model, not
+// the raw JSON. Only fields listed in the Apifox schema may be sent — any
+// extra field (and any model default we omit, e.g. currencyType) changes
+// the server-side signText and fails with 验签不通过.
+
+/** ProductionImage (Apifox schema). */
 export interface FpProductionImage {
   printCode: string;
   productionImageName: string;
-  thumbImageName?: string;
+  /** Print width in cm. */
   widthInBlueMask?: number;
-  heightInBlueMask?: number;
+  /** Effect image URL. */
+  thumbUrl?: string;
+  thumbImageName?: string;
 }
 
+/** OrderGoods (Apifox schema). goodsName is required by FP. */
 export interface FpOrderGoodsItem {
   /** 0=finished design, 1=product+image, 2=no-process product */
   goodsMode: 0 | 1 | 2;
   quantity: number;
+  finishedProductDetailId?: string;
   systemSku?: string;
   productProcessId?: number; // -1 none, 1 white ink ironing, 2 DTG
-  finishedProductDetailId?: string;
-  goodsName?: string;
-  thumbUrl?: string;
+  goodsName: string;
   productionImages?: FpProductionImage[];
 }
 
@@ -249,16 +257,6 @@ export class FpClient {
 
   listOrderInfo(platformOidList: string[], page = { pageIndex: 1, pageSize: 100 }): Promise<FpResponse<FpOrderInfo[] | { list?: FpOrderInfo[]; records?: FpOrderInfo[] } | null>> {
     return this.post("listOrderInfo", { platformOidList, ...page });
-  }
-
-  /**
-   * Diagnostic only: placeOrder with a deliberately incomplete body (never
-   * a creatable order). FP verifies the signature against its typed request
-   * model before business validation, so the outcome tells whether the
-   * given fields are part of that model.
-   */
-  probePlaceOrderSign(body: Record<string, unknown>): Promise<FpResponse<unknown>> {
-    return this.post("placeOrder", body);
   }
 
   listPlaceOrderLog(platformOidList: string[]): Promise<FpResponse<FpPlaceOrderLog[] | { list?: FpPlaceOrderLog[]; records?: FpPlaceOrderLog[] } | null>> {

@@ -150,7 +150,10 @@ describe("buildFpPlaceOrderParams", () => {
     expect(g.systemSku).toBe("FP-SKU-001");
     expect(g.quantity).toBe(2);
     expect(g.productionImages).toBeUndefined();
-    expect(g.thumbUrl).toBe("https://cdn.example.com/effect.png");
+    // FP's OrderGoods model has exactly these fields for a no-process item;
+    // anything else (e.g. an item-level thumbUrl) breaks signature verification.
+    expect(Object.keys(g).sort()).toEqual(["goodsMode", "goodsName", "quantity", "systemSku"]);
+    expect(params.currencyType).toBe("USD");
   });
 
   it("builds a printed item as goodsMode=1 with asset-center image names", () => {
@@ -173,7 +176,7 @@ describe("buildFpPlaceOrderParams", () => {
         printCode: "front",
         productionImageName: fpImageName("item1", 0),
         widthInBlueMask: 25,
-        heightInBlueMask: 30,
+        thumbUrl: "https://cdn.example.com/effect.png",
       },
     ]);
   });
