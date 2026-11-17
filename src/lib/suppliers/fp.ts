@@ -257,63 +257,73 @@ export class FpAdapter implements SupplierAdapter {
   }
 
   /**
-   * Diagnostic for 验签不通过 on placeOrder. Known so far: FP rebuilds
-   * signText from its typed request model, and every placeOrder field
-   * passes verification on its own with platformOid "sign-probe". So the
-   * failure comes from the platformOid format ("#…") or from a combination of
-   * fields. Every probe body below lacks a required field (address line 1
-   * and/or goods), so none can become an order. Remove once settled.
+   * Diagnostic for 验签不通过 on placeOrder.
+   *
+   * Earlier probes sent incomplete bodies and treated "any non-验签 error"
+   * as "signature ok". They all came back ok — including the full request
+   * minus addressLine1 — which means FP validates required fields BEFORE
+   * verifying the signature, so those results said nothing about signing.
+   * The one valid finding stands: on listOrderInfo any field outside FP's
+   * request model fails verification.
+   *
+   * These probes are therefore complete, valid requests, made uncreatable
+   * by a non-existent systemSku and a throwaway platformOid, and each
+   * reports FP's actual message. Remove once signing is settled.
    */
   private async probeSignature(params: FpPlaceOrderParams): Promise<string> {
-    const signOk = async (body: Record<string, unknown>): Promise<boolean> => {
+    const stamp = Date.now().toString(36);
+    let n = 0;
+    const run = async (name: string, build: (oid: string) => Record<string, unknown>): Promise<string> => {
+      const oid = `#SP${stamp}${n++}-probe`;
       try {
-        await this.client.probePlaceOrderSign(body);
-        return true;
+        const res = await this.client.probePlaceOrderSign(build(oid));
+        return `${name}=ACCEPTED(${String(res.message ?? "").slice(0, 40)})`;
       } catch (e) {
-        // Any non-signature error means verification passed.
-        return !/验签/.test(e instanceof Error ? e.message : "");
+        const msg = e instanceof Error ? e.message : "";
+        if (/验签/.test(msg)) return `${name}=SIGN_FAIL`;
+        const m = /"message":"([^"]*)"/.exec(msg);
+        return `${name}=other(${(m ? m[1] : msg).slice(0, 60)})`;
       }
     };
-    const P = "sign-probe";
-    const { platformOid, orderGoodsList, addressLine1: _a1, ...top } = params as unknown as Record<string, unknown> & {
-      platformOid: string;
-      orderGoodsList: FpOrderGoodsItem[];
-    };
-    const goods = (orderGoodsList[0] ?? {}) as unknown as Record<string, unknown>;
+
+    const goods = params.orderGoodsList[0];
+    const minGoods = { goodsMode: goods.goodsMode, quantity: goods.quantity, systemSku: "SIGN-PROBE-NO-SUCH-SKU" };
+    const min = (oid: string): Record<string, unknown> => ({
+      platformOid: oid,
+      recipientFirstName: params.recipientFirstName,
+      recipientLastName: params.recipientLastName,
+      recipientPhone: params.recipientPhone,
+      recipientPostCode: params.recipientPostCode,
+      recipientCity: params.recipientCity,
+      recipientState: params.recipientState,
+      recipientCountry: params.recipientCountry,
+      addressLine1: params.addressLine1,
+      logisticsType: params.logisticsType,
+      saleCountry: params.saleCountry,
+      orderGoodsList: [minGoods],
+    });
+    const withGoods = (oid: string, extra: Record<string, unknown>) => ({
+      ...min(oid),
+      orderGoodsList: [{ ...minGoods, ...extra }],
+    });
+
     const out: string[] = [];
-    const run = async (name: string, body: Record<string, unknown>) => {
-      out.push(`${name}=${(await signOk(body)) ? "ok" : "SIGN_FAIL"}`);
-    };
-
-    // Same shape as the real order number, but never the real one: a logged
-    // failed attempt under the real platformOid could shadow the real order.
-    const H = platformOid.startsWith("#") ? "#sign-probe" : P;
-    await run("hashOid", { platformOid: H });
-    await run("allTop", { platformOid: P, ...top });
-    await run("allGoods", { platformOid: P, orderGoodsList: [goods] });
-    await run("allTop+allGoods", { platformOid: P, ...top, orderGoodsList: [goods] });
-    await run("hashOid+allTop+allGoods", { platformOid: H, ...top, orderGoodsList: [goods] });
-
-    // Cumulative adds: the first field whose addition flips to SIGN_FAIL.
-    const firstBreak = async (
-      entries: [string, unknown][],
-      build: (acc: Record<string, unknown>) => Record<string, unknown>
-    ): Promise<string> => {
-      const acc: Record<string, unknown> = {};
-      for (const [key, value] of entries) {
-        if (value === undefined || value === null || value === "") continue;
-        acc[key] = value;
-        if (!(await signOk(build(acc)))) return key;
-      }
-      return "none";
-    };
+    out.push(await run("incomplete", (oid) => ({ platformOid: oid })));
     out.push(
-      `topFirstBreak=${await firstBreak(Object.entries(top), (acc) => ({ platformOid: P, ...acc }))}`
+      await run("full", (oid) => ({
+        ...params,
+        platformOid: oid,
+        orderGoodsList: params.orderGoodsList.map((g) => ({ ...g, systemSku: "SIGN-PROBE-NO-SUCH-SKU" })),
+      }))
     );
-    out.push(
-      `goodsFirstBreak=${await firstBreak(Object.entries(goods), (acc) => ({ platformOid: P, orderGoodsList: [acc] }))}`
-    );
-    return `sign probe 3: ${out.join(", ")}`;
+    out.push(await run("min", min));
+    out.push(await run("minNoHash", (oid) => min(oid.replace("#", ""))));
+    out.push(await run("min+orderCreateTime", (oid) => ({ ...min(oid), orderCreateTime: params.orderCreateTime })));
+    out.push(await run("min+currencyType", (oid) => ({ ...min(oid), currencyType: params.currencyType })));
+    out.push(await run("min+goodsName", (oid) => withGoods(oid, { goodsName: goods.goodsName })));
+    out.push(await run("min+thumbUrl", (oid) => withGoods(oid, { thumbUrl: goods.thumbUrl })));
+    out.push(await run("min+processId", (oid) => withGoods(oid, { productProcessId: -1 })));
+    return `sign probe 4: ${out.join(", ")}`;
   }
 
   private async pollCreationResult(
