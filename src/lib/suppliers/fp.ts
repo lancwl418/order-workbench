@@ -50,6 +50,9 @@ export const FP_TO_SHARED_STATUS: Record<number, number> = {
 
 export const FP_READY_TO_PUSH = 150;
 
+/** Shared status for an accepted placeOrder whose async creation failed (已关闭). */
+export const FP_CREATE_FAILED_SHARED_STATUS = 13;
+
 export function normalizeFpStatus(fpStatus: number): { orderStatus: number; orderStatusStr: string } {
   const shared = FP_TO_SHARED_STATUS[fpStatus];
   const label = FP_ORDER_STATUS[fpStatus] ?? `未知状态`;
@@ -341,12 +344,32 @@ export class FpAdapter implements SupplierAdapter {
 
   async queryStatus(platformOids: string[]): Promise<SupplierOrderStatus[]> {
     const info = await this.queryRawInfo(platformOids);
-    return platformOids.flatMap((oid) => {
+    const out: SupplierOrderStatus[] = [];
+    const missing: string[] = [];
+    for (const oid of platformOids) {
       const row = info.get(oid);
-      if (!row || typeof row.orderStatus !== "number") return [];
-      const normalized = normalizeFpStatus(row.orderStatus);
-      return [{ platformOid: oid, ...normalized }];
-    });
+      if (!row || typeof row.orderStatus !== "number") missing.push(oid);
+      else out.push({ platformOid: oid, ...normalizeFpStatus(row.orderStatus) });
+    }
+    // placeOrder is asynchronous: an accepted request that failed creation
+    // never becomes an order, so listOrderInfo stays empty forever. Surface
+    // the creation log's failure reason instead of leaving the push "placed".
+    if (missing.length > 0) {
+      const res = await this.client.listPlaceOrderLog(missing);
+      const logs = new Map(unwrapList<FpPlaceOrderLog>(res.data).map((l) => [l.platformOid, l]));
+      for (const oid of missing) {
+        const log = logs.get(oid);
+        const outcome = log ? creationOutcome(log) : null;
+        if (outcome?.failed) {
+          out.push({
+            platformOid: oid,
+            orderStatus: FP_CREATE_FAILED_SHARED_STATUS,
+            orderStatusStr: `FP建单失败: ${outcome.reason ?? "未知原因"}`.slice(0, 180),
+          });
+        }
+      }
+    }
+    return out;
   }
 
   /** Own-label (logisticsType=1) orders: upload the label when FP asks. */
@@ -380,21 +403,10 @@ export class FpAdapter implements SupplierAdapter {
   }
 }
 
-/** Interpret a creation-log row; null = outcome not expressed yet. */
-function creationOutcome(log: FpPlaceOrderLog): { failed: boolean; reason?: string } | null {
-  const reason = (log.failReason as string) || (log.message as string) || undefined;
-  if (typeof log.success === "boolean") return { failed: !log.success, reason };
-  if (typeof log.createSuccess === "boolean") return { failed: !log.createSuccess, reason };
-  if (typeof log.status === "string") {
-    const s = log.status.toUpperCase();
-    if (["FAIL", "FAILED", "ERROR"].includes(s)) return { failed: true, reason };
-    if (["SUCCESS", "SUCCEEDED", "CREATED"].includes(s)) return { failed: false };
-  }
-  if (typeof log.status === "number") {
-    // Numeric creation status pending Apifox verification — only an explicit
-    // failure marker should block; unknown values keep the optimistic path.
-    return null;
-  }
+/** Interpret a creation-log row; null = still pending. */
+export function creationOutcome(log: FpPlaceOrderLog): { failed: boolean; reason?: string } | null {
+  if (log.status === 2) return { failed: true, reason: log.failReason || log.statusName || undefined };
+  if (log.status === 1) return { failed: false };
   return null;
 }
 
