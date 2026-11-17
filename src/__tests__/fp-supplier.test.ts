@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildFpSignText,
   flattenFpParams,
+  pruneFpBlanks,
   signFpRequest,
 } from "@/lib/suppliers/fp-client";
 import {
@@ -80,6 +81,17 @@ describe("FP signature", () => {
     expect(buildFpSignText(body)).toBe(
       "appKey=test123&requestId=111&spuIds[0]=1998295442372718594&timestamp=1710000000000"
     );
+  });
+
+  it("prunes blank fields so they are neither sent nor signed", () => {
+    const body = pruneFpBlanks({
+      addressLine1: "1 Main St",
+      addressLine2: "",
+      note: null,
+      orderGoodsList: [{ systemSku: "A", thumbUrl: undefined, goodsName: "" }],
+    });
+    expect(body).toEqual({ addressLine1: "1 Main St", orderGoodsList: [{ systemSku: "A" }] });
+    expect(buildFpSignText(body)).toBe("addressLine1=1 Main St&orderGoodsList[0].systemSku=A");
   });
 
   it("excludes the signature field itself and sorts keys", () => {

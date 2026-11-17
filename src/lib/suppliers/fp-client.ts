@@ -60,6 +60,29 @@ export function flattenFpParams(
   return result;
 }
 
+/**
+ * Drop null/undefined/empty-string fields (deep) before signing + sending.
+ * FP's verifier ignores blank values when rebuilding signText, so a blank
+ * field we signed as `key=` (e.g. addressLine2 "") fails with 验签不通过.
+ * Omitting blanks from the body keeps both sides' signText identical.
+ */
+export function pruneFpBlanks<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .filter((v) => v !== null && v !== undefined && v !== "")
+      .map((v) => pruneFpBlanks(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === null || v === undefined || v === "") continue;
+      out[k] = pruneFpBlanks(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 /** Build the canonical signText for a request body (signature field excluded). */
 export function buildFpSignText(body: Record<string, unknown>): string {
   const { signature: _signature, ...rest } = body;
@@ -166,7 +189,7 @@ export class FpClient {
 
   private async post<T>(endpoint: string, payload: Record<string, unknown>): Promise<FpResponse<T>> {
     const body: Record<string, unknown> = {
-      ...payload,
+      ...pruneFpBlanks(payload),
       appKey: this.appKey,
       timestamp: Date.now(),
       requestId: `owb_${randomUUID().replace(/-/g, "").slice(0, 28)}`,
