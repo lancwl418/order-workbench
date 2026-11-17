@@ -7,6 +7,7 @@ import {
 } from "@/lib/suppliers/fp-client";
 import {
   buildFpPlaceOrderParams,
+  creationOutcome,
   fpImageName,
   fpPhone,
   fpSafeText,
@@ -112,6 +113,17 @@ describe("FP signature", () => {
     // Same input, same secret → same signature; different secret → different
     expect(signFpRequest(body, "secret1")).toBe(sig);
     expect(signFpRequest(body, "secret2")).not.toBe(sig);
+  });
+});
+
+describe("FP creation log", () => {
+  it("maps numeric status 0/1/2 to pending/success/failed", () => {
+    expect(creationOutcome({ platformOid: "a", status: 0 })).toBeNull();
+    expect(creationOutcome({ platformOid: "a", status: 1 })).toEqual({ failed: false });
+    expect(creationOutcome({ platformOid: "a", status: 2, statusName: "处理失败", failReason: "sku not found" })).toEqual({
+      failed: true,
+      reason: "sku not found",
+    });
   });
 });
 

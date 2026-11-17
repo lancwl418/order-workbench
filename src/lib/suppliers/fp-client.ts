@@ -166,15 +166,15 @@ export interface FpOrderInfo {
   [k: string]: unknown;
 }
 
+/** OpenApiPlaceOrderLogResponse (Apifox "16-查询异步下单结果"). */
 export interface FpPlaceOrderLog {
   platformOid: string;
-  requestId?: string;
-  /** Creation outcome; exact field pending Apifox verification. */
-  status?: string | number;
-  success?: boolean;
-  createSuccess?: boolean;
-  message?: string;
+  /** 0 = pending, 1 = success, 2 = failed */
+  status?: number;
+  statusName?: string;
   failReason?: string;
+  createTime?: string;
+  updateTime?: string;
   [k: string]: unknown;
 }
 
@@ -260,7 +260,13 @@ export class FpClient {
   }
 
   listPlaceOrderLog(platformOidList: string[]): Promise<FpResponse<FpPlaceOrderLog[] | { list?: FpPlaceOrderLog[]; records?: FpPlaceOrderLog[] } | null>> {
-    return this.post("listPlaceOrderLog", { platformOidList });
+    // pageIndex/pageSize default to 1/20 in FP's request model and are part
+    // of its signText — omitting them fails 验签 (same rule as placeOrder).
+    return this.post("listPlaceOrderLog", {
+      platformOidList,
+      pageIndex: 1,
+      pageSize: Math.max(platformOidList.length, 20),
+    });
   }
 
   /**
