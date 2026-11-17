@@ -11,6 +11,8 @@ export interface PrintFileItem {
   variantTitle: string | null;
   quantity: number;
   itemType: string;
+  /** Build a Gangsheet / Upload Gangsheet: quantity N = N copies of the file. */
+  soldPerSheet?: boolean;
   designFileUrl: string | null;
   /** Ready Print: all gang sheets of the purchased variant (designFileUrl = first). */
   designFileUrls?: string[];
@@ -41,10 +43,13 @@ export interface PrintFileSource {
 
 /**
  * Group order items by designFileUrl (every route that lists print files
- * did this by hand — keep one copy of the rule). Ready to Print and custom
- * gang sheet items add their quantity as copies of the shared image; gang
- * sheets only when the URL is a direct image, since a page URL resolves to
- * its own file list and can't be duplicated by filename.
+ * did this by hand — keep one copy of the rule). Ready to Print and
+ * sold-per-sheet gangsheet lines (Build a Gangsheet / Upload Gangsheet,
+ * flagged at ingest) add their quantity as copies of the shared image —
+ * only for direct image URLs, since a page URL resolves to its own file
+ * list and can't be duplicated by filename. Every other line's file
+ * already contains its full print run (Transfer by Size, manual reprints
+ * like order #5756), so quantity must NOT multiply it.
  */
 export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[] {
   const byUrl = new Map<string, PrintFileSource & { soldCopies: number }>();
@@ -54,7 +59,7 @@ export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[]
       const url = urls[i];
       const soldPerSheet =
         item.itemType === "ready_print" ||
-        (item.itemType === "gangsheet" && isDirectImageUrl(url));
+        (item.soldPerSheet === true && isDirectImageUrl(url));
       const baseLabel = item.variantTitle || item.title;
       const label = urls.length > 1 ? `${baseLabel} - Sheet ${i + 1}` : baseLabel;
       const existing = byUrl.get(url);

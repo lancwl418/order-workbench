@@ -51,6 +51,7 @@ export async function GET(
           variantTitle: true,
           quantity: true,
           itemType: true,
+          soldPerSheet: true,
           designFileUrl: true,
           designFileUrls: true,
           originalDesignFileUrl: true,

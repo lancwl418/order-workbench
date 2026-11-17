@@ -234,6 +234,12 @@ model OrderItem {
   // Item type: transfer_by_size, gangsheet, free_sample, or other (blanks/POD)
   itemType              String    @default("other") @map("item_type")
 
+  // The line is sold per sheet: quantity N = print the design file N times.
+  // Set at ingest only for the Build a Gangsheet / Upload Gangsheet products;
+  // every other gangsheet-classified line (Transfer by Size V2, manual
+  // reprints, title-fallback) already carries its full print run in the file.
+  soldPerSheet          Boolean   @default(false) @map("sold_per_sheet")
+
   // Split fulfillment: which Shopify Fulfillment Order this item currently
   // belongs to. Null = not split (single default fulfillment order). Items
   // sharing the same value are fulfilled together as one shipment.
