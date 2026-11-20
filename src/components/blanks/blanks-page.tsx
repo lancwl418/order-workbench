@@ -257,6 +257,7 @@ export function BlanksPage() {
         </form>
         <Select
           value={filter}
+          items={FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey) }))}
           onValueChange={(v) => {
             setPage(1);
             setFilter(v ?? "all");

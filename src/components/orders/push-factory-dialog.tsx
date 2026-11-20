@@ -214,6 +214,10 @@ export function PushFactoryDialog({
               <label className="text-xs text-muted-foreground mb-1 block">Default craft type</label>
               <Select
                 value={String(craftType)}
+                items={[
+                  { value: "1", label: "白墨烫画 (heat transfer)" },
+                  { value: "2", label: "白墨直喷 (DTG)" },
+                ]}
                 onValueChange={(v) => setCraftType(Number(v) as 1 | 2)}
               >
                 <SelectTrigger className="h-9">
@@ -324,6 +328,11 @@ export function PushFactoryDialog({
                         <label className="text-[11px] text-muted-foreground">Craft type</label>
                         <Select
                           value={f.craftType ? String(f.craftType) : "default"}
+                          items={[
+                            { value: "default", label: "Use default" },
+                            { value: "1", label: "白墨烫画" },
+                            { value: "2", label: "白墨直喷" },
+                          ]}
                           onValueChange={(v) =>
                             updateForm(f.orderItemId, {
                               craftType: v === "default" ? null : (Number(v) as 1 | 2),
@@ -358,6 +367,11 @@ export function PushFactoryDialog({
                             <label className="text-[11px] text-muted-foreground">Print position</label>
                             <Select
                               value={f.printPosition}
+                              items={[
+                                { value: "1", label: "前 Front" },
+                                { value: "2", label: "后 Back" },
+                                { value: "1,2", label: "前后 Both" },
+                              ]}
                               onValueChange={(v) =>
                                 updateForm(f.orderItemId, {
                                   printPosition: v as "1" | "2" | "1,2",

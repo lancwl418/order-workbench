@@ -547,14 +547,20 @@ export function PushBlanksDialog({
                 </label>
                 <Select
                   value={String(fpLogisticsType)}
+                  // Base UI renders the raw value in the trigger unless the
+                  // Root gets a value→label items map
+                  items={[
+                    { value: "1", label: t("fpLogisticsOwnLabel") },
+                    { value: "0", label: t("fpLogisticsSystem") },
+                  ]}
                   onValueChange={(v) => setFpLogisticsType(Number(v) as 0 | 1)}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">{t("fpLogisticsSystem")}</SelectItem>
                     <SelectItem value="1">{t("fpLogisticsOwnLabel")}</SelectItem>
+                    <SelectItem value="0">{t("fpLogisticsSystem")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -711,6 +717,10 @@ export function PushBlanksDialog({
                                   <label className="text-[11px] text-muted-foreground">{t("craft")}</label>
                                   <Select
                                     value={String(f.craftType)}
+                                    items={[
+                                      { value: "1", label: t("craftHeat") },
+                                      { value: "2", label: t("craftDtg") },
+                                    ]}
                                     onValueChange={(v) =>
                                       updateForm(item.id, { craftType: Number(v) as 1 | 2 })
                                     }
@@ -785,6 +795,11 @@ export function PushBlanksDialog({
                                         <label className="text-[11px] text-muted-foreground">{t("printPosition")}</label>
                                         <Select
                                           value={f.printPosition}
+                                          items={[
+                                            { value: "1", label: t("posFront") },
+                                            { value: "2", label: t("posBack") },
+                                            { value: "1,2", label: t("posBoth") },
+                                          ]}
                                           onValueChange={(v) =>
                                             updateForm(item.id, { printPosition: v as "1" | "2" | "1,2" })
                                           }
