@@ -251,6 +251,9 @@ model OrderItem {
   // custom.ready_to_print_gangsheets is a list). designFileUrl mirrors the
   // first entry; this holds the full list. Empty for every other item type.
   designFileUrls        String[]  @default([]) @map("design_file_urls")
+  // Printed apparel: finished-garment mockup (variant image / product
+  // featured image) — pushed to the factory as the effect image.
+  mockupUrl             String?   @map("mockup_url")
   originalDesignFileUrl String?   @map("original_design_file_url")
   artworkRef            String?   @map("artwork_ref")
   printSize             String?   @map("print_size")

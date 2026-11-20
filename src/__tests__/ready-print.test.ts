@@ -42,6 +42,7 @@ function item(over: Partial<MappedOrderItem>): MappedOrderItem {
     price: "10.00",
     designFileUrl: null,
     designFileUrls: [],
+    mockupUrl: null,
     itemType: "other",
     soldPerSheet: false,
     ...over,

@@ -85,7 +85,9 @@ export async function POST(req: NextRequest) {
           : {};
 
         // Auto-detect print files to set printStatus
-        const hasDesignFiles = items.some((item) => item.designFileUrl);
+        const hasDesignFiles = items.some(
+          (item) => item.designFileUrl && item.itemType !== "printed_apparel"
+        );
         const printFields = isNew && hasDesignFiles
           ? { printStatus: "READY" as const }
           : {};
@@ -140,6 +142,7 @@ export async function POST(req: NextRequest) {
               price: item.price,
               designFileUrl: item.designFileUrl,
               designFileUrls: item.designFileUrls,
+              mockupUrl: item.mockupUrl ?? undefined,
               itemType: item.itemType,
               soldPerSheet: item.soldPerSheet,
             },

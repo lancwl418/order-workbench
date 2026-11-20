@@ -8,11 +8,12 @@ const REQUIRED_CONSIGNEE_FIELDS = ["name", "phone", "address", "city", "province
 
 /**
  * GET /api/orders/[id]/blanks — single data source for the push dialog:
- * the order's blank items with their resolved supplier, per-supplier SKU
+ * the order's pushable items (blanks by default, printed apparel with
+ * ?type=printed_apparel) with their resolved supplier, per-supplier SKU
  * mapping prefills, and existing supplier pushes.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -20,6 +21,8 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const itemType =
+    new URL(req.url).searchParams.get("type") === "printed_apparel" ? "printed_apparel" : "other";
   const { id: orderId } = await params;
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -32,7 +35,7 @@ export async function GET(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const blankItems = order.orderItems.filter((i) => i.itemType === "other");
+  const blankItems = order.orderItems.filter((i) => i.itemType === itemType);
   const { groups, unroutable } = await resolveSupplierGroups(blankItems);
 
   const supplierByItemId = new Map<string, { id: string; key: string; name: string; adapterType: string }>();
@@ -79,6 +82,9 @@ export async function GET(
       vendor: item.vendor,
       normalizedVendor: item.vendor ? normalizeVendor(item.vendor) : null,
       designFileUrl: item.designFileUrl,
+      designFileUrls: item.designFileUrls,
+      mockupUrl: item.mockupUrl,
+      itemType: item.itemType,
       printEnabled: item.printEnabled,
       supplier,
       unroutableReason: unroutableById.get(item.id) ?? null,

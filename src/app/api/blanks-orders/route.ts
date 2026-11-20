@@ -5,11 +5,12 @@ import { Prisma } from "@prisma/client";
 import { REJECTED_ORDER_STATUS } from "@/lib/suppliers/types";
 
 /**
- * GET /api/blanks-orders — paginated orders containing blank items
- * (itemType "other"), with per-order push/status summary. Data source for
- * the Blanks page.
+ * GET /api/blanks-orders — paginated orders containing supplier-pushable
+ * items, with per-order push/status summary. Data source for the Blanks and
+ * Printed Apparel pages.
  *
  * Query params: page, pageSize, q (order number search),
+ * type = other (blanks, default) | printed_apparel,
  * filter = all | unpushed | placed | pushed | rejected
  */
 export async function GET(req: NextRequest) {
@@ -23,9 +24,10 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize")) || 25));
   const q = url.searchParams.get("q")?.trim();
   const filter = url.searchParams.get("filter") ?? "all";
+  const itemType = url.searchParams.get("type") === "printed_apparel" ? "printed_apparel" : "other";
 
   const where: Prisma.OrderWhereInput = {
-    orderItems: { some: { itemType: "other" } },
+    orderItems: { some: { itemType } },
     ...(q ? { shopifyOrderNumber: { contains: q, mode: "insensitive" } } : {}),
   };
 
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
         carrier: true,
         shopifyCreatedAt: true,
         orderItems: {
-          where: { itemType: "other" },
+          where: { itemType },
           select: {
             id: true,
             title: true,

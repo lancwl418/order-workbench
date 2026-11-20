@@ -35,16 +35,20 @@ export async function ensureBlanksSplit(
   });
   if (!order) return { split: false, error: "Order not found", foIdByItemId: null };
 
-  const blanks = order.orderItems.filter((i) => i.itemType === "other");
+  // Supplier-pushable categories: blanks ("other") and printed apparel both
+  // ship from a factory and split the same way.
+  const PUSHABLE_TYPES = ["other", "printed_apparel"];
+  const blanks = order.orderItems.filter((i) => PUSHABLE_TYPES.includes(i.itemType));
   if (blanks.length === 0) {
     return { split: false, error: "Order has no blank items", foIdByItemId: null };
   }
-  const others = order.orderItems.filter((i) => i.itemType !== "other");
+  const others = order.orderItems.filter((i) => !PUSHABLE_TYPES.includes(i.itemType));
 
-  // Desired partition: blanks per supplier (+ unpushed blanks) + the rest
+  // Desired partition: pushable items per supplier (unpushed ones grouped
+  // per category so blanks and printed apparel don't share a group) + the rest
   const bySupplier = new Map<string, typeof blanks>();
   for (const item of blanks) {
-    const key = item.supplierId ?? "__unassigned__";
+    const key = item.supplierId ?? `__unassigned_${item.itemType}__`;
     bySupplier.set(key, [...(bySupplier.get(key) ?? []), item]);
   }
   const desired = [...bySupplier.values()];

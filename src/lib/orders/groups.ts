@@ -16,6 +16,7 @@ export function isTransferItemType(itemType: string): boolean {
 /** Human label for an item type within a split fulfillment group. */
 export function groupLabelFromType(itemType: string): string {
   if (itemType === "free_sample") return "Free Sample";
+  if (itemType === "printed_apparel") return "Printed Apparel";
   if (isTransferItemType(itemType)) return "Transfer";
   return "Blanks";
 }

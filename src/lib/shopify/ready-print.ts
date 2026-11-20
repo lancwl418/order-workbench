@@ -63,7 +63,7 @@ const PRODUCT_VARIANT_QUERY = `
   }
 `;
 
-interface MetafieldResult {
+export interface MetafieldResult {
   type: string;
   value: string | null;
   reference:
@@ -94,7 +94,7 @@ const cache = new Map<string, { info: ReadyPrintInfo; at: number }>();
  * Pull the usable URLs out of a metafield: file references, a list.url JSON
  * array, a single URL value, or plain text containing a URL.
  */
-function metafieldUrls(mf: MetafieldResult | null | undefined): string[] {
+export function metafieldUrls(mf: MetafieldResult | null | undefined): string[] {
   if (!mf) return [];
 
   const refUrls = (mf.references?.nodes || [])
