@@ -56,6 +56,16 @@ interface ItemFormState {
   fpPrintHeight: string;
 }
 
+// FP docs only define 0/1/4; 2 and 3 are skipped in the docs while the FP
+// console has a self-pickup mode the API doesn't expose — offered for probing.
+const FP_LOGISTICS_OPTIONS = [
+  { value: "1", labelKey: "fpLogisticsOwnLabel" },
+  { value: "0", labelKey: "fpLogisticsSystem" },
+  { value: "4", labelKey: "fpLogisticsOwnLabelNow" },
+  { value: "2", labelKey: "fpLogisticsTry2" },
+  { value: "3", labelKey: "fpLogisticsTry3" },
+] as const;
+
 const SIZE_TOKENS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "2XL", "3XL", "4XL", "5XL", "ONESIZE", "OS"];
 
 // Space-insensitive so "One Size" counts as a size token, not a color
@@ -107,9 +117,9 @@ export function PushBlanksDialog({
   const [pendingAction, setPendingAction] = useState<"place" | "place_and_push" | null>(null);
   const [consignee, setConsignee] = useState<BlanksConsignee | null>(null);
   const [addressOpen, setAddressOpen] = useState(false);
-  // Xinfeiyang/DigiPrint orders ship on our own label ("Self Pickup" waybill
-  // mode in the FP console), so own-label is the default.
-  const [fpLogisticsType, setFpLogisticsType] = useState<0 | 1>(1);
+  // FP docs expose 0/1/4 only; the console also has a self-pickup mode and
+  // the enum skips 2/3, so those are offered for probing which one it is.
+  const [fpLogisticsType, setFpLogisticsType] = useState<0 | 1 | 2 | 3 | 4>(1);
 
   useEffect(() => {
     if (!open) {
@@ -549,18 +559,18 @@ export function PushBlanksDialog({
                   value={String(fpLogisticsType)}
                   // Base UI renders the raw value in the trigger unless the
                   // Root gets a value→label items map
-                  items={[
-                    { value: "1", label: t("fpLogisticsOwnLabel") },
-                    { value: "0", label: t("fpLogisticsSystem") },
-                  ]}
-                  onValueChange={(v) => setFpLogisticsType(Number(v) as 0 | 1)}
+                  items={FP_LOGISTICS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+                  onValueChange={(v) => setFpLogisticsType(Number(v) as 0 | 1 | 2 | 3 | 4)}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">{t("fpLogisticsOwnLabel")}</SelectItem>
-                    <SelectItem value="0">{t("fpLogisticsSystem")}</SelectItem>
+                    {FP_LOGISTICS_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {t(o.labelKey)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

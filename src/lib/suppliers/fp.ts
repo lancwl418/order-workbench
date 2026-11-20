@@ -146,8 +146,9 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
     recipientCountry: consignee.country,
     addressLine1: consignee.address,
     addressLine2: consignee.addressOptional,
-    // Default own label — FP console shows it as waybill obtain mode "Self
-    // Pickup" (自提); ERP-assigned logistics only when explicitly chosen.
+    // Default 1 = own label, delayed upload (console shows 「延」). The
+    // console's self-pickup mode has no documented API value — 2/3 can be
+    // chosen in the dialog to probe for it.
     logisticsType: input.fpLogisticsType ?? 1,
     saleCountry: consignee.country,
     currencyType: "USD",

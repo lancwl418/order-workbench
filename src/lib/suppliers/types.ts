@@ -40,6 +40,8 @@ export interface SupplierOrderItemInput {
   fpPrintHeight?: number;
 }
 
+export type FpLogisticsType = 0 | 1 | 2 | 3 | 4;
+
 export interface SupplierOrderInput {
   /** Our generated supplier-side order number (unique per push). */
   platformOid: string;
@@ -49,8 +51,11 @@ export interface SupplierOrderInput {
   orderTime: Date;
   sellerRemark?: string;
   items: SupplierOrderItemInput[];
-  /** FP ERP logistics mode: 0=ERP-assigned, 1=own label (delayed upload). */
-  fpLogisticsType?: 0 | 1;
+  /** FP ERP logistics mode: 0=ERP-assigned, 1=own label (delayed upload),
+   * 4=own label (upload at placement). 2/3 are absent from the API docs but
+   * the enum skips them — the console has a "self pickup" mode the docs
+   * don't expose, so they are offered in the UI for probing. */
+  fpLogisticsType?: FpLogisticsType;
 }
 
 // ─── Results ────────────────────────────────────────────────────

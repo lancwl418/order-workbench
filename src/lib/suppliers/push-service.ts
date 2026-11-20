@@ -12,6 +12,7 @@ import {
   SHIPPED_ORDER_STATUS,
   TERMINAL_ORDER_STATUSES,
   trackingsMatch,
+  type FpLogisticsType,
   type SupplierConsignee,
   type SupplierOrderInput,
   type SupplierOrderItemInput,
@@ -248,8 +249,8 @@ export async function pushBlanksForOrder(opts: {
   /** Edited consignee from the dialog — used for this push and persisted
    * back onto the order's shipping address. */
   consignee?: SupplierConsignee;
-  /** FP ERP groups only: 1=own label / self pickup (default), 0=ERP-assigned. */
-  fpLogisticsType?: 0 | 1;
+  /** FP ERP groups only; see FpLogisticsType. Default 1 (own label, delayed). */
+  fpLogisticsType?: FpLogisticsType;
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
   const { orderId, mode, items, sellerRemark, userId, replace } = opts;
 

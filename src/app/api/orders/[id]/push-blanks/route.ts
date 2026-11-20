@@ -40,7 +40,9 @@ const pushSchema = z.object({
   replace: z.boolean().default(false),
   consignee: consigneeSchema.optional(),
   items: z.array(itemSchema).min(1),
-  fpLogisticsType: z.union([z.literal(0), z.literal(1)]).optional(),
+  fpLogisticsType: z
+    .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+    .optional(),
 });
 
 export async function POST(
