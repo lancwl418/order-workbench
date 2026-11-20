@@ -28,6 +28,7 @@
     "title": "DTF 工作台",
     "orders": "订单",
     "blanks": "白板推送",
+    "printedApparel": "成衣打印",
     "giftOrders": "赠礼订单",
     "printQueue": "打印队列",
     "shipping": "发货",
@@ -624,6 +625,9 @@
   },
   "blanks": {
     "title": "Blanks 推送",
+    "titlePrintedApparel": "成衣打印推送",
+    "mockupImages": "成品图(效果图)",
+    "needMockup": "「{title}」需要成品图(效果图)",
     "refreshAll": "刷新全部状态",
     "supplierSettings": "供应商设置",
     "searchPlaceholder": "搜索订单号…",

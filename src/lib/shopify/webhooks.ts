@@ -70,7 +70,9 @@ async function handleOrderCreate(
     : {};
 
   // Auto-detect print files → set printStatus to READY
-  const hasDesignFiles = items.some((item) => item.designFileUrl);
+  const hasDesignFiles = items.some(
+    (item) => item.designFileUrl && item.itemType !== "printed_apparel"
+  );
   const printFields = hasDesignFiles ? { printStatus: "READY" as const } : {};
 
   // Don't overwrite an operator's manual delivery-method change
@@ -106,7 +108,7 @@ async function handleOrderCreate(
     await prisma.orderItem.upsert({
       where: { shopifyLineItemId: item.shopifyLineItemId },
       create: { ...item, orderId: upsertedOrder.id },
-      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType, soldPerSheet: item.soldPerSheet },
+      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType, soldPerSheet: item.soldPerSheet, mockupUrl: item.mockupUrl ?? undefined },
     });
   }
 
@@ -243,7 +245,7 @@ async function handleOrderUpdated(
     await prisma.orderItem.upsert({
       where: { shopifyLineItemId: item.shopifyLineItemId },
       create: { ...item, orderId: upsertedOrder.id },
-      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType, soldPerSheet: item.soldPerSheet },
+      update: { title: item.title, variantTitle: item.variantTitle, sku: item.sku, vendor: item.vendor, quantity: item.quantity, price: item.price, itemType: item.itemType, soldPerSheet: item.soldPerSheet, mockupUrl: item.mockupUrl ?? undefined },
     });
   }
 
@@ -267,7 +269,9 @@ async function handleOrderUpdated(
   }
 
   // Auto-detect print files → set printStatus to READY if currently NONE
-  const hasDesignFiles = items.some((item) => item.designFileUrl);
+  const hasDesignFiles = items.some(
+    (item) => item.designFileUrl && item.itemType !== "printed_apparel"
+  );
   if (upsertedOrder.printStatus === "NONE" && hasDesignFiles) {
     await prisma.order.update({
       where: { id: upsertedOrder.id },

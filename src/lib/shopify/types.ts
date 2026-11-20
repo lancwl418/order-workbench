@@ -146,6 +146,10 @@ export interface MappedOrderItem {
   designFileUrl: string | null;
   /** Ready Print only: all gang sheet URLs of the purchased variant. */
   designFileUrls: string[];
+  /** Printed apparel only: finished-garment mockup (variant image, falling
+   * back to the product's featured image). Sent to the factory as the
+   * effect image alongside the design file. */
+  mockupUrl: string | null;
   itemType: OrderItemType;
   /**
    * Sold per sheet: quantity N = print the design file N times. True only
@@ -166,4 +170,5 @@ export type OrderItemType =
   | "gangsheet"
   | "ready_print"
   | "free_sample"
+  | "printed_apparel"
   | "other";

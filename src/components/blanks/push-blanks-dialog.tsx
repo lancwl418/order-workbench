@@ -32,6 +32,7 @@ import {
   type BlanksItem,
   type BlanksGroupResult,
   type PushBlanksItemPayload,
+  type PushItemType,
 } from "./use-push-blanks";
 
 // THE push dialog — order list, order detail and the blanks page all open
@@ -102,14 +103,18 @@ export function PushBlanksDialog({
   open,
   onOpenChange,
   onSuccess,
+  itemType = "other",
 }: {
   orderId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  /** "other" = blanks (default); "printed_apparel" = the printed apparel
+   * category — items default to printing with the design file + mockup. */
+  itemType?: PushItemType;
 }) {
   const t = useTranslations("blanks");
-  const { data, isLoading, mutate } = useBlanksData(orderId, open);
+  const { data, isLoading, mutate } = useBlanksData(orderId, open, itemType);
   const { busy, pushBlanks, rePush, refreshStatus } = usePushBlanks();
   const [sellerRemark, setSellerRemark] = useState("");
   const [forms, setForms] = useState<Record<string, ItemFormState>>({});
@@ -142,6 +147,7 @@ export function PushBlanksDialog({
           next[item.id] = prev[item.id];
           continue;
         }
+        const isApparel = item.itemType === "printed_apparel";
         next[item.id] = {
           orderItemId: item.id,
           // Items already placed at a supplier can't be placed again
@@ -152,10 +158,15 @@ export function PushBlanksDialog({
           colorCode: item.prefill?.factoryColor ?? (parseColorFromVariant(item.variantTitle) || parseSkuParts(item.sku).color),
           styleCode: item.prefill?.factoryStyle ?? "",
           craftType: (item.prefill?.factoryCraftType as 1 | 2 | null) ?? 1,
-          shouldPrint: item.printEnabled ?? false,
+          // Printed apparel always prints: design file from custom.print_image,
+          // mockup (variant/product image) as the effect image.
+          shouldPrint: isApparel ? true : (item.printEnabled ?? false),
           printPosition: "1",
-          imageUrlsText: item.designFileUrl ?? "",
-          effectImageUrlsText: item.designFileUrl ?? "",
+          imageUrlsText:
+            item.designFileUrls?.length > 1
+              ? item.designFileUrls.join(", ")
+              : item.designFileUrl ?? "",
+          effectImageUrlsText: (isApparel ? item.mockupUrl : item.designFileUrl) ?? "",
           fpPrintCode: "",
           fpPrintWidth: "",
           fpPrintHeight: "",
@@ -261,9 +272,19 @@ export function PushBlanksDialog({
         toast.error(t("needPrintImage"));
         return null;
       }
+      // Printed apparel pushes both images: design file + mockup (effect)
+      if (
+        data?.items.find((i) => i.id === f.orderItemId)?.itemType === "printed_apparel" &&
+        splitUrls(f.effectImageUrlsText).length === 0
+      ) {
+        toast.error(t("needMockup", { title: itemTitle }));
+        return null;
+      }
     }
     return selected.map((f) => {
       const isFp = formAdapterType(f) === "fp";
+      const isApparel =
+        data?.items.find((i) => i.id === f.orderItemId)?.itemType === "printed_apparel";
       return {
         orderItemId: f.orderItemId,
         supplierId: f.supplierId || undefined,
@@ -278,7 +299,10 @@ export function PushBlanksDialog({
         shouldPrint: f.shouldPrint,
         printPosition: f.shouldPrint && !isFp ? f.printPosition : undefined,
         imageUrls: f.shouldPrint ? splitUrls(f.imageUrlsText) : undefined,
-        effectImageUrls: !f.shouldPrint ? splitUrls(f.effectImageUrlsText) : undefined,
+        // Printed apparel sends the mockup as the effect image even when
+        // printing; blanks only send effect images for no-print items.
+        effectImageUrls:
+          !f.shouldPrint || isApparel ? splitUrls(f.effectImageUrlsText) : undefined,
         fpPrintCode: isFp && f.shouldPrint ? f.fpPrintCode.trim() : undefined,
         fpPrintWidth: isFp && f.shouldPrint ? parseFloat(f.fpPrintWidth) || undefined : undefined,
         fpPrintHeight: isFp && f.shouldPrint ? parseFloat(f.fpPrintHeight) || undefined : undefined,
@@ -320,7 +344,8 @@ export function PushBlanksDialog({
       sellerRemark,
       isReplacing,
       consignee ?? undefined,
-      hasFpGroup ? fpLogisticsType : undefined
+      hasFpGroup ? fpLogisticsType : undefined,
+      itemType
     );
     setPendingAction(null);
     if (!res) return;
@@ -838,6 +863,23 @@ export function PushBlanksDialog({
                                         />
                                       </div>
                                     </>
+                                  )}
+                                  {/* Printed apparel pushes the mockup as the
+                                      effect image alongside the print file */}
+                                  {item.itemType === "printed_apparel" && (
+                                    <div className="md:col-span-2">
+                                      <label className="text-[11px] text-muted-foreground">
+                                        {t("mockupImages")}
+                                      </label>
+                                      <Input
+                                        value={f.effectImageUrlsText}
+                                        onChange={(e) =>
+                                          updateForm(item.id, { effectImageUrlsText: e.target.value })
+                                        }
+                                        placeholder="https://..."
+                                        className="h-8 text-sm"
+                                      />
+                                    </div>
                                   )}
                                 </>
                               ) : (

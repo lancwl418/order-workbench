@@ -34,6 +34,10 @@ export interface BlanksItem {
   vendor: string | null;
   normalizedVendor: string | null;
   designFileUrl: string | null;
+  designFileUrls: string[];
+  /** Printed apparel: finished-garment mockup (variant/product image). */
+  mockupUrl: string | null;
+  itemType: string;
   printEnabled: boolean;
   supplier: { id: string; key: string; name: string; adapterType: string } | null;
   unroutableReason: "no_vendor" | "unmapped_vendor" | "bad_supplier" | null;
@@ -121,10 +125,16 @@ export interface BlanksGroupResult {
   traceId?: string;
 }
 
-/** Fetch the dialog's data (blank items + routing + prefill + pushes). */
-export function useBlanksData(orderId: string | null, enabled = true) {
+export type PushItemType = "other" | "printed_apparel";
+
+/** Fetch the dialog's data (pushable items + routing + prefill + pushes). */
+export function useBlanksData(
+  orderId: string | null,
+  enabled = true,
+  itemType: PushItemType = "other"
+) {
   return useSWR<BlanksData>(
-    enabled && orderId ? `/api/orders/${orderId}/blanks` : null,
+    enabled && orderId ? `/api/orders/${orderId}/blanks?type=${itemType}` : null,
     fetcher
   );
 }
@@ -162,7 +172,8 @@ export function usePushBlanks() {
     sellerRemark?: string,
     replace?: boolean,
     consignee?: BlanksConsignee,
-    fpLogisticsType?: 0 | 1 | 2 | 3 | 4
+    fpLogisticsType?: 0 | 1 | 2 | 3 | 4,
+    itemType: PushItemType = "other"
   ): Promise<{ results: BlanksGroupResult[] } | null> {
     setBusy(true);
     try {
@@ -176,6 +187,7 @@ export function usePushBlanks() {
           replace: replace || undefined,
           consignee,
           fpLogisticsType,
+          itemType,
         }),
       });
       const data = await res.json();

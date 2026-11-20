@@ -28,6 +28,7 @@
     "title": "DTF Workbench",
     "orders": "Orders",
     "blanks": "Blanks",
+    "printedApparel": "Printed Apparel",
     "giftOrders": "Gift Orders",
     "printQueue": "Print Queue",
     "shipping": "Shipping",
@@ -624,6 +625,9 @@
   },
   "blanks": {
     "title": "Blanks Push",
+    "titlePrintedApparel": "Printed Apparel Push",
+    "mockupImages": "Mockup (effect) image",
+    "needMockup": "\"{title}\" needs a mockup (effect) image",
     "refreshAll": "Refresh all statuses",
     "supplierSettings": "Supplier settings",
     "searchPlaceholder": "Search order #…",

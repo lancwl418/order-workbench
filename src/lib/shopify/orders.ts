@@ -9,6 +9,7 @@ import type {
   OrderItemType,
 } from "./types";
 import { applyReadyPrintItems } from "./ready-print";
+import { applyPrintedApparelItems } from "./printed-apparel";
 
 /**
  * Fetch orders from Shopify REST Admin API.
@@ -232,6 +233,7 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
         price: lineItem.price,
         designFileUrl,
         designFileUrls,
+        mockupUrl: null,
         itemType,
         soldPerSheet,
       };
@@ -256,15 +258,17 @@ export function transformShopifyOrder(shopifyOrder: ShopifyOrder): {
 }
 
 /**
- * transformShopifyOrder plus the async product-level pass that recognizes
- * Ready to Print gang sheet items (needs product tags + metafield, which
- * the order payload doesn't carry). Use this wherever items are persisted.
+ * transformShopifyOrder plus the async product-level passes that need data
+ * the order payload doesn't carry: Ready to Print gang sheets (product tag +
+ * metafield) and Printed Apparel (product type + print_image metafield +
+ * variant/product image). Use this wherever items are persisted.
  */
 export async function transformShopifyOrderWithProducts(
   shopifyOrder: ShopifyOrder
 ): Promise<ReturnType<typeof transformShopifyOrder>> {
   const result = transformShopifyOrder(shopifyOrder);
   await applyReadyPrintItems(result.items, shopifyOrder.line_items);
+  await applyPrintedApparelItems(result.items, shopifyOrder.line_items);
   return result;
 }
 

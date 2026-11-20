@@ -43,6 +43,7 @@ const pushSchema = z.object({
   fpLogisticsType: z
     .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
     .optional(),
+  itemType: z.enum(["other", "printed_apparel"]).default("other"),
 });
 
 export async function POST(
@@ -71,6 +72,7 @@ export async function POST(
     replace: parsed.data.replace,
     consignee: parsed.data.consignee,
     fpLogisticsType: parsed.data.fpLogisticsType,
+    itemType: parsed.data.itemType,
     userId: session.user?.id,
   });
 

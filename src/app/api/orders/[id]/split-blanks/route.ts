@@ -13,7 +13,7 @@ import { resyncPendingTrackings } from "@/lib/suppliers/push-service";
  * Returns { split, blanksFulfillmentOrderId } for label creation to target.
  */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -21,6 +21,8 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const itemType =
+    new URL(req.url).searchParams.get("type") === "printed_apparel" ? "printed_apparel" : "other";
   const { id } = await params;
   const result = await ensureBlanksSplit(id, session.user?.id);
   if (result.error) {
@@ -32,7 +34,7 @@ export async function POST(
   await resyncPendingTrackings(id, session.user?.id);
 
   const firstBlank = await prisma.orderItem.findFirst({
-    where: { orderId: id, itemType: "other" },
+    where: { orderId: id, itemType },
     select: { shopifyFulfillmentOrderId: true },
   });
 

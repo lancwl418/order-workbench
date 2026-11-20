@@ -30,7 +30,7 @@ interface SplitItem {
 }
 
 
-const GROUP_OPTIONS = ["Blanks", "Transfer", "Free Sample"] as const;
+const GROUP_OPTIONS = ["Blanks", "Printed Apparel", "Transfer", "Free Sample"] as const;
 
 export function SplitOrderDialog({
   orderId,

@@ -120,8 +120,14 @@ const FILTERS = [
   { value: "rejected", labelKey: "filterRejected" },
 ] as const;
 
-export function BlanksPage() {
+export function BlanksPage({
+  itemType = "other",
+}: {
+  /** "other" = blanks (default); "printed_apparel" = printed apparel page. */
+  itemType?: "other" | "printed_apparel";
+} = {}) {
   const t = useTranslations("blanks");
+  const isApparel = itemType === "printed_apparel";
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
@@ -139,7 +145,7 @@ export function BlanksPage() {
     totalPages: number;
     rejectedSummary?: RejectedSummary;
   }>(
-    `/api/blanks-orders?page=${page}&filter=${filter}${search ? `&q=${encodeURIComponent(search)}` : ""}`,
+    `/api/blanks-orders?page=${page}&filter=${filter}&type=${itemType}${search ? `&q=${encodeURIComponent(search)}` : ""}`,
     fetcher
   );
 
@@ -169,7 +175,7 @@ export function BlanksPage() {
   async function openOmsForBlanks(orderId: string) {
     setSplitting(true);
     try {
-      const res = await fetch(`/api/orders/${orderId}/split-blanks`, { method: "POST" });
+      const res = await fetch(`/api/orders/${orderId}/split-blanks?type=${itemType}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Split failed");
       if (data.split) toast.success(t("autoSplitDone"));
@@ -188,7 +194,7 @@ export function BlanksPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Shirt className="h-5 w-5" />
-          {t("title")}
+          {t(isApparel ? "titlePrintedApparel" : "title")}
         </h1>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleRefreshAll} disabled={busy}>
@@ -586,6 +592,7 @@ export function BlanksPage() {
       {dialogOrderId && (
         <PushBlanksDialog
           orderId={dialogOrderId}
+          itemType={itemType}
           open={!!dialogOrderId}
           onOpenChange={(open) => {
             if (!open) setDialogOrderId(null);

@@ -54,6 +54,9 @@ export interface PrintFileSource {
 export function groupPrintFileSources(items: PrintFileItem[]): PrintFileSource[] {
   const byUrl = new Map<string, PrintFileSource & { soldCopies: number }>();
   for (const item of items) {
+    // Printed apparel is printed BY the factory — its design file is a push
+    // input, not one of our print files.
+    if (item.itemType === "printed_apparel") continue;
     const urls = itemUrls(item);
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];

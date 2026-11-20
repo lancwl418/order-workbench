@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   ClipboardList,
   Gift,
+  Palette,
   Printer,
   AlertTriangle,
   Headphones,
@@ -16,6 +17,7 @@ import {
 const navKeys = [
   { key: "orders", href: "/orders", icon: ClipboardList },
   { key: "blanks", href: "/blanks", icon: Shirt },
+  { key: "printedApparel", href: "/printed-apparel", icon: Palette },
   { key: "giftOrders", href: "/gift-orders", icon: Gift },
   { key: "printQueue", href: "/print-queue", icon: Printer },
   { key: "exceptions", href: "/exceptions", icon: AlertTriangle },
