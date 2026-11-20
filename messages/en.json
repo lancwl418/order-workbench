@@ -796,7 +796,7 @@
     "needFpPrintFields": "\"{title}\" is set to print — fill the FP print code and print width",
     "fpLogistics": "FP logistics mode (Xinfeiyang)",
     "fpLogisticsSystem": "ERP-assigned logistics",
-    "fpLogisticsOwnLabel": "Own shipping label (upload later)",
+    "fpLogisticsOwnLabel": "Self pickup / own label (upload later)",
     "fpSystemSku": "systemSku (FP product SKU)",
     "fpPrintCode": "FP print code",
     "fpPrintWidth": "Print width (cm)",
