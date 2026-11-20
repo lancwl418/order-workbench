@@ -796,7 +796,7 @@
     "needFpPrintFields": "「{title}」要打印,需填 FP 印位代码和打印宽度",
     "fpLogistics": "FP 物流模式(鑫飞扬)",
     "fpLogisticsSystem": "ERP 安排物流",
-    "fpLogisticsOwnLabel": "自己出面单(稍后上传)",
+    "fpLogisticsOwnLabel": "自提/自己出面单(稍后上传)",
     "fpSystemSku": "systemSku(FP 产品 SKU)",
     "fpPrintCode": "FP 印位代码",
     "fpPrintWidth": "打印宽度(cm)",

@@ -248,7 +248,7 @@ export async function pushBlanksForOrder(opts: {
   /** Edited consignee from the dialog — used for this push and persisted
    * back onto the order's shipping address. */
   consignee?: SupplierConsignee;
-  /** FP ERP groups only: 0=ERP-assigned logistics (default), 1=own label. */
+  /** FP ERP groups only: 1=own label / self pickup (default), 0=ERP-assigned. */
   fpLogisticsType?: 0 | 1;
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
   const { orderId, mode, items, sellerRemark, userId, replace } = opts;
@@ -428,7 +428,7 @@ export async function pushBlanksForOrder(opts: {
       orderTime: order.shopifyCreatedAt ?? order.createdAt,
       sellerRemark,
       items: itemInputs.map((x) => x.input),
-      fpLogisticsType: opts.fpLogisticsType ?? 0,
+      fpLogisticsType: opts.fpLogisticsType ?? 1,
     };
 
     try {

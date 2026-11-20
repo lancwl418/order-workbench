@@ -146,7 +146,9 @@ export function buildFpPlaceOrderParams(input: SupplierOrderInput): FpPlaceOrder
     recipientCountry: consignee.country,
     addressLine1: consignee.address,
     addressLine2: consignee.addressOptional,
-    logisticsType: input.fpLogisticsType ?? 0,
+    // Default own label — FP console shows it as waybill obtain mode "Self
+    // Pickup" (自提); ERP-assigned logistics only when explicitly chosen.
+    logisticsType: input.fpLogisticsType ?? 1,
     saleCountry: consignee.country,
     currencyType: "USD",
     orderGoodsList,

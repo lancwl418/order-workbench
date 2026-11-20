@@ -107,7 +107,9 @@ export function PushBlanksDialog({
   const [pendingAction, setPendingAction] = useState<"place" | "place_and_push" | null>(null);
   const [consignee, setConsignee] = useState<BlanksConsignee | null>(null);
   const [addressOpen, setAddressOpen] = useState(false);
-  const [fpLogisticsType, setFpLogisticsType] = useState<0 | 1>(0);
+  // Xinfeiyang/DigiPrint orders ship on our own label ("Self Pickup" waybill
+  // mode in the FP console), so own-label is the default.
+  const [fpLogisticsType, setFpLogisticsType] = useState<0 | 1>(1);
 
   useEffect(() => {
     if (!open) {

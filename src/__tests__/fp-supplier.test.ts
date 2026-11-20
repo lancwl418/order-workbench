@@ -197,6 +197,11 @@ describe("buildFpPlaceOrderParams", () => {
     const params = buildFpPlaceOrderParams(makeInput({ fpLogisticsType: 1 }));
     expect(params.logisticsType).toBe(1);
   });
+
+  it("defaults to own label (self-pickup waybill) when no logistics type is given", () => {
+    const params = buildFpPlaceOrderParams(makeInput({ fpLogisticsType: undefined }));
+    expect(params.logisticsType).toBe(1);
+  });
 });
 
 describe("validateFpOrderInput", () => {
