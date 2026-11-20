@@ -162,7 +162,7 @@ export function usePushBlanks() {
     sellerRemark?: string,
     replace?: boolean,
     consignee?: BlanksConsignee,
-    fpLogisticsType?: 0 | 1
+    fpLogisticsType?: 0 | 1 | 2 | 3 | 4
   ): Promise<{ results: BlanksGroupResult[] } | null> {
     setBusy(true);
     try {

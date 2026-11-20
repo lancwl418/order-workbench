@@ -142,8 +142,10 @@ export interface FpPlaceOrderParams {
   addressLine1: string;
   addressLine2?: string;
   addressLine3?: string;
-  /** 0=system logistics, 1=own label (delayed upload), 4=own label no validation */
-  logisticsType: 0 | 1 | 4;
+  /** Documented: 0=system logistics, 1=own label (delayed upload), 4=own
+   * label. 2/3 are undocumented — the enum skips them and the FP console has
+   * a self-pickup mode the open API docs don't expose. */
+  logisticsType: 0 | 1 | 2 | 3 | 4;
   saleCountry: string;
   currencyType?: string;
   orderGoodsList: FpOrderGoodsItem[];
