@@ -659,6 +659,7 @@
     "refreshFactoryStatus": "刷新工厂状态",
     "refreshing": "刷新中…",
     "blanksPushTooltip": "推送 Blanks 到供应商工厂",
+    "printedApparelPushTooltip": "推送成衣打印到供应商工厂",
     "openSupplierConsole": "打开供应商后台",
     "dialogTitle": "推送 Blanks",
     "dialogDescription": "按供应商分组推送白板订单。默认不打印、工艺白墨烫画。",

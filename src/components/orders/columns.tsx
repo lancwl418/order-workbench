@@ -48,6 +48,8 @@ export function createColumns(opts: {
   onOmsPush?: (orderId: string, fulfillmentOrderId?: string) => void;
   onBlanksPush?: (orderId: string) => void;
   blanksPushTooltip?: string;
+  onPrintedApparelPush?: (orderId: string) => void;
+  printedApparelPushTooltip?: string;
   onSplit?: (order: OrderListItem) => void;
   onSyncToShopify?: (shipmentId: string) => Promise<void>;
   loadingId: string | null;
@@ -212,8 +214,9 @@ export function createColumns(opts: {
         // the extra badge only tells the operator a pre-made sheet is inside.
         const hasReadyPrint = items.some((item) => item.itemType === "ready_print");
         const hasBlanks = items.some((item) => item.itemType === "other");
+        const hasPrintedApparel = items.some((item) => item.itemType === "printed_apparel");
         const hasFreeSample = items.some((item) => item.itemType === "free_sample");
-        const categoryCount = [hasTransfer, hasBlanks, hasFreeSample].filter(
+        const categoryCount = [hasTransfer, hasBlanks, hasPrintedApparel, hasFreeSample].filter(
           Boolean
         ).length;
         // Orders spanning more than one product type may need a split fulfillment.
@@ -254,6 +257,32 @@ export function createColumns(opts: {
               ) : (
                 <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-purple-100 text-purple-700">
                   Blanks
+                </span>
+              ))}
+            {hasPrintedApparel &&
+              (opts.onPrintedApparelPush ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          opts.onPrintedApparelPush!(row.original.id);
+                        }}
+                        className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-rose-100 text-rose-700 ring-1 ring-rose-300 hover:bg-rose-200 cursor-pointer"
+                      >
+                        Printed Apparel
+                      </button>
+                    }
+                  />
+                  <TooltipContent>
+                    {opts.printedApparelPushTooltip ?? "Push printed apparel to the supplier factory"}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-rose-100 text-rose-700">
+                  Printed Apparel
                 </span>
               ))}
             {hasFreeSample && (

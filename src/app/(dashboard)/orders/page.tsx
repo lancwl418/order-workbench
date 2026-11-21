@@ -127,6 +127,7 @@ export default function OrdersPage() {
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
   const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
   const [blanksPushOrderId, setBlanksPushOrderId] = useState<string | null>(null);
+  const [printedApparelPushOrderId, setPrintedApparelPushOrderId] = useState<string | null>(null);
   const [splitOrder, setSplitOrder] = useState<OrderListItem | null>(null);
 
   const handleStatusChange = useCallback(
@@ -312,6 +313,8 @@ export default function OrdersPage() {
         },
         onBlanksPush: (orderId) => setBlanksPushOrderId(orderId),
         blanksPushTooltip: tBlanks("blanksPushTooltip"),
+        onPrintedApparelPush: (orderId) => setPrintedApparelPushOrderId(orderId),
+        printedApparelPushTooltip: tBlanks("printedApparelPushTooltip"),
         onSplit: (order) => setSplitOrder(order),
         onSyncToShopify: handleSyncToShopify,
         loadingId: statusLoading,
@@ -495,6 +498,19 @@ export default function OrdersPage() {
           open={!!blanksPushOrderId}
           onOpenChange={(open) => {
             if (!open) setBlanksPushOrderId(null);
+          }}
+          onSuccess={() => refresh()}
+        />
+      )}
+
+      {/* Printed Apparel push — same dialog in apparel mode */}
+      {printedApparelPushOrderId && (
+        <PushBlanksDialog
+          orderId={printedApparelPushOrderId}
+          itemType="printed_apparel"
+          open={!!printedApparelPushOrderId}
+          onOpenChange={(open) => {
+            if (!open) setPrintedApparelPushOrderId(null);
           }}
           onSuccess={() => refresh()}
         />

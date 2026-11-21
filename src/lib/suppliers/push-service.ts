@@ -173,7 +173,11 @@ function toSupplierItemInput(item: OrderItem, m: BlanksItemInput): SupplierOrder
     shouldPrint: m.shouldPrint ?? false,
     printPosition: m.printPosition,
     printImageUrls: m.imageUrls ?? [],
-    effectImageUrls: m.effectImageUrls ?? (item.designFileUrl ? [item.designFileUrl] : []),
+    // Printed apparel carries a real mockup (variant/product image); blanks
+    // fall back to the design file as before.
+    effectImageUrls:
+      m.effectImageUrls ??
+      (item.mockupUrl ? [item.mockupUrl] : item.designFileUrl ? [item.designFileUrl] : []),
     fpPrintCode: m.fpPrintCode,
     fpPrintWidth: m.fpPrintWidth,
     fpPrintHeight: m.fpPrintHeight,
@@ -251,6 +255,9 @@ export async function pushBlanksForOrder(opts: {
   consignee?: SupplierConsignee;
   /** FP ERP groups only; see FpLogisticsType. Default 1 (own label, delayed). */
   fpLogisticsType?: FpLogisticsType;
+  /** Which item category this push covers: blanks ("other", default) or
+   * printed apparel. Items of any other type are rejected. */
+  itemType?: "other" | "printed_apparel";
 }): Promise<{ results: BlanksGroupResult[]; error?: string; status?: number }> {
   const { orderId, mode, items, sellerRemark, userId, replace } = opts;
 
@@ -313,8 +320,12 @@ export async function pushBlanksForOrder(opts: {
     if (!item) {
       return { results: [], error: `Item ${m.orderItemId} does not belong to this order`, status: 400 };
     }
-    if (item.itemType !== "other") {
-      return { results: [], error: `Item "${item.title}" is not a blank (itemType=${item.itemType})`, status: 400 };
+    if (item.itemType !== (opts.itemType ?? "other")) {
+      return {
+        results: [],
+        error: `Item "${item.title}" is not in this category (itemType=${item.itemType})`,
+        status: 400,
+      };
     }
     inputByItemId.set(m.orderItemId, m);
   }

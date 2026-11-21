@@ -659,6 +659,7 @@
     "refreshFactoryStatus": "Refresh factory status",
     "refreshing": "Refreshing…",
     "blanksPushTooltip": "Push blanks to the supplier factory",
+    "printedApparelPushTooltip": "Push printed apparel to the supplier factory",
     "openSupplierConsole": "Open supplier console",
     "dialogTitle": "Push Blanks",
     "dialogDescription": "Push blank orders grouped by supplier. Defaults: no print, white-ink heat transfer.",
