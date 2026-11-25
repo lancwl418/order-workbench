@@ -94,9 +94,11 @@ interface RejectedSummary {
 }
 
 /** Our labels covering the blanks group: shipments scoped to a blanks
- * fulfillment group, or unscoped (whole order) when the blanks aren't split
- * into their own group. Excludes the transfer group's label on split orders,
- * and drops trackings the factory already reports (dedupe). */
+ * fulfillment group, or unscoped (whole order) OMS labels when the blanks
+ * aren't split into their own group. Unscoped labels from other sources
+ * (e.g. a transfer label keyed into Shopify without group info) are not
+ * blanks labels and stay hidden. Excludes the transfer group's label on
+ * split orders, and drops trackings the factory already reports (dedupe). */
 function blanksOwnLabels(order: BlanksOrderRow) {
   const blankFoIds = new Set(
     order.orderItems.map((i) => i.shopifyFulfillmentOrderId).filter((v): v is string => !!v)
@@ -108,8 +110,15 @@ function blanksOwnLabels(order: BlanksOrderRow) {
     (sh) =>
       sh.trackingNumber &&
       !factoryTrackings.some((ft) => trackingsMatch(ft, sh.trackingNumber)) &&
-      (sh.shopifyFulfillmentOrderId === null || blankFoIds.has(sh.shopifyFulfillmentOrderId))
+      (sh.shopifyFulfillmentOrderId === null
+        ? sh.providerName === "eccangtms"
+        : blankFoIds.has(sh.shopifyFulfillmentOrderId))
   );
+}
+
+/** Item ids of this order covered by at least one supplier push record. */
+function pushedItemIds(order: BlanksOrderRow) {
+  return new Set(order.supplierPushes.flatMap((p) => p.itemIds));
 }
 
 const FILTERS = [
@@ -313,7 +322,17 @@ export function BlanksPage({
                 </TableCell>
               </TableRow>
             )}
-            {(data?.orders ?? []).map((order) => (
+            {(data?.orders ?? []).map((order) => {
+              const ownLabels = blanksOwnLabels(order);
+              // Only a genuine OMS label counts as "ready for linmiao" — a
+              // blanks label from another source still needs operator judgment.
+              const hasOmsLabel = ownLabels.some((sh) => sh.providerName === "eccangtms");
+              const pushed = pushedItemIds(order);
+              const unpushedCount =
+                order.supplierPushes.length > 0
+                  ? order.orderItems.filter((i) => !pushed.has(i.id)).length
+                  : 0;
+              return (
               <TableRow key={order.id}>
                 <TableCell className="align-top">
                   <Link
@@ -349,6 +368,11 @@ export function BlanksPage({
                         {item.printEnabled && (
                           <Badge variant="outline" className="text-[10px] px-1 py-0 border-blue-300 text-blue-700">
                             {t("printBadge")}
+                          </Badge>
+                        )}
+                        {order.supplierPushes.length > 0 && !pushed.has(item.id) && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700">
+                            {t("itemNotPushedBadge")}
                           </Badge>
                         )}
                       </div>
@@ -404,9 +428,15 @@ export function BlanksPage({
                             ))}
                           {!p.pushedAt &&
                             (p.supplier.adapterType === "linmiao" ? (
-                              <span className="text-[11px] text-amber-700">
-                                {t("awaitingLabel")}
-                              </span>
+                              hasOmsLabel ? (
+                                <span className="text-[11px] text-green-700">
+                                  {t("labelCreatedAwaitingPush")}
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-amber-700">
+                                  {t("awaitingLabel")}
+                                </span>
+                              )
                             ) : (
                               <Button
                                 size="sm"
@@ -421,6 +451,12 @@ export function BlanksPage({
                             ))}
                         </div>
                       ))}
+                      {unpushedCount > 0 && (
+                        <div className="flex items-center gap-1 text-[11px] text-amber-700">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          {t("partialUnpushed", { count: unpushedCount })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </TableCell>
@@ -466,7 +502,7 @@ export function BlanksPage({
                           </div>
                         );
                       })}
-                    {blanksOwnLabels(order).map((sh) => (
+                    {ownLabels.map((sh) => (
                       <div key={sh.id} className="space-y-0.5">
                         <span className="text-[11px] text-muted-foreground block">
                           Label{sh.carrier ? ` · ${sh.carrier}` : ""}
@@ -560,7 +596,8 @@ export function BlanksPage({
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
       </div>
