@@ -8,6 +8,7 @@ import { getAdapter } from "./registry";
 import {
   deriveStyleCode,
   normalizeVendor,
+  isFactoryPipelineStatus,
   REJECTED_ORDER_STATUS,
   SHIPPED_ORDER_STATUS,
   TERMINAL_ORDER_STATUSES,
@@ -783,6 +784,12 @@ export async function syncSupplierStatuses(opts: { orderId?: string } = {}): Pro
               orderStatus: status.orderStatus,
               orderStatusStr: status.orderStatusStr,
               statusSyncedAt: new Date(),
+              // Factory-pipeline status with pushedAt unset means the push
+              // happened outside the workbench (supplier console) — record it
+              // so the order stops showing as "placed, not pushed".
+              ...(push.pushedAt === null && isFactoryPipelineStatus(status.orderStatus)
+                ? { pushedAt: new Date() }
+                : {}),
               // A (re-)rejection activates the handling workflow
               ...(changed && status.orderStatus === REJECTED_ORDER_STATUS
                 ? { rejectionStatus: "pending", rejectionHandledBy: null, rejectionHandledAt: null }

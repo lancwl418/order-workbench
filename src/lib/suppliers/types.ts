@@ -132,6 +132,16 @@ export const REJECTED_ORDER_STATUS = 3;
 export const SHIPPED_ORDER_STATUS = 12;
 
 /**
+ * Factory-pipeline statuses (factory audit → closed) prove the order reached
+ * the factory, even when our pushedAt was never set — e.g. the operator
+ * pushed it from the supplier console instead of the workbench. Excludes
+ * refund statuses (14/15), which can occur before any push.
+ */
+export function isFactoryPipelineStatus(status: number): boolean {
+  return status >= 4 && status <= 13;
+}
+
+/**
  * Two tracking numbers refer to the same shipment when equal or one contains
  * the other — linmiao records our uploaded label's number with the order
  * number appended (9214...3525 -> 9214...35254275).
