@@ -116,6 +116,21 @@ function blanksOwnLabels(order: BlanksOrderRow) {
   );
 }
 
+/** True when a genuine OMS (eccangtms) label exists for the blanks scope.
+ * Checked against raw shipments, NOT blanksOwnLabels — once the factory ships
+ * with our label the tracking shows up in supplierPushes and blanksOwnLabels
+ * dedupes the OMS row away, but the label still exists. */
+function hasBlanksOmsLabel(order: BlanksOrderRow) {
+  const blankFoIds = new Set(
+    order.orderItems.map((i) => i.shopifyFulfillmentOrderId).filter((v): v is string => !!v)
+  );
+  return order.shipments.some(
+    (sh) =>
+      sh.providerName === "eccangtms" &&
+      (sh.shopifyFulfillmentOrderId === null || blankFoIds.has(sh.shopifyFulfillmentOrderId))
+  );
+}
+
 /** Item ids of this order covered by at least one supplier push record. */
 function pushedItemIds(order: BlanksOrderRow) {
   return new Set(order.supplierPushes.flatMap((p) => p.itemIds));
@@ -326,7 +341,7 @@ export function BlanksPage({
               const ownLabels = blanksOwnLabels(order);
               // Only a genuine OMS label counts as "ready for linmiao" — a
               // blanks label from another source still needs operator judgment.
-              const hasOmsLabel = ownLabels.some((sh) => sh.providerName === "eccangtms");
+              const hasOmsLabel = hasBlanksOmsLabel(order);
               const pushed = pushedItemIds(order);
               const unpushedCount =
                 order.supplierPushes.length > 0
@@ -428,7 +443,9 @@ export function BlanksPage({
                             ))}
                           {!p.pushedAt &&
                             (p.supplier.adapterType === "linmiao" ? (
-                              hasOmsLabel ? (
+                              // Once the factory shipped (tracking reported),
+                              // the label hint is moot — show nothing.
+                              p.trackingNumber || p.shippedAt ? null : hasOmsLabel ? (
                                 <span className="text-[11px] text-green-700">
                                   {t("labelCreatedAwaitingPush")}
                                 </span>
