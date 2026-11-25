@@ -141,8 +141,33 @@ const FILTERS = [
   { value: "unpushed", labelKey: "filterUnpushed" },
   { value: "placed", labelKey: "filterPlaced" },
   { value: "pushed", labelKey: "filterPushed" },
+  { value: "partial", labelKey: "filterPartial" },
   { value: "rejected", labelKey: "filterRejected" },
 ] as const;
+
+interface BlanksSummary {
+  total: number;
+  unpushed: number;
+  placed: number;
+  pushed: number;
+  partial: number;
+  rejected: number;
+}
+
+/** Dashboard cards; each maps to a filter. Warn-colored ones highlight when > 0. */
+const DASH_CARDS: {
+  key: keyof BlanksSummary;
+  filter: string;
+  labelKey: (typeof FILTERS)[number]["labelKey"];
+  warnClass?: string;
+}[] = [
+  { key: "total", filter: "all", labelKey: "filterAll" },
+  { key: "unpushed", filter: "unpushed", labelKey: "filterUnpushed" },
+  { key: "placed", filter: "placed", labelKey: "filterPlaced" },
+  { key: "pushed", filter: "pushed", labelKey: "filterPushed" },
+  { key: "partial", filter: "partial", labelKey: "filterPartial", warnClass: "text-amber-600" },
+  { key: "rejected", filter: "rejected", labelKey: "filterRejected", warnClass: "text-red-600" },
+];
 
 export function BlanksPage({
   itemType = "other",
@@ -167,6 +192,7 @@ export function BlanksPage({
     orders: BlanksOrderRow[];
     total: number;
     totalPages: number;
+    summary?: BlanksSummary;
     rejectedSummary?: RejectedSummary;
   }>(
     `/api/blanks-orders?page=${page}&filter=${filter}&type=${itemType}${search ? `&q=${encodeURIComponent(search)}` : ""}`,
@@ -237,6 +263,36 @@ export function BlanksPage({
           </Link>
         </div>
       </div>
+
+      {data?.summary && (
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {DASH_CARDS.map((c) => {
+            const count = data.summary![c.key];
+            const active = filter === c.filter;
+            return (
+              <button
+                key={c.filter}
+                onClick={() => {
+                  setPage(1);
+                  setFilter(active && c.filter !== "all" ? "all" : c.filter);
+                }}
+                className={`border rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent ${
+                  active ? "border-primary ring-1 ring-primary" : ""
+                }`}
+              >
+                <div className="text-[11px] text-muted-foreground">{t(c.labelKey)}</div>
+                <div
+                  className={`text-lg font-semibold leading-tight ${
+                    c.warnClass && count > 0 ? c.warnClass : ""
+                  }`}
+                >
+                  {count}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {(() => {
         const rs = data?.rejectedSummary;

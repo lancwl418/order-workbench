@@ -637,6 +637,7 @@
     "filterUnpushed": "Not pushed",
     "filterPlaced": "Placed, not pushed",
     "filterPushed": "Pushed",
+    "filterPartial": "Partially unpushed",
     "filterRejected": "Rejected",
     "colOrder": "Order",
     "colOrderStatus": "Order Status",
