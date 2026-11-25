@@ -189,6 +189,10 @@ model Order {
   factoryLastTraceId String?   @map("factory_last_trace_id")
   factoryPushCount   Int       @default(0) @map("factory_push_count")
 
+  // Hidden from the Blanks/Printed Apparel push workbench (doesn't need
+  // factory pushing). Only those pages read this flag.
+  pushArchivedAt DateTime? @map("push_archived_at")
+
   // Metadata
   tags      String[] @default([])
   notes     String?  @db.Text
