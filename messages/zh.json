@@ -637,6 +637,7 @@
     "filterUnpushed": "未推送",
     "filterPlaced": "已建单未推送",
     "filterPushed": "已推送",
+    "filterPartial": "部分未推厂",
     "filterRejected": "被反审",
     "colOrder": "订单",
     "colOrderStatus": "订单状态",
