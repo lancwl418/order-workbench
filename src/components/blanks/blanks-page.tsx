@@ -7,6 +7,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   ChevronDown,
   ExternalLink,
   Factory,
@@ -58,6 +60,7 @@ interface BlanksOrderRow {
   customerName: string | null;
   internalStatus: string;
   labelStatus: string;
+  pushArchivedAt: string | null;
   trackingNumber: string | null;
   carrier: string | null;
   shopifyCreatedAt: string | null;
@@ -143,6 +146,7 @@ const FILTERS = [
   { value: "pushed", labelKey: "filterPushed" },
   { value: "partial", labelKey: "filterPartial" },
   { value: "rejected", labelKey: "filterRejected" },
+  { value: "archived", labelKey: "filterArchived" },
 ] as const;
 
 interface BlanksSummary {
@@ -185,6 +189,7 @@ export function BlanksPage({
   const [omsPushOrderId, setOmsPushOrderId] = useState<string | null>(null);
   const [omsPushGroup, setOmsPushGroup] = useState<string | undefined>(undefined);
   const [splitting, setSplitting] = useState(false);
+  const [archiving, setArchiving] = useState<string | null>(null);
 
   const { busy, rePush, refreshStatus, syncShopify, setRejectionStatus } = usePushBlanks();
 
@@ -217,6 +222,24 @@ export function BlanksPage({
 
   async function handleRejection(pushId: string, status: "handling" | "resolved") {
     if (await setRejectionStatus(pushId, status)) mutate();
+  }
+
+  async function handleArchive(orderId: string, archived: boolean) {
+    setArchiving(orderId);
+    try {
+      const res = await fetch("/api/blanks-orders/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: [orderId], archived }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Archive failed");
+      toast.success(t(archived ? "archivedToast" : "unarchivedToast"));
+      mutate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Archive failed");
+    } finally {
+      setArchiving(null);
+    }
   }
 
   /** Open the OMS label dialog for an order's blanks. Mixed orders are
@@ -646,6 +669,22 @@ export function BlanksPage({
                 </TableCell>
                 <TableCell className="align-top text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground"
+                      title={t(order.pushArchivedAt ? "unarchiveTitle" : "archiveTitle")}
+                      disabled={archiving === order.id}
+                      onClick={() => handleArchive(order.id, !order.pushArchivedAt)}
+                    >
+                      {archiving === order.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : order.pushArchivedAt ? (
+                        <ArchiveRestore className="h-3.5 w-3.5" />
+                      ) : (
+                        <Archive className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                     {order.supplierPushes.length > 0 && (
                       <Button
                         size="sm"

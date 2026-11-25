@@ -11,7 +11,10 @@ import { REJECTED_ORDER_STATUS } from "@/lib/suppliers/types";
  *
  * Query params: page, pageSize, q (order number search),
  * type = other (blanks, default) | printed_apparel,
- * filter = all | unpushed | placed | pushed | partial | rejected
+ * filter = all | unpushed | placed | pushed | partial | rejected | archived
+ *
+ * Archived orders (pushArchivedAt set) are hidden from every filter except
+ * "archived".
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -28,6 +31,7 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.OrderWhereInput = {
     orderItems: { some: { itemType } },
+    pushArchivedAt: filter === "archived" ? { not: null } : null,
     ...(q ? { shopifyOrderNumber: { contains: q, mode: "insensitive" } } : {}),
   };
 
@@ -37,7 +41,9 @@ export async function GET(req: NextRequest) {
   const partialRows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT DISTINCT oi.order_id AS id
     FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
     WHERE oi.item_type = ${itemType}
+      AND o.push_archived_at IS NULL
       AND EXISTS (SELECT 1 FROM supplier_pushes sp WHERE sp.order_id = oi.order_id)
       AND NOT EXISTS (
         SELECT 1 FROM supplier_pushes sp2
@@ -72,6 +78,7 @@ export async function GET(req: NextRequest) {
         customerName: true,
         internalStatus: true,
         labelStatus: true,
+        pushArchivedAt: true,
         trackingNumber: true,
         carrier: true,
         shopifyCreatedAt: true,
@@ -130,7 +137,10 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Dashboard counts for this category (not affected by q/filter)
-  const baseWhere: Prisma.OrderWhereInput = { orderItems: { some: { itemType } } };
+  const baseWhere: Prisma.OrderWhereInput = {
+    orderItems: { some: { itemType } },
+    pushArchivedAt: null,
+  };
   const [sumTotal, sumUnpushed, sumPlaced, sumPushed, sumRejected] = await Promise.all([
     prisma.order.count({ where: baseWhere }),
     prisma.order.count({ where: { ...baseWhere, supplierPushes: { none: {} } } }),
@@ -152,7 +162,7 @@ export async function GET(req: NextRequest) {
   // Global rejection workload for the summary banner (not page-scoped)
   const rejectionRows = await prisma.supplierPush.groupBy({
     by: ["rejectionStatus"],
-    where: { orderStatus: REJECTED_ORDER_STATUS },
+    where: { orderStatus: REJECTED_ORDER_STATUS, order: { pushArchivedAt: null } },
     _count: true,
   });
   const rejectedSummary = { pending: 0, handling: 0, resolved: 0 };
